@@ -2543,7 +2543,7 @@
             document.getElementById('question-content').classList.add('flex', 'items-center', 'justify-center');
             document.getElementById('question-content').innerHTML = `
                 <div id="login-card" class="text-center p-12 bg-white rounded-xl shadow-lg border border-blue-200">
-                    <h1 class="text-3xl font-extrabold text-blue-700 mb-6">Welcome AK-Anous Platform</h1>
+                    <h1 class="text-3xl font-extrabold text-blue-700 mb-6">Welcome Dr.Joe Platform</h1>
                     <div class="mx-auto max-w-sm mb-6 text-left">
                         <div class="mb-4">
                             <span class="block text-lg font-semibold text-gray-800 mb-2">I am a:</span>
@@ -2552,10 +2552,7 @@
                                     <input type="radio" class="form-radio text-blue-600" name="role" value="student" checked onchange="toggleParentEmail(true)">
                                     <span class="ml-2">Student</span>
                                 </label>
-                                <label class="inline-flex items-center">
-                                    <input type="radio" class="form-radio text-blue-600" name="role" value="teacher" onchange="toggleParentEmail(false)">
-                                    <span class="ml-2">Teacher/Academy</span>
-                                </label>
+                                
                             </div>
                         </div>
 
@@ -2564,25 +2561,17 @@
                                placeholder="Enter your full name"
                                class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg mb-4">
 
-                        <label for="login-email-input" class="block text-lg font-semibold text-gray-800 mb-1">Email:</label>
-                        <input type="email" id="login-email-input" 
-                               placeholder="Enter your email"
-                               class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg mb-4">
-
+                        
                         <label for="password-input" class="block text-lg font-semibold text-gray-800 mb-1">Password:</label>
                         <input type="password" id="password-input" 
                                placeholder="Enter Password"
                                class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg mb-4">
                         
                         <div id="parent-email-container">
-                            <label for="parent-email-input" class="block text-lg font-semibold text-gray-800 mb-1">Parent Email (Optional):</label>
-                            <input type="email" id="parent-email-input" 
-                                   placeholder="parent@example.com"
-                                   class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg mb-4">
                             
                             <label for="parent-phone-input" class="block text-lg font-semibold text-gray-800 mb-1">Parent Phone Number (Optional):</label>
                             <input type="tel" id="parent-phone-input" 
-                                   placeholder="+1234567890"
+                                   placeholder="+201234567890"
                                    class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg">
                         </div>
                                 
@@ -3514,7 +3503,7 @@
                 `Score: ${score} (Scaled)\n` +
                 `Raw Accuracy: ${correct}/${total}\n\n` +
                 `Please encourage them to review their mistakes on the platform.\n\n` +
-                `Best regards,\nAK-Anous Platform`
+                `Best regards,\nDr.Joe Platform`
             );
             window.open(`mailto:${window.state.parentEmail}?subject=${subject}&body=${body}`);
         }
@@ -3754,9 +3743,9 @@
             
             // Calculate module scores if passed or parse from somewhere, but for the button we just pass total
             // To match the requested message format exactly:
-            // "Hello, this is AK-Anous Platform. Your son/daughter {studentName} has completed the {testId} Mock Test with a total score of {totalScore}/44..."
+            // "Hello, this is Dr.Joe Platform. Your son/daughter {studentName} has completed the {testId} Mock Test with a total score of {totalScore}/44..."
             
-            const message = `Hello, this is AK-Anous Platform. Your son/daughter ${studentName} has completed the ${testName} with a total score of ${score}/${total}.`;
+            const message = `Hello, this is Dr.Joe Platform. Your son/daughter ${studentName} has completed the ${testName} with a total score of ${score}/${total}.`;
             
             const encodedMessage = encodeURIComponent(message);
             const whatsappUrl = `https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodedMessage}`;
