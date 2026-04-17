@@ -18,7 +18,35 @@ import {
     deleteDoc
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// --- 1. دالة الحفظ التلقائي للسيرفر ---
+// --- المتغيرات العامة (مرة واحدة فقط) ---
+let userId = null;
+window.auth = auth;
+window.db = db;
+
+const DEFAULT_STATE = {
+    appStage: 'login',  
+    currentTestId: null,  
+    module: 1,
+    questionIndex: 0,  
+    moduleQuestions: [],  
+    userAnswers: [],
+    flags: [],
+    timeLeft: 33 * 60,  
+    timerInterval: null,
+    testActive: true,
+    isAuthReady: true,
+    studentName: '',
+    isCalculatorOpen: false,  
+    testHistory: {
+        totalScore: 0,
+        module1: { questions: [], answers: [], score: 0, percentage: 0 },
+        module2: { questions: [], answers: [], score: 0, percentage: 0, difficulty: null }
+    }
+};
+
+window.state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+
+// --- 1. دالة الحفظ التلقائي ---
 async function saveProgressToCloud() {
     if (!userId || !window.state.currentTestId || window.state.appStage !== 'test') return;
 
@@ -38,10 +66,13 @@ async function saveProgressToCloud() {
     }
 }
 
-// --- 2. دالة إنهاء الامتحان وتنظيف البيانات ---
+// --- 2. دالة إنهاء الامتحان والتنظيف ---
 async function finalizeTestResults(finalScore) {
+	if (!userId) {
+        console.error("No user ID found, cannot finalize test.");
+        return;
+    }
     try {
-        // حفظ النتيجة في الأرشيف
         await addDoc(collection(db, "test_results"), {
             userId: userId,
             testId: window.state.currentTestId || "Practice Test",
@@ -49,45 +80,21 @@ async function finalizeTestResults(finalScore) {
             date: new Date().toISOString()
         });
 
-        // مسح الامتحان المؤقت من active_sessions
         const q = query(collection(db, "active_sessions"), where("userId", "==", userId));
         const querySnapshot = await getDocs(q);
-        querySnapshot.forEach(async (docSnap) => {
+        for (const docSnap of querySnapshot.docs) {
             await deleteDoc(doc(db, "active_sessions", docSnap.id));
-        });
+        }
         console.log("Test finalized and cleaned up.");
     } catch (e) {
         console.error("Error finalizing test:", e);
     }
 }
 
-window.auth = auth;
-window.db = db;
-
-let userId = null;
-
-// حالة التطبيق الافتراضية
-const DEFAULT_STATE = {
-    appStage: 'login',  
-    currentTestId: null,  
-    module: 1,
-    questionIndex: 0,  
-    moduleQuestions: [],  
-    userAnswers: [],
-    timeLeft: 33 * 60,  
-    testActive: true,
-    studentName: '',
-    testHistory: { totalScore: 0 }
-};
-
-window.state = { ...DEFAULT_STATE };
-
 // --- 3. إدارة الدخول والذاكرة (Resume) ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         userId = user.uid;
-        
-        // البحث عن امتحان لم يكتمل
         const q = query(collection(db, "active_sessions"), where("userId", "==", userId));
         const querySnapshot = await getDocs(q);
 
@@ -97,51 +104,45 @@ onAuthStateChanged(auth, async (user) => {
             if (confirmResume) {
                 Object.assign(window.state, savedData);
                 window.state.appStage = 'test';
-                renderApp(); 
-                startTimer();
+                if (typeof renderApp === "function") renderApp(); 
+                // نادى على Timer هنا لو موجود
                 return;
             }
         }
-        showDashboard(); 
+        if (typeof showDashboard === "function") showDashboard(); 
     } else {
         userId = null;
         window.state.appStage = 'login';
-        renderApp();
+        if (typeof renderApp === "function") renderApp();
     }
 });
 
-// --- 4. دالة اختيار الإجابة (معدلة للحفظ) ---
-function selectAnswer(index) {
+// --- 4. الدوال المساعدة ---
+window.selectAnswer = function(index) {
     if (!window.state.testActive) return;
     window.state.userAnswers[window.state.questionIndex] = index;
-    
-    renderQuestion();
-    renderNavigation();
-    
-    // حفظ كل حركة للطالب
+    if (typeof renderQuestion === "function") renderQuestion();
+    if (typeof renderNavigation === "function") renderNavigation();
     saveProgressToCloud(); 
-}
+};
 
-// --- 5. دالة عرض النتائج (معدلة للتنظيف) ---
-function renderResults() {
+window.renderResults = function() {
     window.state.appStage = 'results';
-    const score = calculateScore(); // افترضنا وجود دالة حساب السكور عندك
-    
-    // استدعاء دالة الحفظ النهائي والمسح
+    // احسب السكور هنا حسب طريقتك
+    const score = window.state.testHistory.totalScore || 0; 
     finalizeTestResults(score);
-    
-    // كود عرض النتائج بتاعك يكمل هنا...
-}
+    // كود عرض النتيجة...
+};
         // Expose to window for debugging or global access if needed
         window.auth = auth;
         window.db = db;
         
-        let userId = null;
+         userId = null;
         const APP_ID = 'dsat-app-id';
 
         // --- Core Test State ---
         // Default state if no data is loaded from localStorage
-        const DEFAULT_STATE = {
+         DEFAULT_STATE = {
             appStage: 'login',  
             currentTestId: null,  
             module: 1,
