@@ -1,148 +1,32 @@
-import { auth, db } from './firebase-init.js';
-import { 
-    signInWithEmailAndPassword, 
-    createUserWithEmailAndPassword, 
-    onAuthStateChanged,
-    signOut
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { 
-    collection, 
-    addDoc, 
-    getDocs, 
-    query, 
-    where,
-    Timestamp,
-    setDoc,
-    doc,
-    getDoc,
-    deleteDoc
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { auth, db } from './firebase-init.js';
+        import { 
+            signInWithEmailAndPassword, 
+            createUserWithEmailAndPassword, 
+            onAuthStateChanged,
+            signOut
+        } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { 
+            collection, 
+            addDoc, 
+            getDocs, 
+            query, 
+            where,
+            Timestamp,
+            setDoc,
+            doc,
+            getDoc
+        } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// --- المتغيرات العامة (مرة واحدة فقط) ---
-let userId = null;
-window.auth = auth;
-window.db = db;
-
-const DEFAULT_STATE = {
-    appStage: 'login',  
-    currentTestId: null,  
-    module: 1,
-    questionIndex: 0,  
-    moduleQuestions: [],  
-    userAnswers: [],
-    flags: [],
-    timeLeft: 33 * 60,  
-    timerInterval: null,
-    testActive: true,
-    isAuthReady: true,
-    studentName: '',
-    isCalculatorOpen: false,  
-    testHistory: {
-        totalScore: 0,
-        module1: { questions: [], answers: [], score: 0, percentage: 0 },
-        module2: { questions: [], answers: [], score: 0, percentage: 0, difficulty: null }
-    }
-};
-
-window.state = JSON.parse(JSON.stringify(DEFAULT_STATE));
-
-// --- 1. دالة الحفظ التلقائي ---
-async function saveProgressToCloud() {
-    if (!userId || !window.state.currentTestId || window.state.appStage !== 'test') return;
-
-    try {
-        const testRef = doc(db, "active_sessions", `${userId}_${window.state.currentTestId}`);
-        await setDoc(testRef, {
-            userId: userId,
-            currentTestId: window.state.currentTestId,
-            module: window.state.module,
-            questionIndex: window.state.questionIndex,
-            userAnswers: window.state.userAnswers,
-            timeLeft: window.state.timeLeft,
-            lastUpdated: new Date().toISOString()
-        }, { merge: true });
-    } catch (e) {
-        console.error("Error saving progress:", e);
-    }
-}
-
-// --- 2. دالة إنهاء الامتحان والتنظيف ---
-async function finalizeTestResults(finalScore) {
-	if (!userId) {
-        console.error("No user ID found, cannot finalize test.");
-        return;
-    }
-    try {
-        await addDoc(collection(db, "test_results"), {
-            userId: userId,
-            testId: window.state.currentTestId || "Practice Test",
-            score: finalScore,
-            date: new Date().toISOString()
-        });
-
-        const q = query(collection(db, "active_sessions"), where("userId", "==", userId));
-        const querySnapshot = await getDocs(q);
-        for (const docSnap of querySnapshot.docs) {
-            await deleteDoc(doc(db, "active_sessions", docSnap.id));
-        }
-        console.log("Test finalized and cleaned up.");
-    } catch (e) {
-        console.error("Error finalizing test:", e);
-    }
-}
-
-// --- 3. إدارة الدخول والذاكرة (Resume) ---
-onAuthStateChanged(auth, async (user) => {
-    if (user) {
-        userId = user.uid;
-        const q = query(collection(db, "active_sessions"), where("userId", "==", userId));
-        const querySnapshot = await getDocs(q);
-
-        if (!querySnapshot.empty) {
-            const savedData = querySnapshot.docs[0].data();
-            const confirmResume = confirm("يوجد امتحان لم يكتمل، هل تريد الاستكمال من حيث توقفت؟");
-            if (confirmResume) {
-                Object.assign(window.state, savedData);
-                window.state.appStage = 'test';
-                if (typeof renderApp === "function") renderApp(); 
-                // نادى على Timer هنا لو موجود
-                return;
-            }
-        }
-        if (typeof showDashboard === "function") showDashboard(); 
-    } else {
-        userId = null;
-        window.state.appStage = 'login';
-        if (typeof renderApp === "function") renderApp();
-    }
-});
-
-// --- 4. الدوال المساعدة ---
-window.selectAnswer = function(index) {
-    if (!window.state.testActive) return;
-    window.state.userAnswers[window.state.questionIndex] = index;
-    if (typeof renderQuestion === "function") renderQuestion();
-    if (typeof renderNavigation === "function") renderNavigation();
-    saveProgressToCloud(); 
-};
-
-window.renderResults = function() {
-    window.state.appStage = 'results';
-    // احسب السكور هنا حسب طريقتك
-    const score = window.state.testHistory.totalScore || 0; 
-    finalizeTestResults(score);
-    // كود عرض النتيجة...
-};
         // Expose to window for debugging or global access if needed
         window.auth = auth;
         window.db = db;
         
-         userId = null;
+        let userId = null;
         const APP_ID = 'dsat-app-id';
 
         // --- Core Test State ---
         // Default state if no data is loaded from localStorage
-         DEFAULT_STATE = {
+        const DEFAULT_STATE = {
             appStage: 'login',  
             currentTestId: null,  
             module: 1,
@@ -3532,7 +3416,6 @@ window.renderResults = function() {
          * Renders the final score report.
          */
         function renderScoreReport(totalCorrect, finalScorePercentage, totalQuestions) {
-			finalizeTestResults(800);
             window.state.appStage = 'finished';
             const m1 = window.state.testHistory.module1;
             const m2 = window.state.testHistory.module2;
