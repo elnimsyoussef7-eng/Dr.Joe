@@ -2552,7 +2552,10 @@
                                     <input type="radio" class="form-radio text-blue-600" name="role" value="student" checked onchange="toggleParentEmail(true)">
                                     <span class="ml-2">Student</span>
                                 </label>
-                                
+                                <label class="inline-flex items-center">
+                                    <input type="radio" class="form-radio text-blue-600" name="role" value="teacher" onchange="toggleParentEmail(false)">
+                                    <span class="ml-2">Teacher/Academy</span>
+                                </label>
                             </div>
                         </div>
 
@@ -2561,17 +2564,25 @@
                                placeholder="Enter your full name"
                                class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg mb-4">
 
-                        
+                        <label for="login-email-input" class="block text-lg font-semibold text-gray-800 mb-1">Email:</label>
+                        <input type="email" id="login-email-input" 
+                               placeholder="Enter your email"
+                               class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg mb-4">
+
                         <label for="password-input" class="block text-lg font-semibold text-gray-800 mb-1">Password:</label>
                         <input type="password" id="password-input" 
                                placeholder="Enter Password"
                                class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg mb-4">
                         
                         <div id="parent-email-container">
+                            <label for="parent-email-input" class="block text-lg font-semibold text-gray-800 mb-1">Parent Email (Optional):</label>
+                            <input type="email" id="parent-email-input" 
+                                   placeholder="parent@example.com"
+                                   class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg mb-4">
                             
                             <label for="parent-phone-input" class="block text-lg font-semibold text-gray-800 mb-1">Parent Phone Number (Optional):</label>
                             <input type="tel" id="parent-phone-input" 
-                                   placeholder="+201234567890"
+                                   placeholder="+1234567890"
                                    class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg">
                         </div>
                                 
@@ -2668,8 +2679,10 @@
         }
 
         window.handleSignUp = async function() {
+            const emailInput = document.getElementById('login-email-input');
             const passInput = document.getElementById('password-input');
             const fullNameInput = document.getElementById('full-name-input');
+            const parentEmailInput = document.getElementById('parent-email-input');
             const parentPhoneInput = document.getElementById('parent-phone-input');
             const errorMessage = document.getElementById('login-error-message');
             const successMessage = document.getElementById('login-success-message');
