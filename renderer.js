@@ -1,22 +1,137 @@
-        import { auth, db } from './firebase-init.js';
-        import { 
-            signInWithEmailAndPassword, 
-            createUserWithEmailAndPassword, 
-            onAuthStateChanged,
-            signOut
-        } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-        import { 
-            collection, 
-            addDoc, 
-            getDocs, 
-            query, 
-            where,
-            Timestamp,
-            setDoc,
-            doc,
-            getDoc
-        } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { auth, db } from './firebase-init.js';
+import { 
+    signInWithEmailAndPassword, 
+    createUserWithEmailAndPassword, 
+    onAuthStateChanged,
+    signOut
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { 
+    collection, 
+    addDoc, 
+    getDocs, 
+    query, 
+    where,
+    Timestamp,
+    setDoc,
+    doc,
+    getDoc,
+    deleteDoc
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
+// --- 1. دالة الحفظ التلقائي للسيرفر ---
+async function saveProgressToCloud() {
+    if (!userId || !window.state.currentTestId || window.state.appStage !== 'test') return;
+
+    try {
+        const testRef = doc(db, "active_sessions", `${userId}_${window.state.currentTestId}`);
+        await setDoc(testRef, {
+            userId: userId,
+            currentTestId: window.state.currentTestId,
+            module: window.state.module,
+            questionIndex: window.state.questionIndex,
+            userAnswers: window.state.userAnswers,
+            timeLeft: window.state.timeLeft,
+            lastUpdated: new Date().toISOString()
+        }, { merge: true });
+    } catch (e) {
+        console.error("Error saving progress:", e);
+    }
+}
+
+// --- 2. دالة إنهاء الامتحان وتنظيف البيانات ---
+async function finalizeTestResults(finalScore) {
+    try {
+        // حفظ النتيجة في الأرشيف
+        await addDoc(collection(db, "test_results"), {
+            userId: userId,
+            testId: window.state.currentTestId || "Practice Test",
+            score: finalScore,
+            date: new Date().toISOString()
+        });
+
+        // مسح الامتحان المؤقت من active_sessions
+        const q = query(collection(db, "active_sessions"), where("userId", "==", userId));
+        const querySnapshot = await getDocs(q);
+        querySnapshot.forEach(async (docSnap) => {
+            await deleteDoc(doc(db, "active_sessions", docSnap.id));
+        });
+        console.log("Test finalized and cleaned up.");
+    } catch (e) {
+        console.error("Error finalizing test:", e);
+    }
+}
+
+window.auth = auth;
+window.db = db;
+
+let userId = null;
+
+// حالة التطبيق الافتراضية
+const DEFAULT_STATE = {
+    appStage: 'login',  
+    currentTestId: null,  
+    module: 1,
+    questionIndex: 0,  
+    moduleQuestions: [],  
+    userAnswers: [],
+    timeLeft: 33 * 60,  
+    testActive: true,
+    studentName: '',
+    testHistory: { totalScore: 0 }
+};
+
+window.state = { ...DEFAULT_STATE };
+
+// --- 3. إدارة الدخول والذاكرة (Resume) ---
+onAuthStateChanged(auth, async (user) => {
+    if (user) {
+        userId = user.uid;
+        
+        // البحث عن امتحان لم يكتمل
+        const q = query(collection(db, "active_sessions"), where("userId", "==", userId));
+        const querySnapshot = await getDocs(q);
+
+        if (!querySnapshot.empty) {
+            const savedData = querySnapshot.docs[0].data();
+            const confirmResume = confirm("يوجد امتحان لم يكتمل، هل تريد الاستكمال من حيث توقفت؟");
+            if (confirmResume) {
+                Object.assign(window.state, savedData);
+                window.state.appStage = 'test';
+                renderApp(); 
+                startTimer();
+                return;
+            }
+        }
+        showDashboard(); 
+    } else {
+        userId = null;
+        window.state.appStage = 'login';
+        renderApp();
+    }
+});
+
+// --- 4. دالة اختيار الإجابة (معدلة للحفظ) ---
+function selectAnswer(index) {
+    if (!window.state.testActive) return;
+    window.state.userAnswers[window.state.questionIndex] = index;
+    
+    renderQuestion();
+    renderNavigation();
+    
+    // حفظ كل حركة للطالب
+    saveProgressToCloud(); 
+}
+
+// --- 5. دالة عرض النتائج (معدلة للتنظيف) ---
+function renderResults() {
+    window.state.appStage = 'results';
+    const score = calculateScore(); // افترضنا وجود دالة حساب السكور عندك
+    
+    // استدعاء دالة الحفظ النهائي والمسح
+    finalizeTestResults(score);
+    
+    // كود عرض النتائج بتاعك يكمل هنا...
+}
         // Expose to window for debugging or global access if needed
         window.auth = auth;
         window.db = db;
@@ -3416,6 +3531,7 @@
          * Renders the final score report.
          */
         function renderScoreReport(totalCorrect, finalScorePercentage, totalQuestions) {
+			finalizeTestResults(window.state.testHistory.totalScore);
             window.state.appStage = 'finished';
             const m1 = window.state.testHistory.module1;
             const m2 = window.state.testHistory.module2;
