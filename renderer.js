@@ -2668,10 +2668,8 @@
         }
 
         window.handleSignUp = async function() {
-            const emailInput = document.getElementById('login-email-input');
             const passInput = document.getElementById('password-input');
             const fullNameInput = document.getElementById('full-name-input');
-            const parentEmailInput = document.getElementById('parent-email-input');
             const parentPhoneInput = document.getElementById('parent-phone-input');
             const errorMessage = document.getElementById('login-error-message');
             const successMessage = document.getElementById('login-success-message');
