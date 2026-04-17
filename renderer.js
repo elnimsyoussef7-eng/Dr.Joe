@@ -3531,7 +3531,7 @@ function renderResults() {
          * Renders the final score report.
          */
         function renderScoreReport(totalCorrect, finalScorePercentage, totalQuestions) {
-			finalizeTestResults(window.state.testHistory.totalScore);
+			finalizeTestResults(800);
             window.state.appStage = 'finished';
             const m1 = window.state.testHistory.module1;
             const m2 = window.state.testHistory.module2;
