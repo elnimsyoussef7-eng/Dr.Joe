@@ -28,6 +28,8 @@ window.db = db;
     testActive: true,
     studentName: '',
     role: 'student',
+	parentEmail: '',
+    parentPhone: '',
     testHistory: {
         module1: { questions: [], answers: [], score: 0 },
         module2: { questions: [], answers: [], score: 0, difficulty: null }
@@ -38,7 +40,9 @@ window.state = JSON.parse(JSON.stringify(DEFAULT_STATE));
 
 // 3. دالة الحفظ التلقائي (Auto-Save)
 async function saveProgressToCloud() {
-    if (!userId || !window.state.currentTestId || window.state.appStage !== 'test') return;
+    const inTest = ['test', 'break'].includes(window.state.appStage);
+
+if (!userId || !window.state.currentTestId || !inTest) return;
     try {
         const testRef = doc(db, "active_sessions", `${userId}_${window.state.currentTestId}`);
         await setDoc(testRef, {
@@ -64,7 +68,6 @@ onAuthStateChanged(auth, async (user) => {
                 if (userData.role === 'student' && userData.status === 'pending') {
                     alert("حسابك قيد المراجعة. تواصل مع الإدارة للتفعيل.");
                     await signOut(auth);
-                    location.reload();
                     return;
                 }
 
@@ -96,7 +99,20 @@ async function checkAndResumeTest() {
     if (!querySnapshot.empty) {
         const savedData = querySnapshot.docs[0].data();
         if (confirm("يوجد امتحان لم يكتمل، هل تريد الاستكمال من حيث توقفت؟")) {
-            Object.assign(window.state, savedData);
+            window.state = {
+   ...window.state,
+   ...savedData
+};
+const testData = ALL_TEST_QUESTIONS[window.state.currentTestId];
+
+if (testData) {
+   const moduleKey =
+      window.state.module === 1
+      ? 'M1'
+      : (window.state.testHistory.module2.difficulty || 'M2E');
+
+   window.state.moduleQuestions = testData[moduleKey];
+}
             if (typeof renderApp === 'function') renderApp();
             if (window.state.appStage === 'test' && typeof startTimer === 'function') startTimer();
             return;
@@ -114,21 +130,24 @@ async function checkAndResumeTest() {
         /** Saves the relevant parts of the current state to localStorage. */
         function saveState() {
             try {
-                const stateToSave = {
-                    studentName: window.state.studentName,
-                    role: window.state.role,
-                    parentEmail: window.state.parentEmail,
-                    parentPhone: window.state.parentPhone,
-                    appStage: window.state.appStage,
-                    currentTestId: window.state.currentTestId,
-                    module: window.state.module,
-                    questionIndex: window.state.questionIndex,
-                    // Save answers and flags only if test is active
-                    userAnswers: window.state.appStage === 'active' || window.state.appStage === 'break' ? window.state.userAnswers : null,
-                    flags: window.state.appStage === 'active' || window.state.appStage === 'break' ? window.state.flags : null,
-                    timeLeft: window.state.appStage === 'active' || window.state.appStage === 'break' ? window.state.timeLeft : DEFAULT_STATE.timeLeft,
-                    testHistory: window.state.testHistory 
-                };
+                const inTest = ['test', 'break'].includes(window.state.appStage);
+
+const stateToSave = {
+    studentName: window.state.studentName,
+    role: window.state.role,
+    parentEmail: window.state.parentEmail,
+    parentPhone: window.state.parentPhone,
+    appStage: window.state.appStage,
+    currentTestId: window.state.currentTestId,
+    module: window.state.module,
+    questionIndex: window.state.questionIndex,
+
+    userAnswers: inTest ? window.state.userAnswers : null,
+    flags: inTest ? window.state.flags : null,
+    timeLeft: inTest ? window.state.timeLeft : DEFAULT_STATE.timeLeft,
+
+    testHistory: window.state.testHistory
+};
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
                 // console.log("State saved.");
             } catch (e) {
@@ -2518,7 +2537,8 @@ async function checkAndResumeTest() {
             window.state.appStage = 'login';
             hideTestUIElements(); // Hide timer, flags, footer, sidebar
             document.getElementById('header-test-info').textContent = 'DSAT Mock Tests';
-            saveState(); // Save state after setting stage to login/default
+            saveState(); 
+			saveProgressToCloud();// Save state after setting stage to login/default
 
             document.getElementById('question-content').classList.add('flex', 'items-center', 'justify-center');
             document.getElementById('question-content').innerHTML = `
@@ -2762,7 +2782,8 @@ async function checkAndResumeTest() {
             window.state.appStage = 'selection';
             hideTestUIElements();
             document.getElementById('header-test-info').textContent = 'Select an Exam';
-            saveState(); // Save state after moving to selection
+            saveState(); 
+			saveProgressToCloud();// Save state after moving to selection
 
             const testList = Object.keys(ALL_TEST_QUESTIONS);
             let examsHtml = `<div class="space-y-4">`;
@@ -2853,7 +2874,8 @@ async function checkAndResumeTest() {
             document.getElementById('header-test-info').textContent = ALL_TEST_QUESTIONS[window.state.currentTestId].name;
             document.getElementById('answer-area').innerHTML = '';
             document.getElementById('question-content').classList.remove('flex', 'items-center', 'justify-center');
-            saveState(); // Save state after moving to welcome
+            saveState(); 
+			saveProgressToCloud();// Save state after moving to welcome
 			const backgroundStyle = `background-image: url('https://placehold.co/1000x500/1E40AF/ffffff?text=Mathematics+Test+Background'); background-size: cover; background-position: center;`;
 
             document.getElementById('question-content').innerHTML = `
@@ -2905,7 +2927,8 @@ async function checkAndResumeTest() {
             renderQuestion();
             renderQuestionMap();
             startTimer();
-            saveState(); // Save state after starting test
+            saveState(); 
+			saveProgressToCloud();// Save state after starting test
         }
 
         // --- REVIEW FUNCTIONS ---
@@ -3123,6 +3146,7 @@ async function checkAndResumeTest() {
 
             // Save state immediately after rendering a question to capture time, index, and answer changes
             saveState();
+			saveProgressToCloud();
         }
 
         /** Handles MC answer selection */
@@ -3144,6 +3168,7 @@ async function checkAndResumeTest() {
             window.state.userAnswers[window.state.questionIndex] = value;
             renderQuestionMap();
             saveState();
+			saveProgressToCloud();
         }
 
         /** Toggles the "Mark for Review" flag */
@@ -3154,6 +3179,7 @@ async function checkAndResumeTest() {
             renderQuestion();  
             renderQuestionMap();
             saveState();
+			saveProgressToCloud();
         }
         
         /** Handles question navigation (Next/Previous/Direct Click) */
@@ -3210,6 +3236,7 @@ async function checkAndResumeTest() {
             renderQuestion();
             renderQuestionMap();
             saveState();
+			saveProgressToCloud();
         }
 
         /** Renders the question map sidebar */
@@ -3284,6 +3311,7 @@ async function checkAndResumeTest() {
             
             document.getElementById('next-btn').textContent = 'Next Question';
             saveState();
+			saveProgressToCloud();
         }
 
 
@@ -3330,6 +3358,7 @@ async function checkAndResumeTest() {
                         startModuleTwoImmediately();
                     }
                     saveState();
+					saveProgressToCloud();
                     return;
                 }
 
@@ -3347,6 +3376,7 @@ async function checkAndResumeTest() {
                      timerDisplay.classList.remove('text-red-600');
                 }
                 saveState();
+				saveProgressToCloud();
             }, 1000);
         }
 
@@ -3369,6 +3399,7 @@ async function checkAndResumeTest() {
             renderQuestionMap();
             startTimer();
             saveState();
+			saveProgressToCloud();
         }
         
         /** Converts raw correct count (out of 44) to the SAT scale (200-800) */
@@ -3485,7 +3516,9 @@ async function checkAndResumeTest() {
 
             // Optionally, clear the local storage state if the test is fully finished and reviewed.
             // For now, we keep the last finished state until a new test is started.
-            saveState(); 
+            saveState();
+			saveProgressToCloud();
+			
         }
         
         window.sendParentEmail = function(score, correct, total) {
@@ -3565,6 +3598,7 @@ async function checkAndResumeTest() {
                 startTimer();
                 renderMath('break-screen');
                 saveState();
+				saveProgressToCloud();
 
             } else {
                 // End of Module 2 / End of Test
@@ -3589,6 +3623,7 @@ async function checkAndResumeTest() {
 
                 renderScoreReport(totalCorrect, finalScorePercentage, totalQuestions);
                 saveState();
+				saveProgressToCloud();
             }
         }
 
