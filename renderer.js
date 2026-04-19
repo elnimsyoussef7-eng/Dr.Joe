@@ -2636,6 +2636,24 @@
             try {
                 const userCredential = await signInWithEmailAndPassword(auth, email, password);
                 const user = userCredential.user;
+				const userDoc = await getDoc(doc(db, "users", user.uid));
+        
+        if (userDoc.exists()) {
+            const userData = userDoc.data();
+            
+            if (userData.isApproved === false) {
+                alert("حسابك في انتظار مراجعة الإدارة. سيتم تفعيله قريباً.");
+                await signOut(auth);
+                return;
+            }
+            
+            // لو مقبول، كمل ودخله عادي وسجل الامتحان المسموح له به
+            window.currentUserData = userData; 
+            showDashboard(); 
+        }
+    } catch (error) {
+        alert("خطأ في تسجيل الدخول: " + error.message);
+    }
                 console.log("Logged in:", user.email);
                 
                 // Fetch user profile
@@ -2715,6 +2733,19 @@
             try {
                 const userCredential = await createUserWithEmailAndPassword(auth, email, password);
                 const user = userCredential.user;
+				await setDoc(doc(db, "users", user.uid), {
+            name: fullName,
+            email: email,
+            isApproved: false, // لازم المدير يوافق عليه الأول
+            assignedTest: null, // مفيش امتحان محدد لسه
+            createdAt: Timestamp.now()
+        });
+
+        alert("تم التسجيل بنجاح! برجاء انتظار موافقة الإدارة لتتمكن من الدخول.");
+        signOut(auth); // بنخرجه فوراً لحد ما نوافق عليه
+    } catch (error) {
+        console.error("Signup error:", error);
+    }
                 console.log("Signed up:", user.email);
                 
                 const displayName = fullName || user.email.split('@')[0];
@@ -2779,57 +2810,68 @@
         }
 
         window.renderExamSelectionScreen = async function() { 
-            window.state.appStage = 'selection';
-            hideTestUIElements();
-            document.getElementById('header-test-info').textContent = 'Select an Exam';
-            saveState(); // Save state after moving to selection
+    window.state.appStage = 'selection';
+    hideTestUIElements();
+    document.getElementById('header-test-info').textContent = 'Select an Exam';
+    saveState(); 
 
-            const testList = Object.keys(ALL_TEST_QUESTIONS);
-            let examsHtml = `<div class="space-y-4">`;
+    const testList = Object.keys(ALL_TEST_QUESTIONS);
+    let examsHtml = `<div class="space-y-4">`;
 
-            // Fetch past attempts for the current user
-            const pastResults = await window.fetchPastResults(); 
-            
-            for (const testId of testList) {
-                const testData = ALL_TEST_QUESTIONS[testId];
-                const result = pastResults[testId];
-                const totalCorrect = result ? result.totalCorrect : 'N/A';
-                const attemptDate = result ? new Date(result.timestamp).toLocaleDateString() : 'Never taken';
-                
-
-                examsHtml += `
-                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-white border border-gray-300 rounded-lg shadow-md">
-                        <div class="text-left mb-3 sm:mb-0 sm:pr-4">
-                            <h3 class="text-xl font-bold text-gray-800">${testData.name}</h3>
-                            <p class="text-sm text-gray-500 mt-1">Status: ${result ? `Score ${totalCorrect}/44 (Last taken: ${attemptDate})` : 'Ready to start'}</p>
-                            
-                        </div>
-                        <div class="space-x-3 flex items-center shrink-0">
-                            <button onclick="loadTestQuestions('${testId}')" 
-                                    class="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-700 text-white font-semibold rounded-lg shadow hover:shadow-md hover:scale-105 transition duration-150">
-                                Start Test
-                            </button>
-                            ${result ? `
-                            <button onclick="reviewPastAttempt('${testId}')" 
-                                    class="px-4 py-2 bg-gradient-to-r from-indigo-500 to-indigo-700 text-white font-semibold rounded-lg shadow hover:shadow-md hover:scale-105 transition duration-150">
-                                Review
-                            </button>` : ''}
-                            
-                        </div>
-                    </div>
-                `;
-            }
-
-            examsHtml += `</div>`;
-            
-            const contentDiv = document.getElementById('question-content');
-            contentDiv.classList.remove('flex', 'items-center', 'justify-center');
-            contentDiv.innerHTML = `
-                <h2 id="exam-selection-title" class="text-3xl font-bold text-gray-800 mb-6">Exams Available for ${window.state.studentName}</h2>
-                ${examsHtml}
-            `;
-            renderMath('exam-selection-title');
+    // جلب نتائج الامتحانات السابقة
+    const pastResults = await window.fetchPastResults(); 
+    
+    // --- التعديل هنا: جلب معرف الامتحان المخصص لهذا الطالب ---
+    const assignedTestId = window.currentUserData?.assignedTest;
+    
+    for (const testId of testList) {
+        // --- إضافة الشرط هنا ---
+        // لو الطالب مخصص له امتحان معين، والامتحان الحالي مش هو، هيعمل "تخطي" (continue)
+        if (assignedTestId && testId !== assignedTestId) {
+            continue; 
         }
+
+        const testData = ALL_TEST_QUESTIONS[testId];
+        const result = pastResults[testId];
+        const totalCorrect = result ? result.totalCorrect : 'N/A';
+        const attemptDate = result ? new Date(result.timestamp).toLocaleDateString() : 'Never taken';
+
+        examsHtml += `
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-white border border-gray-300 rounded-lg shadow-md">
+                <div class="text-left mb-3 sm:mb-0 sm:pr-4">
+                    <h3 class="text-xl font-bold text-gray-800">${testData.name}</h3>
+                    <p class="text-sm text-gray-500 mt-1">Status: ${result ? `Score ${totalCorrect}/44 (Last taken: ${attemptDate})` : 'Ready to start'}</p>
+                </div>
+                <div class="space-x-3 flex items-center shrink-0">
+                    <button onclick="loadTestQuestions('${testId}')" 
+                            class="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-700 text-white font-semibold rounded-lg shadow hover:shadow-md hover:scale-105 transition duration-150">
+                        Start Test
+                    </button>
+                    ${result ? `
+                    <button onclick="reviewPastAttempt('${testId}')" 
+                            class="px-4 py-2 bg-gradient-to-r from-indigo-500 to-indigo-700 text-white font-semibold rounded-lg shadow hover:shadow-md hover:scale-105 transition duration-150">
+                        Review
+                    </button>` : ''}
+                </div>
+            </div>
+        `;
+    }
+
+    // لو الطالب مخصص له امتحان ومش موجود في القائمة، أو القائمة فاضية
+    if (examsHtml === `<div class="space-y-4">`) {
+        examsHtml += `<p class="text-center text-red-600 font-bold p-4">No exams assigned to you yet. Please contact Dr. Joe.</p>`;
+    }
+
+    examsHtml += `</div>`;
+    
+    const contentDiv = document.getElementById('question-content');
+    contentDiv.classList.remove('flex', 'items-center', 'justify-center');
+    contentDiv.innerHTML = `
+        <h2 id="exam-selection-title" class="text-3xl font-bold text-gray-800 mb-6">Exams Available for ${window.state.studentName}</h2>
+        ${examsHtml}
+    `;
+    renderMath('exam-selection-title');
+}
         
         /** Loads the questions for the selected test and transitions to the welcome screen. */
         window.loadTestQuestions = function(testId) {
