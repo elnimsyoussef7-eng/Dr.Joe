@@ -2372,7 +2372,7 @@
              const hiddenUserIdDisplay = document.getElementById('full-user-id-hidden');
              
              // Wait for auth state
-onAuthStateChanged(auth, async (user) => {
+             onAuthStateChanged(auth, async (user) => {
     const authStatus = document.getElementById('auth-status');
     const hiddenUserIdDisplay = document.getElementById('user-id-display');
 
@@ -2481,6 +2481,7 @@ onAuthStateChanged(auth, async (user) => {
         renderLoginScreen();
     }
 });
+        }
 
         window.fetchPastResults = async function() {
             if (!userId) return {};
