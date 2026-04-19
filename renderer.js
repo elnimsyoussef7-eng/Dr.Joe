@@ -1,127 +1,54 @@
-// 1. الاستيراد (مرة واحدة فقط في أول الملف)
-import { auth, db } from './firebase-init.js';
-import { 
-    signInWithEmailAndPassword, 
-    createUserWithEmailAndPassword, 
-    onAuthStateChanged,
-    signOut
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { 
-    collection, addDoc, getDocs, query, where,
-    setDoc, doc, getDoc, deleteDoc
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { auth, db } from './firebase-init.js';
+        import { 
+            signInWithEmailAndPassword, 
+            createUserWithEmailAndPassword, 
+            onAuthStateChanged,
+            signOut
+        } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { 
+            collection, 
+            addDoc, 
+            getDocs, 
+            query, 
+            where,
+            Timestamp,
+            setDoc,
+            doc,
+            getDoc
+        } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// 2. المتغيرات العامة
-let userId = null;
-window.auth = auth;
-window.db = db;
+        // Expose to window for debugging or global access if needed
+        window.auth = auth;
+        window.db = db;
+        
+        let userId = null;
+        const APP_ID = 'dsat-app-id';
 
- const DEFAULT_STATE = {
-    appStage: 'login',  
-    currentTestId: null,  
-    module: 1,
-    questionIndex: 0,  
-    moduleQuestions: [],  
-    userAnswers: [],
-    flags: [],
-    timeLeft: 33 * 60,  
-    testActive: true,
-    studentName: '',
-    role: 'student',
-	parentEmail: '',
-    parentPhone: '',
-    testHistory: {
-        module1: { questions: [], answers: [], score: 0 },
-        module2: { questions: [], answers: [], score: 0, difficulty: null }
-    }
-};
-
-window.state = JSON.parse(JSON.stringify(DEFAULT_STATE));
-
-// 3. دالة الحفظ التلقائي (Auto-Save)
-async function saveProgressToCloud() {
-    const inTest = ['test', 'break'].includes(window.state.appStage);
-
-if (!userId || !window.state.currentTestId || !inTest) return;
-    try {
-        const testRef = doc(db, "active_sessions", `${userId}_${window.state.currentTestId}`);
-        await setDoc(testRef, {
-            userId: userId,
-            ...window.state,
-            lastUpdated: new Date().toISOString()
-        }, { merge: true });
-        console.log("Saved to cloud");
-    } catch (e) { console.error("Save failed", e); }
-}
-
-// 4. نظام الدخول والاستكمال (The Gatekeeper)
-onAuthStateChanged(auth, async (user) => {
-    const authStatus = document.getElementById('auth-status');
-    if (user) {
-        userId = user.uid;
-        try {
-            const userDoc = await getDoc(doc(db, "users", userId));
-            if (userDoc.exists()) {
-                const userData = userDoc.data();
-
-                // فحص القبول (Pending)
-                if (userData.role === 'student' && userData.status === 'pending') {
-                    alert("حسابك قيد المراجعة. تواصل مع الإدارة للتفعيل.");
-                    await signOut(auth);
-                    return;
-                }
-
-                // تحديث البيانات
-                window.state.role = userData.role;
-                window.state.studentName = userData.displayName || user.email.split('@')[0];
-                if (authStatus) authStatus.textContent = user.email;
-
-                // التوجيه (مدرس ولا طالب)
-                if (userData.role === 'teacher') {
-                    if (typeof window.renderTeacherDashboard === 'function') window.renderTeacherDashboard();
-                } else {
-                    // فحص الاستكمال (Resume)
-                    checkAndResumeTest();
-                }
+        // --- Core Test State ---
+        // Default state if no data is loaded from localStorage
+        const DEFAULT_STATE = {
+            appStage: 'login',  
+            currentTestId: null,  
+            module: 1,
+            questionIndex: 0,  
+            moduleQuestions: [],  
+            userAnswers: [],
+            flags: [],
+            timeLeft: 33 * 60,  
+            timerInterval: null,
+            testActive: true,
+            isAuthReady: true,
+            studentName: '',
+            isCalculatorOpen: false,  
+            testHistory: {
+                module1: { questions: [], answers: [], score: 0, percentage: 0 },
+                module2: { questions: [], answers: [], score: 0, percentage: 0, difficulty: null }
             }
-        } catch (e) { console.error("Init failed", e); }
-    } else {
-        userId = null;
-        window.state.appStage = 'login';
-        if (typeof renderApp === 'function') renderApp();
-    }
-});
+        };
 
-// 5. دالة الاستكمال (Resume)
-async function checkAndResumeTest() {
-    const q = query(collection(db, "active_sessions"), where("userId", "==", userId));
-    const querySnapshot = await getDocs(q);
-    if (!querySnapshot.empty) {
-        const savedData = querySnapshot.docs[0].data();
-        if (confirm("يوجد امتحان لم يكتمل، هل تريد الاستكمال من حيث توقفت؟")) {
-            window.state = {
-   ...window.state,
-   ...savedData
-};
-const testData = ALL_TEST_QUESTIONS[window.state.currentTestId];
+        // Initialize state globally (will be overwritten by loadState())
+        window.state = JSON.parse(JSON.stringify(DEFAULT_STATE));
 
-if (testData) {
-   const moduleKey =
-      window.state.module === 1
-      ? 'M1'
-      : (window.state.testHistory.module2.difficulty || 'M2E');
-
-   window.state.moduleQuestions = testData[moduleKey];
-}
-            if (typeof renderApp === 'function') renderApp();
-            if (window.state.appStage === 'test' && typeof startTimer === 'function') startTimer();
-            return;
-        }
-    }
-    if (typeof showDashboard === 'function') showDashboard();
-}
-
-// 6. دوال الـ UI (ضع دوالك الباقية هنا مثل renderApp و startTest...)
 
         // --- Local Storage Functions (New for persistence) ---
 
@@ -130,24 +57,21 @@ if (testData) {
         /** Saves the relevant parts of the current state to localStorage. */
         function saveState() {
             try {
-                const inTest = ['test', 'break'].includes(window.state.appStage);
-
-const stateToSave = {
-    studentName: window.state.studentName,
-    role: window.state.role,
-    parentEmail: window.state.parentEmail,
-    parentPhone: window.state.parentPhone,
-    appStage: window.state.appStage,
-    currentTestId: window.state.currentTestId,
-    module: window.state.module,
-    questionIndex: window.state.questionIndex,
-
-    userAnswers: inTest ? window.state.userAnswers : null,
-    flags: inTest ? window.state.flags : null,
-    timeLeft: inTest ? window.state.timeLeft : DEFAULT_STATE.timeLeft,
-
-    testHistory: window.state.testHistory
-};
+                const stateToSave = {
+                    studentName: window.state.studentName,
+                    role: window.state.role,
+                    parentEmail: window.state.parentEmail,
+                    parentPhone: window.state.parentPhone,
+                    appStage: window.state.appStage,
+                    currentTestId: window.state.currentTestId,
+                    module: window.state.module,
+                    questionIndex: window.state.questionIndex,
+                    // Save answers and flags only if test is active
+                    userAnswers: window.state.appStage === 'active' || window.state.appStage === 'break' ? window.state.userAnswers : null,
+                    flags: window.state.appStage === 'active' || window.state.appStage === 'break' ? window.state.flags : null,
+                    timeLeft: window.state.appStage === 'active' || window.state.appStage === 'break' ? window.state.timeLeft : DEFAULT_STATE.timeLeft,
+                    testHistory: window.state.testHistory 
+                };
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
                 // console.log("State saved.");
             } catch (e) {
@@ -2447,9 +2371,86 @@ const stateToSave = {
              const authStatus = document.getElementById('auth-status');
              const hiddenUserIdDisplay = document.getElementById('full-user-id-hidden');
              
-             
+             // Wait for auth state
+             onAuthStateChanged(auth, async (user) => {
+                 if (user) {
+                     userId = user.uid;
+                     const name = user.email.split('@')[0];
+                     
+                     // window.state.studentName might be overwritten by loadState, but we ensure it matches user
+                     window.state.studentName = name;
+                     
+                     authStatus.textContent = user.email;
+                     hiddenUserIdDisplay.textContent = userId;
+                     
+                     // Ensure we have the role from Firestore if starting fresh or reloading
+                     try {
+                         const userDoc = await getDoc(doc(db, "users", userId));
+                         if (userDoc.exists()) {
+                             const userData = userDoc.data();
+                             window.state.role = userData.role;
+                             window.state.studentName = userData.displayName || name;
+                             window.state.parentEmail = userData.parentEmail;
+                             window.state.parentPhone = userData.parentPhone;
+                         }
+                     } catch (e) {
+                         console.warn("Init fetch profile failed", e);
+                     }
 
-        
+                     document.getElementById('student-name-display-sidebar').textContent = window.state.studentName;
+                     document.getElementById('student-name-header-display').textContent = window.state.studentName;
+
+                     // Attempt to load previous state
+                     const stateLoaded = loadState();
+
+                     if (stateLoaded && window.state.studentName !== '') {
+                         // Logic to resume based on state
+                         if (window.state.appStage === 'teacher_dashboard' || window.state.role === 'teacher') {
+                             window.renderTeacherDashboard();
+                         } else if (window.state.appStage === 'active') {
+                             window.startTest();
+                         } else if (window.state.appStage === 'break') {
+                             // Break resume logic
+                             hideTestUIElements();
+                             document.getElementById('timer-display').classList.remove('hidden');
+                             window.state.module = 2;
+                             
+                             const contentDiv = document.getElementById('question-content');
+                             contentDiv.innerHTML = `
+                                 <div id="break-screen" class="text-center p-12">
+                                     <h1 class="text-3xl font-bold text-green-600 mb-4">Module 1 Complete!</h1>
+                                     <p class="text-xl">Your performance determined you will now receive the 
+                                     <span class="font-bold text-indigo-700">${window.state.testHistory.module2.difficulty === 'M2H' ? 'HARD' : 'EASY'}</span> Module 2.</p>
+                                     <p class="text-gray-600 mt-4 font-semibold text-lg">5-Minute Break in Progress (Resumed)...</p>
+                                     <p id="break-timer-display" class="text-6xl font-mono text-red-600 mt-4">${Math.floor(window.state.timeLeft / 60).toString().padStart(2, '0')}:${(window.state.timeLeft % 60).toString().padStart(2, '0')}</p>
+                                     <button onclick="startModuleTwoImmediately()" class="mt-6 px-6 py-3 bg-indigo-500 text-white rounded-xl font-semibold shadow-md hover:bg-indigo-600 transition duration-150 transform hover:scale-105">
+                                         Skip Break and Start Module 2
+                                     </button>
+                                 </div>
+                             `;
+                             contentDiv.classList.add('flex', 'items-center', 'justify-center');
+                             startTimer();
+                             renderMath('break-screen');
+                         } else if (window.state.appStage === 'finished') {
+                             const m1 = window.state.testHistory.module1;
+                             const m2 = window.state.testHistory.module2;
+                             const totalCorrect = m1.score + m2.score;
+                             const finalScorePercentage = (totalCorrect / 44) * 100;
+                             renderScoreReport(totalCorrect, finalScorePercentage, 44);
+                         } else {
+                             window.navigateToHome();
+                         }
+                     } else {
+                         window.navigateToHome();
+                     }
+                 } else {
+                     // No user
+                     authStatus.textContent = 'Guest';
+                     hiddenUserIdDisplay.textContent = 'Not Auth';
+                     renderLoginScreen();
+                 }
+             });
+        }
 
         window.fetchPastResults = async function() {
             if (!userId) return {};
@@ -2537,8 +2538,7 @@ const stateToSave = {
             window.state.appStage = 'login';
             hideTestUIElements(); // Hide timer, flags, footer, sidebar
             document.getElementById('header-test-info').textContent = 'DSAT Mock Tests';
-            saveState(); 
-			saveProgressToCloud();// Save state after setting stage to login/default
+            saveState(); // Save state after setting stage to login/default
 
             document.getElementById('question-content').classList.add('flex', 'items-center', 'justify-center');
             document.getElementById('question-content').innerHTML = `
@@ -2782,8 +2782,7 @@ const stateToSave = {
             window.state.appStage = 'selection';
             hideTestUIElements();
             document.getElementById('header-test-info').textContent = 'Select an Exam';
-            saveState(); 
-			saveProgressToCloud();// Save state after moving to selection
+            saveState(); // Save state after moving to selection
 
             const testList = Object.keys(ALL_TEST_QUESTIONS);
             let examsHtml = `<div class="space-y-4">`;
@@ -2874,8 +2873,7 @@ const stateToSave = {
             document.getElementById('header-test-info').textContent = ALL_TEST_QUESTIONS[window.state.currentTestId].name;
             document.getElementById('answer-area').innerHTML = '';
             document.getElementById('question-content').classList.remove('flex', 'items-center', 'justify-center');
-            saveState(); 
-			saveProgressToCloud();// Save state after moving to welcome
+            saveState(); // Save state after moving to welcome
 			const backgroundStyle = `background-image: url('https://placehold.co/1000x500/1E40AF/ffffff?text=Mathematics+Test+Background'); background-size: cover; background-position: center;`;
 
             document.getElementById('question-content').innerHTML = `
@@ -2927,8 +2925,7 @@ const stateToSave = {
             renderQuestion();
             renderQuestionMap();
             startTimer();
-            saveState(); 
-			saveProgressToCloud();// Save state after starting test
+            saveState(); // Save state after starting test
         }
 
         // --- REVIEW FUNCTIONS ---
@@ -3052,7 +3049,6 @@ const stateToSave = {
                         // Attach click handler programmatically for reliability outside of innerHTML string
                         optionElement.onclick = function() {
                             selectAnswer(optionValue, this);
-							saveProgressToCloud();
                         };
                     }
                     
@@ -3146,7 +3142,6 @@ const stateToSave = {
 
             // Save state immediately after rendering a question to capture time, index, and answer changes
             saveState();
-			saveProgressToCloud();
         }
 
         /** Handles MC answer selection */
@@ -3159,7 +3154,6 @@ const stateToSave = {
             element.classList.add('bg-blue-100', 'border-blue-600', 'ring-2', 'ring-blue-500');
             renderQuestionMap();
             saveState();
-			saveProgressToCloud();
         }
 
         /** Handles Student-Produced Response (SPR) change */
@@ -3168,7 +3162,6 @@ const stateToSave = {
             window.state.userAnswers[window.state.questionIndex] = value;
             renderQuestionMap();
             saveState();
-			saveProgressToCloud();
         }
 
         /** Toggles the "Mark for Review" flag */
@@ -3179,7 +3172,6 @@ const stateToSave = {
             renderQuestion();  
             renderQuestionMap();
             saveState();
-			saveProgressToCloud();
         }
         
         /** Handles question navigation (Next/Previous/Direct Click) */
@@ -3236,7 +3228,6 @@ const stateToSave = {
             renderQuestion();
             renderQuestionMap();
             saveState();
-			saveProgressToCloud();
         }
 
         /** Renders the question map sidebar */
@@ -3311,7 +3302,6 @@ const stateToSave = {
             
             document.getElementById('next-btn').textContent = 'Next Question';
             saveState();
-			saveProgressToCloud();
         }
 
 
@@ -3358,7 +3348,6 @@ const stateToSave = {
                         startModuleTwoImmediately();
                     }
                     saveState();
-					saveProgressToCloud();
                     return;
                 }
 
@@ -3376,7 +3365,6 @@ const stateToSave = {
                      timerDisplay.classList.remove('text-red-600');
                 }
                 saveState();
-				saveProgressToCloud();
             }, 1000);
         }
 
@@ -3399,7 +3387,6 @@ const stateToSave = {
             renderQuestionMap();
             startTimer();
             saveState();
-			saveProgressToCloud();
         }
         
         /** Converts raw correct count (out of 44) to the SAT scale (200-800) */
@@ -3516,9 +3503,7 @@ const stateToSave = {
 
             // Optionally, clear the local storage state if the test is fully finished and reviewed.
             // For now, we keep the last finished state until a new test is started.
-            saveState();
-			saveProgressToCloud();
-			
+            saveState(); 
         }
         
         window.sendParentEmail = function(score, correct, total) {
@@ -3598,7 +3583,6 @@ const stateToSave = {
                 startTimer();
                 renderMath('break-screen');
                 saveState();
-				saveProgressToCloud();
 
             } else {
                 // End of Module 2 / End of Test
@@ -3623,7 +3607,6 @@ const stateToSave = {
 
                 renderScoreReport(totalCorrect, finalScorePercentage, totalQuestions);
                 saveState();
-				saveProgressToCloud();
             }
         }
 
