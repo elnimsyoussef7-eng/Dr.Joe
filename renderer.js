@@ -1,54 +1,111 @@
-        import { auth, db } from './firebase-init.js';
-        import { 
-            signInWithEmailAndPassword, 
-            createUserWithEmailAndPassword, 
-            onAuthStateChanged,
-            signOut
-        } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-        import { 
-            collection, 
-            addDoc, 
-            getDocs, 
-            query, 
-            where,
-            Timestamp,
-            setDoc,
-            doc,
-            getDoc
-        } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+// 1. الاستيراد (مرة واحدة فقط في أول الملف)
+import { auth, db } from './firebase-init.js';
+import { 
+    signInWithEmailAndPassword, 
+    createUserWithEmailAndPassword, 
+    onAuthStateChanged,
+    signOut
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { 
+    collection, addDoc, getDocs, query, where,
+    setDoc, doc, getDoc, deleteDoc
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // Expose to window for debugging or global access if needed
-        window.auth = auth;
-        window.db = db;
-        
-        let userId = null;
-        const APP_ID = 'dsat-app-id';
+// 2. المتغيرات العامة
+let userId = null;
+window.auth = auth;
+window.db = db;
 
-        // --- Core Test State ---
-        // Default state if no data is loaded from localStorage
-        const DEFAULT_STATE = {
-            appStage: 'login',  
-            currentTestId: null,  
-            module: 1,
-            questionIndex: 0,  
-            moduleQuestions: [],  
-            userAnswers: [],
-            flags: [],
-            timeLeft: 33 * 60,  
-            timerInterval: null,
-            testActive: true,
-            isAuthReady: true,
-            studentName: '',
-            isCalculatorOpen: false,  
-            testHistory: {
-                module1: { questions: [], answers: [], score: 0, percentage: 0 },
-                module2: { questions: [], answers: [], score: 0, percentage: 0, difficulty: null }
+ const DEFAULT_STATE = {
+    appStage: 'login',  
+    currentTestId: null,  
+    module: 1,
+    questionIndex: 0,  
+    moduleQuestions: [],  
+    userAnswers: [],
+    flags: [],
+    timeLeft: 33 * 60,  
+    testActive: true,
+    studentName: '',
+    role: 'student',
+    testHistory: {
+        module1: { questions: [], answers: [], score: 0 },
+        module2: { questions: [], answers: [], score: 0, difficulty: null }
+    }
+};
+
+window.state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+
+// 3. دالة الحفظ التلقائي (Auto-Save)
+async function saveProgressToCloud() {
+    if (!userId || !window.state.currentTestId || window.state.appStage !== 'test') return;
+    try {
+        const testRef = doc(db, "active_sessions", `${userId}_${window.state.currentTestId}`);
+        await setDoc(testRef, {
+            userId: userId,
+            ...window.state,
+            lastUpdated: new Date().toISOString()
+        }, { merge: true });
+        console.log("Saved to cloud");
+    } catch (e) { console.error("Save failed", e); }
+}
+
+// 4. نظام الدخول والاستكمال (The Gatekeeper)
+onAuthStateChanged(auth, async (user) => {
+    const authStatus = document.getElementById('auth-status');
+    if (user) {
+        userId = user.uid;
+        try {
+            const userDoc = await getDoc(doc(db, "users", userId));
+            if (userDoc.exists()) {
+                const userData = userDoc.data();
+
+                // فحص القبول (Pending)
+                if (userData.role === 'student' && userData.status === 'pending') {
+                    alert("حسابك قيد المراجعة. تواصل مع الإدارة للتفعيل.");
+                    await signOut(auth);
+                    location.reload();
+                    return;
+                }
+
+                // تحديث البيانات
+                window.state.role = userData.role;
+                window.state.studentName = userData.displayName || user.email.split('@')[0];
+                if (authStatus) authStatus.textContent = user.email;
+
+                // التوجيه (مدرس ولا طالب)
+                if (userData.role === 'teacher') {
+                    if (typeof window.renderTeacherDashboard === 'function') window.renderTeacherDashboard();
+                } else {
+                    // فحص الاستكمال (Resume)
+                    checkAndResumeTest();
+                }
             }
-        };
+        } catch (e) { console.error("Init failed", e); }
+    } else {
+        userId = null;
+        window.state.appStage = 'login';
+        if (typeof renderApp === 'function') renderApp();
+    }
+});
 
-        // Initialize state globally (will be overwritten by loadState())
-        window.state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+// 5. دالة الاستكمال (Resume)
+async function checkAndResumeTest() {
+    const q = query(collection(db, "active_sessions"), where("userId", "==", userId));
+    const querySnapshot = await getDocs(q);
+    if (!querySnapshot.empty) {
+        const savedData = querySnapshot.docs[0].data();
+        if (confirm("يوجد امتحان لم يكتمل، هل تريد الاستكمال من حيث توقفت؟")) {
+            Object.assign(window.state, savedData);
+            if (typeof renderApp === 'function') renderApp();
+            if (window.state.appStage === 'test' && typeof startTimer === 'function') startTimer();
+            return;
+        }
+    }
+    if (typeof showDashboard === 'function') showDashboard();
+}
 
+// 6. دوال الـ UI (ضع دوالك الباقية هنا مثل renderApp و startTest...)
 
         // --- Local Storage Functions (New for persistence) ---
 
@@ -2371,117 +2428,9 @@
              const authStatus = document.getElementById('auth-status');
              const hiddenUserIdDisplay = document.getElementById('full-user-id-hidden');
              
-             // Wait for auth state
-             onAuthStateChanged(auth, async (user) => {
-    const authStatus = document.getElementById('auth-status');
-    const hiddenUserIdDisplay = document.getElementById('user-id-display');
+             
 
-    if (user) {
-        userId = user.uid;
-        const name = user.email.split('@')[0];
-
-        try {
-            // 1. جلب بيانات المستخدم من Firestore
-            const userDoc = await getDoc(doc(db, "users", userId));
-            
-            if (userDoc.exists()) {
-                const userData = userDoc.data();
-
-                // --- الحماية: فحص حالة القبول ---
-                if (userData.role === 'student' && userData.status === 'pending') {
-                    alert("Your account is pending approval. Please contact Mr. Anous or the administrator.");
-                    await signOut(auth);
-                    if (authStatus) authStatus.textContent = 'Guest';
-                    renderLoginScreen();
-                    return; // توقف تام هنا
-                }
-
-                // تحديث الـ State ببيانات Firestore
-                window.state.role = userData.role;
-                window.state.studentName = userData.displayName || name;
-                window.state.parentEmail = userData.parentEmail;
-                window.state.parentPhone = userData.parentPhone;
-
-                // تحديث الـ UI
-                if (authStatus) authStatus.textContent = user.email;
-                if (hiddenUserIdDisplay) hiddenUserIdDisplay.textContent = userId;
-                const sidebarName = document.getElementById('student-name-display-sidebar');
-                const headerName = document.getElementById('student-name-header-display');
-                if (sidebarName) sidebarName.textContent = window.state.studentName;
-                if (headerName) headerName.textContent = window.state.studentName;
-
-                // --- منطق توجيه المستخدم والاستكمال (Resume Logic) ---
-                
-                // أولاً: لو هو مدرس، يروح فوراً للوحة التحكم بتاعته
-                if (userData.role === 'teacher') {
-                    if (typeof window.renderTeacherDashboard === 'function') {
-                        window.renderTeacherDashboard();
-                    } else {
-                        window.navigateToHome();
-                    }
-                    return;
-                }
-
-                // ثانياً: للطالب المقبول، نبحث عن حالة الامتحان المحفوظة
-                const stateLoaded = loadState(); // تحميل من LocalStorage كدعم إضافي
-
-                if (stateLoaded && window.state.studentName !== '') {
-                    if (window.state.appStage === 'active') {
-                        window.startTest();
-                    } else if (window.state.appStage === 'break') {
-                        // منطق استكمال الاستراحة (Break)
-                        if (typeof hideTestUIElements === 'function') hideTestUIElements();
-                        const timerDisp = document.getElementById('timer-display');
-                        if (timerDisp) timerDisp.classList.remove('hidden');
-                        
-                        window.state.module = 2;
-                        const contentDiv = document.getElementById('question-content');
-                        if (contentDiv) {
-                            contentDiv.innerHTML = `
-                                <div id="break-screen" class="text-center p-12">
-                                    <h1 class="text-3xl font-bold text-green-600 mb-4">Module 1 Complete!</h1>
-                                    <p class="text-xl">Your performance determined you will now receive the 
-                                    <span class="font-bold text-indigo-700">${window.state.testHistory.module2.difficulty === 'M2H' ? 'HARD' : 'EASY'}</span> Module 2.</p>
-                                    <p class="text-gray-600 mt-4 font-semibold text-lg">5-Minute Break in Progress (Resumed)...</p>
-                                    <p id="break-timer-display" class="text-6xl font-mono text-red-600 mt-4">${Math.floor(window.state.timeLeft / 60).toString().padStart(2, '0')}:${(window.state.timeLeft % 60).toString().padStart(2, '0')}</p>
-                                    <button onclick="startModuleTwoImmediately()" class="mt-6 px-6 py-3 bg-indigo-500 text-white rounded-xl font-semibold shadow-md hover:bg-indigo-600 transition duration-150 transform hover:scale-105">
-                                        Skip Break and Start Module 2
-                                    </button>
-                                </div>
-                            `;
-                            contentDiv.classList.add('flex', 'items-center', 'justify-center');
-                        }
-                        if (typeof startTimer === 'function') startTimer();
-                        if (typeof renderMath === 'function') renderMath('break-screen');
-                    } else if (window.state.appStage === 'finished') {
-                        const m1 = window.state.testHistory.module1;
-                        const m2 = window.state.testHistory.module2;
-                        const totalCorrect = m1.score + m2.score;
-                        const finalScorePercentage = (totalCorrect / 44) * 100;
-                        if (typeof renderScoreReport === 'function') renderScoreReport(totalCorrect, finalScorePercentage, 44);
-                    } else {
-                        window.navigateToHome();
-                    }
-                } else {
-                    window.navigateToHome();
-                }
-
-            } else {
-                // لو الإيميل مسجل بس الداتا مش موجودة (حساب ضيف أو خطأ تسجيل)
-                window.navigateToHome();
-            }
-        } catch (e) {
-            console.warn("Init fetch profile or resume failed", e);
-            window.navigateToHome();
-        }
-    } else {
-        // حالة عدم وجود مستخدم (Guest)
-        if (authStatus) authStatus.textContent = 'Guest';
-        if (hiddenUserIdDisplay) hiddenUserIdDisplay.textContent = 'Not Auth';
-        renderLoginScreen();
-    }
-});
-        }
+        
 
         window.fetchPastResults = async function() {
             if (!userId) return {};
@@ -2710,102 +2659,85 @@
         }
 
         window.handleSignUp = async function() {
-    const emailInput = document.getElementById('login-email-input');
-    const passInput = document.getElementById('password-input');
-    const fullNameInput = document.getElementById('full-name-input');
-    const parentEmailInput = document.getElementById('parent-email-input');
-    const parentPhoneInput = document.getElementById('parent-phone-input');
-    const errorMessage = document.getElementById('login-error-message');
-    const successMessage = document.getElementById('login-success-message');
-    
-    // الحصول على الرتبة (Role)
-    const roleInput = document.querySelector('input[name="role"]:checked');
-    const role = roleInput ? roleInput.value : 'student';
-
-    const email = emailInput.value.trim();
-    const password = passInput.value.trim();
-    const fullName = fullNameInput ? fullNameInput.value.trim() : '';
-    const parentEmail = parentEmailInput ? parentEmailInput.value.trim() : '';
-    const parentPhone = parentPhoneInput ? parentPhoneInput.value.trim() : '';
-
-    // التحقق من البيانات الأساسية
-    if (email === '' || password === '') {
-        errorMessage.textContent = 'Please enter email and password.';
-        errorMessage.classList.remove('hidden');
-        return;
-    }
-
-    if (role === 'student' && fullName === '') {
-        errorMessage.textContent = 'Please enter your full name.';
-        errorMessage.classList.remove('hidden');
-        return;
-    }
-
-    errorMessage.classList.add('hidden');
-    successMessage.classList.add('hidden');
-
-    try {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
-        
-        const displayName = fullName || user.email.split('@')[0];
-
-        // --- التعديل الجوهري هنا ---
-        // تحديد الحالة: المدرس active فوراً (أو pending لو عايز تراجعه برضه) 
-        // الطالب دائماً pending ولازم تقبله يدوي
-        const initialStatus = (role === 'teacher') ? 'active' : 'pending';
-
-        // إنشاء ملف المستخدم في Firestore
-        await setDoc(doc(db, "users", user.uid), {
-            uid: user.uid,
-            email: user.email,
-            displayName: displayName,
-            role: role,
-            status: initialStatus, // الحالة الجديدة
-            parentEmail: role === 'student' ? parentEmail : '',
-            parentPhone: role === 'student' ? parentPhone : '',
-            createdAt: new Date().toISOString()
-        });
-
-        if (initialStatus === 'pending') {
-            // رسالة للطالب وتسجيل خروج فوراً
-            successMessage.textContent = "Account created! Please wait for admin approval before logging in.";
-            successMessage.classList.remove('hidden');
+            const emailInput = document.getElementById('login-email-input');
+            const passInput = document.getElementById('password-input');
+            const fullNameInput = document.getElementById('full-name-input');
+            const parentEmailInput = document.getElementById('parent-email-input');
+            const parentPhoneInput = document.getElementById('parent-phone-input');
+            const errorMessage = document.getElementById('login-error-message');
+            const successMessage = document.getElementById('login-success-message');
             
-            // تسجيل خروج عشان ما يدخلش المنصة غير لما تقبله
-            setTimeout(async () => {
-                await signOut(auth);
-                location.reload(); // إعادة تحميل الصفحة للرجوع لشاشة اللوجن
-            }, 3000);
+            // Get role
+            const roleInput = document.querySelector('input[name="role"]:checked');
+            const role = roleInput ? roleInput.value : 'student';
 
-        } else {
-            // لو مدرس أو حساب مفعل يدخل عادي
-            successMessage.textContent = "Account created! Redirecting...";
-            successMessage.classList.remove('hidden');
-            
-            window.state.studentName = displayName;
-            window.state.role = role;
-            userId = user.uid;
+            const email = emailInput.value.trim();
+            const password = passInput.value.trim();
+            const fullName = fullNameInput ? fullNameInput.value.trim() : '';
+            const parentEmail = parentEmailInput ? parentEmailInput.value.trim() : '';
+            const parentPhone = parentPhoneInput ? parentPhoneInput.value.trim() : '';
 
-            setTimeout(() => {
-                if (role === 'teacher') {
-                    if (typeof window.renderTeacherDashboard === 'function') {
-                        window.renderTeacherDashboard();
+            if (email === '' || password === '') {
+                errorMessage.textContent = 'Please enter email and password.';
+                errorMessage.classList.remove('hidden');
+                return;
+            }
+
+            if (role === 'student' && fullName === '') {
+                errorMessage.textContent = 'Please enter your full name.';
+                errorMessage.classList.remove('hidden');
+                return;
+            }
+
+            errorMessage.classList.add('hidden');
+            successMessage.classList.add('hidden');
+
+            try {
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                const user = userCredential.user;
+                console.log("Signed up:", user.email);
+                
+                const displayName = fullName || user.email.split('@')[0];
+
+                // Create user profile in Firestore
+                await setDoc(doc(db, "users", user.uid), {
+                    uid: user.uid,
+                    email: user.email,
+                    displayName: displayName,
+                    role: role,
+                    parentEmail: role === 'student' ? parentEmail : '',
+                    parentPhone: role === 'student' ? parentPhone : ''
+                });
+
+                successMessage.textContent = "Account created! Logging in...";
+                successMessage.classList.remove('hidden');
+                
+                window.state.studentName = displayName;
+                window.state.role = role;
+                window.state.parentEmail = parentEmail;
+                window.state.parentPhone = parentPhone;
+                userId = user.uid;
+                
+                document.getElementById('student-name-display-sidebar').textContent = window.state.studentName;
+                
+                setTimeout(() => {
+                    if (role === 'teacher') {
+                        if (typeof window.renderTeacherDashboard === 'function') {
+                            window.renderTeacherDashboard();
+                        } else {
+                            window.navigateToHome(); // Fallback
+                        }
                     } else {
                         window.navigateToHome();
                     }
-                } else {
-                    window.navigateToHome();
-                }
-            }, 1000);
-        }
+                }, 1000);
 
-    } catch (error) {
-        console.error("Sign up error:", error);
-        errorMessage.textContent = "Sign up failed: " + error.message;
-        errorMessage.classList.remove('hidden');
-    }
-}
+            } catch (error) {
+                console.error("Sign up error:", error);
+                errorMessage.textContent = "Sign up failed: " + error.message;
+                errorMessage.classList.remove('hidden');
+            }
+        }
 
         /** Renders the test selection screen. */
         window.handleLogout = async function() {
@@ -3097,6 +3029,7 @@
                         // Attach click handler programmatically for reliability outside of innerHTML string
                         optionElement.onclick = function() {
                             selectAnswer(optionValue, this);
+							saveProgressToCloud();
                         };
                     }
                     
@@ -3202,6 +3135,7 @@
             element.classList.add('bg-blue-100', 'border-blue-600', 'ring-2', 'ring-blue-500');
             renderQuestionMap();
             saveState();
+			saveProgressToCloud();
         }
 
         /** Handles Student-Produced Response (SPR) change */
