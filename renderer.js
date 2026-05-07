@@ -14,7 +14,8 @@
             Timestamp,
             setDoc,
             doc,
-            getDoc
+            getDoc,
+            deleteDoc
         } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         // Expose to window for debugging or global access if needed
@@ -39,7 +40,8 @@
             testActive: true,
             isAuthReady: true,
             studentName: '',
-            isCalculatorOpen: false,  
+            isCalculatorOpen: false,
+            role: null,  // 'student', 'teacher', 'admin'
             testHistory: {
                 module1: { questions: [], answers: [], score: 0, percentage: 0 },
                 module2: { questions: [], answers: [], score: 0, percentage: 0, difficulty: null }
@@ -2547,7 +2549,7 @@
                     <div class="mx-auto max-w-sm mb-6 text-left">
                         <div class="mb-4">
                             <span class="block text-lg font-semibold text-gray-800 mb-2">I am a:</span>
-                            <div class="flex items-center space-x-4">
+                            <div class="flex flex-wrap items-center space-x-4">
                                 <label class="inline-flex items-center">
                                     <input type="radio" class="form-radio text-blue-600" name="role" value="student" checked onchange="toggleParentEmail(true)">
                                     <span class="ml-2">Student</span>
@@ -2555,6 +2557,10 @@
                                 <label class="inline-flex items-center">
                                     <input type="radio" class="form-radio text-blue-600" name="role" value="teacher" onchange="toggleParentEmail(false)">
                                     <span class="ml-2">Teacher/Academy</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="radio" class="form-radio text-blue-600" name="role" value="admin" onchange="toggleParentEmail(false)">
+                                    <span class="ml-2">Admin</span>
                                 </label>
                             </div>
                         </div>
@@ -2668,6 +2674,13 @@
                         console.error("renderTeacherDashboard not implemented");
                         window.navigateToHome(); // Fallback
                     }
+                } else if (role === 'admin') {
+                    if (typeof window.renderAdminDashboard === 'function') {
+                        window.renderAdminDashboard();
+                    } else {
+                        console.error("renderAdminDashboard not implemented");
+                        window.navigateToHome(); // Fallback
+                    }
                 } else {
                     window.navigateToHome();
                 }
@@ -2744,6 +2757,12 @@
                     if (role === 'teacher') {
                         if (typeof window.renderTeacherDashboard === 'function') {
                             window.renderTeacherDashboard();
+                        } else {
+                            window.navigateToHome(); // Fallback
+                        }
+                    } else if (role === 'admin') {
+                        if (typeof window.renderAdminDashboard === 'function') {
+                            window.renderAdminDashboard();
                         } else {
                             window.navigateToHome(); // Fallback
                         }
@@ -3657,9 +3676,14 @@
                                 <h1 class="text-3xl font-extrabold text-gray-800">Teacher Dashboard</h1>
                                 <p class="text-gray-500 mt-1">Real-time Student Progress</p>
                             </div>
-                            <button onclick="window.handleLogout()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 shadow transition-colors">
-                                Logout
-                            </button>
+                            <div class="flex gap-2">
+                                <button onclick="window.showTeacherTestCreationPanel()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 shadow transition-colors font-semibold">
+                                    + Create Test
+                                </button>
+                                <button onclick="window.handleLogout()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 shadow transition-colors">
+                                    Logout
+                                </button>
+                            </div>
                         </div>
 
                         <div class="bg-white rounded-xl shadow-lg overflow-hidden overflow-x-auto">
@@ -3860,3 +3884,518 @@
              window.initFirebase();
         });
 
+// Admin Dashboard and Teacher Test Creation Features
+// This module is injected into renderer.js
+
+window.renderAdminDashboard = async function() {
+    window.state.appStage = 'admin_dashboard';
+    hideTestUIElements();
+    document.getElementById('header-test-info').textContent = 'Admin Dashboard';
+    
+    const contentDiv = document.getElementById('question-content');
+    contentDiv.classList.remove('flex', 'items-center', 'justify-center');
+    contentDiv.innerHTML = '<p class="text-center text-xl">Loading admin dashboard...</p>';
+
+    try {
+        // Fetch all users
+        const usersSnapshot = await getDocs(collection(db, "users"));
+        let allUsers = [];
+        usersSnapshot.forEach((doc) => {
+            const data = doc.data();
+            data.id = doc.id;
+            allUsers.push(data);
+        });
+
+        contentDiv.innerHTML = `
+            <div class="p-8 max-w-7xl mx-auto">
+                <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+                    <div>
+                        <h1 class="text-4xl font-extrabold text-gray-800">Admin Dashboard</h1>
+                        <p class="text-gray-500 mt-1">User Management & Platform Control</p>
+                    </div>
+                    <button onclick="window.handleLogout()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 shadow transition-colors">
+                        Logout
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                    <div class="bg-gradient-to-br from-blue-400 to-blue-600 text-white p-6 rounded-xl shadow-lg">
+                        <h3 class="text-lg font-bold">Total Users</h3>
+                        <p class="text-4xl font-extrabold mt-2">${allUsers.length}</p>
+                    </div>
+                    <div class="bg-gradient-to-br from-green-400 to-green-600 text-white p-6 rounded-xl shadow-lg">
+                        <h3 class="text-lg font-bold">Students</h3>
+                        <p class="text-4xl font-extrabold mt-2">${allUsers.filter(u => u.role === 'student').length}</p>
+                    </div>
+                    <div class="bg-gradient-to-br from-purple-400 to-purple-600 text-white p-6 rounded-xl shadow-lg">
+                        <h3 class="text-lg font-bold">Teachers</h3>
+                        <p class="text-4xl font-extrabold mt-2">${allUsers.filter(u => u.role === 'teacher').length}</p>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-lg overflow-hidden mb-8">
+                    <div class="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-6 flex justify-between items-center">
+                        <h2 class="text-2xl font-bold">User Management</h2>
+                        <button onclick="window.showAddUserModal()" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600">
+                            + Add User
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full leading-normal">
+                            <thead>
+                                <tr class="bg-gray-100 text-left text-xs font-semibold uppercase tracking-wider border-b">
+                                    <th class="px-5 py-3">Email</th>
+                                    <th class="px-5 py-3">Display Name</th>
+                                    <th class="px-5 py-3">Role</th>
+                                    <th class="px-5 py-3">Status</th>
+                                    <th class="px-5 py-3 text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-users-body">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <h2 class="text-2xl font-bold mb-4 text-gray-800">System Management</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <button onclick="window.exportAllData()" class="px-4 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-semibold transition">
+                            📊 Export All Data
+                        </button>
+                        <button onclick="window.viewSystemLogs()" class="px-4 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 font-semibold transition">
+                            📋 View System Logs
+                        </button>
+                        <button onclick="window.manageTestBank()" class="px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-semibold transition">
+                            📚 Manage Test Bank
+                        </button>
+                        <button onclick="window.systemSettings()" class="px-4 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-semibold transition">
+                            ⚙️ System Settings
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="add-user-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div class="bg-white rounded-xl shadow-2xl p-8 max-w-sm w-full">
+                    <h2 class="text-2xl font-bold mb-6">Add New User</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block font-semibold text-gray-700 mb-2">Email</label>
+                            <input type="email" id="new-user-email" placeholder="user@example.com" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label class="block font-semibold text-gray-700 mb-2">Display Name</label>
+                            <input type="text" id="new-user-name" placeholder="John Doe" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label class="block font-semibold text-gray-700 mb-2">Password</label>
+                            <input type="password" id="new-user-password" placeholder="••••••••" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label class="block font-semibold text-gray-700 mb-2">Role</label>
+                            <select id="new-user-role" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="student">Student</option>
+                                <option value="teacher">Teacher</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                        </div>
+                        <div class="flex gap-2 pt-4">
+                            <button onclick="window.createNewUser()" class="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-semibold">
+                                Create User
+                            </button>
+                            <button onclick="window.closeAddUserModal()" class="flex-1 px-4 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500 font-semibold">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Populate users table
+        const usersBody = document.getElementById('admin-users-body');
+        allUsers.forEach(user => {
+            const roleColors = {
+                'student': 'bg-blue-100 text-blue-800',
+                'teacher': 'bg-purple-100 text-purple-800',
+                'admin': 'bg-red-100 text-red-800'
+            };
+
+            const row = document.createElement('tr');
+            row.className = "hover:bg-gray-50 border-b border-gray-100";
+            row.innerHTML = `
+                <td class="px-5 py-4 text-sm font-medium text-gray-900">${user.email}</td>
+                <td class="px-5 py-4 text-sm text-gray-700">${user.displayName || 'N/A'}</td>
+                <td class="px-5 py-4 text-sm">
+                    <span class="px-3 py-1 rounded-full text-xs font-bold ${roleColors[user.role] || roleColors['student']}">
+                        ${user.role.toUpperCase()}
+                    </span>
+                </td>
+                <td class="px-5 py-4 text-sm">
+                    <span class="px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800">Active</span>
+                </td>
+                <td class="px-5 py-4 text-sm text-center">
+                    <button onclick="window.editUser('${user.id}')" class="mr-2 text-blue-600 hover:text-blue-900 font-semibold">Edit</button>
+                    <button onclick="window.deleteUser('${user.id}')" class="text-red-600 hover:text-red-900 font-semibold">Delete</button>
+                </td>
+            `;
+            usersBody.appendChild(row);
+        });
+
+    } catch (e) {
+        console.error("Error loading admin dashboard:", e);
+        contentDiv.innerHTML = '<p class="text-red-500 text-center">Error loading admin dashboard.</p>';
+    }
+};
+
+window.showAddUserModal = function() {
+    const modal = document.getElementById('add-user-modal');
+    if (modal) modal.classList.remove('hidden');
+};
+
+window.closeAddUserModal = function() {
+    const modal = document.getElementById('add-user-modal');
+    if (modal) modal.classList.add('hidden');
+};
+
+window.createNewUser = async function() {
+    const email = document.getElementById('new-user-email').value.trim();
+    const name = document.getElementById('new-user-name').value.trim();
+    const password = document.getElementById('new-user-password').value.trim();
+    const role = document.getElementById('new-user-role').value;
+
+    if (!email || !name || !password) {
+        alert('Please fill in all fields');
+        return;
+    }
+
+    try {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+
+        await setDoc(doc(db, "users", user.uid), {
+            uid: user.uid,
+            email: user.email,
+            displayName: name,
+            role: role,
+            createdAt: new Date(),
+            createdBy: userId
+        });
+
+        alert('User created successfully!');
+        window.closeAddUserModal();
+        window.renderAdminDashboard();
+    } catch (e) {
+        alert('Error creating user: ' + e.message);
+    }
+};
+
+window.deleteUser = async function(userId) {
+    if (confirm('Are you sure you want to delete this user?')) {
+        try {
+            await deleteDoc(doc(db, "users", userId));
+            alert('User deleted successfully');
+            window.renderAdminDashboard();
+        } catch (e) {
+            alert('Error deleting user: ' + e.message);
+        }
+    }
+};
+
+window.editUser = function(userId) {
+    alert('Edit user feature coming soon. User ID: ' + userId);
+};
+
+window.exportAllData = function() {
+    alert('Data export feature coming soon');
+};
+
+window.viewSystemLogs = function() {
+    alert('System logs feature coming soon');
+};
+
+window.manageTestBank = function() {
+    alert('Test bank management feature coming soon');
+};
+
+window.systemSettings = function() {
+    alert('System settings feature coming soon');
+};
+
+// ============================================
+// TEACHER TEST CREATION FEATURES
+// ============================================
+
+window.showTeacherTestCreationPanel = async function() {
+    window.state.appStage = 'teacher_create_test';
+    hideTestUIElements();
+    document.getElementById('header-test-info').textContent = 'Create New Test';
+    
+    const contentDiv = document.getElementById('question-content');
+    contentDiv.classList.remove('flex', 'items-center', 'justify-center');
+    
+    contentDiv.innerHTML = `
+        <div class="p-8 max-w-6xl mx-auto">
+            <div class="mb-8">
+                <h1 class="text-4xl font-extrabold text-gray-800 mb-2">Create New Test</h1>
+                <p class="text-gray-600">Add questions, answers, choices, explanations and images</p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Left: Test Details -->
+                <div class="lg:col-span-1">
+                    <div class="bg-white rounded-xl shadow-lg p-6">
+                        <h2 class="text-2xl font-bold mb-4 text-gray-800">Test Information</h2>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block font-semibold text-gray-700 mb-2">Test Name</label>
+                                <input type="text" id="test-name" placeholder="e.g., SAT Mock Test 1" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-gray-700 mb-2">Module</label>
+                                <select id="test-module" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="M1">Module 1</option>
+                                    <option value="M2E">Module 2 (Easy)</option>
+                                    <option value="M2H">Module 2 (Hard)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block font-semibold text-gray-700 mb-2">Difficulty</label>
+                                <select id="test-difficulty" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="Easy">Easy</option>
+                                    <option value="Medium">Medium</option>
+                                    <option value="Hard">Hard</option>
+                                </select>
+                            </div>
+                            <button onclick="window.addNewQuestion()" class="w-full px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-bold transition">
+                                + Add Question
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Questions List -->
+                <div class="lg:col-span-2">
+                    <div class="bg-white rounded-xl shadow-lg p-6">
+                        <h2 class="text-2xl font-bold mb-4 text-gray-800">Questions</h2>
+                        <div id="questions-list" class="space-y-4 max-h-96 overflow-y-auto">
+                            <p class="text-gray-500 italic text-center py-8">No questions added yet. Click "Add Question" to begin.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Question Editor Modal -->
+            <div id="question-editor-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div class="bg-white rounded-xl shadow-2xl p-8 max-w-2xl w-full max-h-96 overflow-y-auto">
+                    <h2 class="text-2xl font-bold mb-6">Add/Edit Question</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block font-semibold text-gray-700 mb-2">Question Text</label>
+                            <textarea id="question-text" placeholder="Enter question..." class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 h-24"></textarea>
+                        </div>
+
+                        <div>
+                            <label class="block font-semibold text-gray-700 mb-2">Question Image (Optional)</label>
+                            <input type="file" id="question-image" accept="image/*" class="w-full p-2 border rounded-lg">
+                        </div>
+
+                        <div id="choices-container" class="space-y-3">
+                            <label class="block font-semibold text-gray-700">Choices</label>
+                            <div id="choices-list" class="space-y-2">
+                                ${['A', 'B', 'C', 'D'].map(letter => `
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-bold text-gray-700 min-w-8">${letter})</span>
+                                        <input type="text" class="flex-1 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter choice ${letter}">
+                                        <label class="flex items-center">
+                                            <input type="radio" name="correct-answer" value="${letter}" class="mr-1">
+                                            <span class="text-sm">Correct</span>
+                                        </label>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block font-semibold text-gray-700 mb-2">Explanation</label>
+                            <textarea id="question-explanation" placeholder="Explain the correct answer..." class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 h-20"></textarea>
+                        </div>
+
+                        <div class="flex gap-2 pt-4">
+                            <button onclick="window.saveQuestion()" class="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-semibold">
+                                Save Question
+                            </button>
+                            <button onclick="window.closeQuestionEditor()" class="flex-1 px-4 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500 font-semibold">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Floating Action Buttons -->
+            <div class="fixed bottom-8 right-8 flex gap-2">
+                <button onclick="window.saveTest()" class="px-6 py-3 bg-green-500 text-white rounded-full hover:bg-green-600 font-bold shadow-lg hover:shadow-xl transition transform hover:scale-110">
+                    💾 Save Test
+                </button>
+                <button onclick="window.backToTeacherDashboard()" class="px-6 py-3 bg-gray-500 text-white rounded-full hover:bg-gray-600 font-bold shadow-lg hover:shadow-xl transition transform hover:scale-110">
+                    ← Back
+                </button>
+            </div>
+        </div>
+    `;
+
+    // Initialize questions list if it exists
+    window.currentTestQuestions = window.currentTestQuestions || [];
+    window.updateQuestionsList();
+};
+
+window.addNewQuestion = function() {
+    document.getElementById('question-editor-modal').classList.remove('hidden');
+    // Clear previous inputs
+    document.getElementById('question-text').value = '';
+    document.getElementById('question-image').value = '';
+    document.getElementById('question-explanation').value = '';
+    document.querySelectorAll('input[name="correct-answer"]').forEach(r => r.checked = false);
+    document.querySelectorAll('#choices-list input[type="text"]').forEach(i => i.value = '');
+    
+    window.currentEditingQuestionIndex = -1;
+};
+
+window.saveQuestion = function() {
+    const questionText = document.getElementById('question-text').value.trim();
+    const choices = Array.from(document.querySelectorAll('#choices-list input[type="text"]')).map(i => i.value.trim());
+    const correctAnswer = document.querySelector('input[name="correct-answer"]:checked')?.value;
+    const explanation = document.getElementById('question-explanation').value.trim();
+    const imageInput = document.getElementById('question-image');
+
+    if (!questionText) {
+        alert('Please enter question text');
+        return;
+    }
+
+    if (choices.some(c => !c)) {
+        alert('Please fill all choices');
+        return;
+    }
+
+    if (!correctAnswer) {
+        alert('Please select correct answer');
+        return;
+    }
+
+    const question = {
+        text: questionText,
+        choices: choices,
+        correctAnswer: correctAnswer,
+        explanation: explanation,
+        image: imageInput.files.length > 0 ? imageInput.files[0].name : null
+    };
+
+    if (!window.currentTestQuestions) window.currentTestQuestions = [];
+
+    if (window.currentEditingQuestionIndex >= 0) {
+        window.currentTestQuestions[window.currentEditingQuestionIndex] = question;
+    } else {
+        window.currentTestQuestions.push(question);
+    }
+
+    window.closeQuestionEditor();
+    window.updateQuestionsList();
+};
+
+window.updateQuestionsList = function() {
+    const list = document.getElementById('questions-list');
+    if (!window.currentTestQuestions || window.currentTestQuestions.length === 0) {
+        list.innerHTML = '<p class="text-gray-500 italic text-center py-8">No questions added yet.</p>';
+        return;
+    }
+
+    list.innerHTML = window.currentTestQuestions.map((q, idx) => `
+        <div class="p-4 bg-gray-50 rounded-lg border-l-4 border-blue-500">
+            <div class="flex justify-between items-start mb-2">
+                <h3 class="font-bold text-gray-800">Q${idx + 1}: ${q.text.substring(0, 50)}...</h3>
+                <div class="flex gap-2">
+                    <button onclick="window.editQuestion(${idx})" class="text-blue-600 hover:text-blue-900 font-semibold text-sm">Edit</button>
+                    <button onclick="window.deleteQuestion(${idx})" class="text-red-600 hover:text-red-900 font-semibold text-sm">Delete</button>
+                </div>
+            </div>
+            <div class="text-sm text-gray-600">
+                <p><strong>Choices:</strong> ${q.choices.join(', ')}</p>
+                <p><strong>Answer:</strong> ${q.correctAnswer}</p>
+                ${q.explanation ? `<p><strong>Explanation:</strong> ${q.explanation.substring(0, 60)}...</p>` : ''}
+            </div>
+        </div>
+    `).join('');
+};
+
+window.editQuestion = function(index) {
+    window.currentEditingQuestionIndex = index;
+    const q = window.currentTestQuestions[index];
+    
+    document.getElementById('question-text').value = q.text;
+    document.getElementById('question-explanation').value = q.explanation || '';
+    
+    const choiceInputs = document.querySelectorAll('#choices-list input[type="text"]');
+    q.choices.forEach((choice, i) => {
+        if (choiceInputs[i]) choiceInputs[i].value = choice;
+    });
+    
+    const radios = document.querySelectorAll('input[name="correct-answer"]');
+    const correctIdx = ['A', 'B', 'C', 'D'].indexOf(q.correctAnswer);
+    if (radios[correctIdx]) radios[correctIdx].checked = true;
+    
+    document.getElementById('question-editor-modal').classList.remove('hidden');
+};
+
+window.deleteQuestion = function(index) {
+    if (confirm('Delete this question?')) {
+        window.currentTestQuestions.splice(index, 1);
+        window.updateQuestionsList();
+    }
+};
+
+window.closeQuestionEditor = function() {
+    document.getElementById('question-editor-modal').classList.add('hidden');
+};
+
+window.saveTest = async function() {
+    const testName = document.getElementById('test-name').value.trim();
+    const module = document.getElementById('test-module').value;
+    const difficulty = document.getElementById('test-difficulty').value;
+
+    if (!testName) {
+        alert('Please enter test name');
+        return;
+    }
+
+    if (!window.currentTestQuestions || window.currentTestQuestions.length === 0) {
+        alert('Please add at least one question');
+        return;
+    }
+
+    try {
+        const testData = {
+            name: testName,
+            module: module,
+            difficulty: difficulty,
+            questions: window.currentTestQuestions,
+            createdBy: userId,
+            createdAt: new Date(),
+            updatedAt: new Date()
+        };
+
+        await addDoc(collection(db, "custom_tests"), testData);
+        alert('Test saved successfully!');
+        window.currentTestQuestions = [];
+        window.renderTeacherDashboard();
+    } catch (e) {
+        alert('Error saving test: ' + e.message);
+    }
+};
+
+window.backToTeacherDashboard = function() {
+    window.currentTestQuestions = [];
+    window.renderTeacherDashboard();
+};
