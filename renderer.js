@@ -61,17 +61,23 @@
             const html = document.documentElement;
             const isDark = html.classList.toggle('dark');
             localStorage.setItem('dsat-theme', isDark ? 'dark' : 'light');
+            updateThemeIcon(isDark);
+        }
+
+        function updateThemeIcon(isDark) {
             const sunIcon = document.getElementById('theme-icon-sun');
-            if (sunIcon) {
-                sunIcon.style.display = isDark ? 'none' : 'block';
-            }
+            const moonIcon = document.getElementById('theme-icon-moon');
+            if (sunIcon) sunIcon.style.display = isDark ? 'none' : 'block';
+            if (moonIcon) moonIcon.style.display = isDark ? 'block' : 'none';
         }
 
         function initTheme() {
             const saved = localStorage.getItem('dsat-theme');
-            if (saved === 'dark') {
+            const isDark = saved === 'dark';
+            if (isDark) {
                 document.documentElement.classList.add('dark');
             }
+            updateThemeIcon(isDark);
         }
         initTheme();
 
@@ -2388,10 +2394,18 @@
             document.getElementById('flag-button').classList.add('hidden');
             document.getElementById('student-name-header-display').classList.add('hidden');
             document.getElementById('answer-area').innerHTML = '';
-            document.getElementById('global-logout-btn').classList.remove('hidden');
+            // Show logout btn only if user is logged in and not on login screen
+            if (window.state.role) {
+                document.getElementById('global-logout-btn').classList.remove('hidden');
+            } else {
+                document.getElementById('global-logout-btn').classList.add('hidden');
+            }
             window.toggleSidebar(false); 
             if(window.state.isCalculatorOpen) window.toggleCalculator(false);
         }
+
+        // Flag to prevent onAuthStateChanged from double-routing during explicit login
+        let windowAuthRoutingLock = false;
 
         window.initFirebase = function() {
              const authStatus = document.getElementById('auth-status');
@@ -2426,6 +2440,84 @@
                                  await signOut(auth);
                                  return;
                              }
+                             if (userData.status === "rejected") {
+                                 authStatus.textContent = user.email + ' (Rejected)';
+                                 renderLoginScreen("Your account has been rejected. Please contact support.");
+                                 await signOut(auth);
+                                 return;
+                             }
+                         }
+                     } catch (e) {
+                         console.warn("Init fetch profile failed", e);
+                     }
+
+                     // Set up onSnapshot listener for current user doc – signs out if doc is deleted
+                     onSnapshot(doc(db, "users", userId), (snap) => {
+                         if (!snap.exists()) {
+                             signOut(auth);
+                             renderLoginScreen("Your account has been deleted. You have been signed out.");
+                         }
+                     });
+
+                     document.getElementById('student-name-display-sidebar').textContent = window.state.studentName;
+                     document.getElementById('student-name-header-display').textContent = window.state.studentName;
+
+                     // If handleLogin / handleSignUp already handled routing, skip
+                     if (windowAuthRoutingLock) {
+                         windowAuthRoutingLock = false;
+                         return;
+                     }
+
+                     const stateLoaded = loadState();
+
+                     if (stateLoaded && window.state.studentName !== '') {
+                         if (window.state.appStage === 'teacher_dashboard' || window.state.role === 'teacher') {
+                             window.renderTeacherDashboard();
+                         } else if (window.state.appStage === 'admin_dashboard' || window.state.role === 'admin') {
+                             window.renderAdminDashboard();
+                         } else if (window.state.appStage === 'active') {
+                             window.startTest();
+                         } else if (window.state.appStage === 'break') {
+                             hideTestUIElements();
+                             document.getElementById('timer-display').classList.remove('hidden');
+                             window.state.module = 2;
+                             
+                             const contentDiv = document.getElementById('question-content');
+                             contentDiv.innerHTML = `
+                                 <div id="break-screen" class="text-center p-12">
+                                     <h1 class="text-3xl font-bold text-green-600 mb-4">Module 1 Complete!</h1>
+                                     <p class="text-xl">Your performance determined you will now receive the 
+                                     <span class="font-bold text-indigo-700">${window.state.testHistory.module2.difficulty === 'M2H' ? 'HARD' : 'EASY'}</span> Module 2.</p>
+                                     <p class="text-gray-600 mt-4 font-semibold text-lg">5-Minute Break in Progress (Resumed)...</p>
+                                     <p id="break-timer-display" class="text-6xl font-mono text-red-600 mt-4">${Math.floor(window.state.timeLeft / 60).toString().padStart(2, '0')}:${(window.state.timeLeft % 60).toString().padStart(2, '0')}</p>
+                                     <button onclick="startModuleTwoImmediately()" class="mt-6 px-6 py-3 bg-indigo-500 text-white rounded-xl font-semibold shadow-md hover:bg-indigo-600 transition duration-150 transform hover:scale-105">
+                                         Skip Break and Start Module 2
+                                     </button>
+                                 </div>
+                             `;
+                             contentDiv.classList.add('flex', 'items-center', 'justify-center');
+                             startTimer();
+                             renderMath('break-screen');
+                         } else if (window.state.appStage === 'finished') {
+                             const m1 = window.state.testHistory.module1;
+                             const m2 = window.state.testHistory.module2;
+                             const totalCorrect = m1.score + m2.score;
+                             const finalScorePercentage = (totalCorrect / 44) * 100;
+                             renderScoreReport(totalCorrect, finalScorePercentage, 44);
+                         } else {
+                             window.navigateToHome();
+                         }
+                     } else {
+                         window.navigateToHome();
+                     }
+                 } else {
+                     // No user
+                     authStatus.textContent = 'Guest';
+                     hiddenUserIdDisplay.textContent = 'Not Auth';
+                     renderLoginScreen();
+                 }
+             });
+        }
                              if (userData.status === "rejected") {
                                  authStatus.textContent = user.email + ' (Rejected)';
                                  renderLoginScreen("Your account has been rejected. Please contact support.");
@@ -2582,6 +2674,7 @@
         function renderLoginScreen(message) {
             window.state.appStage = 'login';
             hideTestUIElements();
+            document.getElementById('global-logout-btn').classList.add('hidden');
             document.getElementById('header-test-info').textContent = 'DSAT Mock Tests';
             saveState();
 
@@ -2716,6 +2809,9 @@
                 document.getElementById('student-name-display-sidebar').textContent = window.state.studentName;
                 document.getElementById('auth-status').textContent = user.email;
                 
+                // Lock to prevent onAuthStateChanged from re-routing
+                windowAuthRoutingLock = true;
+                
                 if (role === 'teacher') {
                     if (typeof window.renderTeacherDashboard === 'function') {
                         window.renderTeacherDashboard();
@@ -2815,11 +2911,15 @@
             }
         }
 
-        /** Renders the test selection screen. */
+        /** Logout: sign out, clear state, show sign-in view */
         window.handleLogout = async function() {
             try {
+                localStorage.removeItem(STORAGE_KEY);
+                window.state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+                windowLoginView = 'signin';
                 await signOut(auth);
                 window.toggleSidebar(false);
+                document.getElementById('global-logout-btn').classList.add('hidden');
             } catch (error) {
                 console.error("Logout error", error);
             }
@@ -2829,6 +2929,8 @@
         window.navigateToHome = function() {
             if (window.state.role === 'teacher') {
                 window.renderTeacherDashboard();
+            } else if (window.state.role === 'admin') {
+                window.renderAdminDashboard();
             } else {
                 window.renderExamSelectionScreen();
             }
@@ -2984,6 +3086,7 @@
             window.loadTestQuestions(testId);
         }
 
+        /** Load a custom test from Firestore, converting question format to the standard engine format */
         window.loadCustomTestQuestions = async function(testId) {
             try {
                 const testDoc = await getDoc(doc(db, "tests", testId));
@@ -2992,11 +3095,23 @@
                     return;
                 }
                 const testData = testDoc.data();
-                const questions = testData.questions || [];
+                const rawQuestions = testData.questions || [];
+                
+                // Convert teacher format {text, choices, correctAnswer, explanation} to engine format {id, module, text, type, options, correctAnswer, difficulty, imageUrl}
+                const converted = rawQuestions.map((q, i) => ({
+                    id: testId + '_Q' + (i + 1),
+                    module: 1,
+                    text: q.text || '',
+                    type: 'MC',
+                    options: q.choices || ['', '', '', ''],
+                    correctAnswer: q.correctAnswer || 'A',
+                    difficulty: testData.difficulty || 'Medium',
+                    imageUrl: q.image || null
+                }));
                 
                 ALL_TEST_QUESTIONS[testId] = {
-                    name: testData.name,
-                    M1: questions
+                    name: testData.name || 'Custom Test',
+                    M1: converted
                 };
                 
                 window.loadTestQuestions(testId);
@@ -3067,13 +3182,13 @@
         /** Loads the questions for the selected test and transitions to the welcome screen. */
         window.loadTestQuestions = function(testId) {
             const testData = ALL_TEST_QUESTIONS[testId];
-            if (!testData || testData.M1.length !== 22) {
+            if (!testData || !testData.M1 || testData.M1.length === 0) {
                 console.error(`Error: Test data for ${testId} is incomplete or missing!`);
                 // Use a non-blocking UI feedback mechanism for errors
                 document.getElementById('question-content').innerHTML = `
                     <div class="text-center p-12 bg-red-100 rounded-xl shadow-lg border border-red-400">
                         <h2 class="text-2xl font-bold text-red-800 mb-4">Error Loading Test!</h2>
-                        <p class="text-lg text-red-700">Test data for ${testId} is incomplete. Check the ALL_TEST_QUESTIONS object.</p>
+                        <p class="text-lg text-red-700">Test data for ${testId} is incomplete or missing.</p>
                         <button onclick="window.navigateToHome()" class="mt-4 px-6 py-2 bg-red-500 text-white rounded-lg">Home</button>
                     </div>`;
                 document.getElementById('question-content').classList.add('flex', 'items-center', 'justify-center');
