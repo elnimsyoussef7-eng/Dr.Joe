@@ -2517,76 +2517,7 @@
                      renderLoginScreen();
                  }
              });
-        }
-                             if (userData.status === "rejected") {
-                                 authStatus.textContent = user.email + ' (Rejected)';
-                                 renderLoginScreen("Your account has been rejected. Please contact support.");
-                                 await signOut(auth);
-                                 return;
-                             }
-                         }
-                     } catch (e) {
-                         console.warn("Init fetch profile failed", e);
-                     }
-
-                     // Set up onSnapshot listener for current user doc
-                     onSnapshot(doc(db, "users", userId), (snap) => {
-                         if (!snap.exists()) {
-                             signOut(auth);
-                             renderLoginScreen("Your account has been deleted. You have been signed out.");
-                         }
-                     });
-
-                     document.getElementById('student-name-display-sidebar').textContent = window.state.studentName;
-                     document.getElementById('student-name-header-display').textContent = window.state.studentName;
-
-                     const stateLoaded = loadState();
-
-                     if (stateLoaded && window.state.studentName !== '') {
-                         if (window.state.appStage === 'teacher_dashboard' || window.state.role === 'teacher') {
-                             window.renderTeacherDashboard();
-                         } else if (window.state.appStage === 'active') {
-                             window.startTest();
-                         } else if (window.state.appStage === 'break') {
-                             hideTestUIElements();
-                             document.getElementById('timer-display').classList.remove('hidden');
-                             window.state.module = 2;
-                             
-                             const contentDiv = document.getElementById('question-content');
-                             contentDiv.innerHTML = `
-                                 <div id="break-screen" class="text-center p-12">
-                                     <h1 class="text-3xl font-bold text-green-600 mb-4">Module 1 Complete!</h1>
-                                     <p class="text-xl">Your performance determined you will now receive the 
-                                     <span class="font-bold text-indigo-700">${window.state.testHistory.module2.difficulty === 'M2H' ? 'HARD' : 'EASY'}</span> Module 2.</p>
-                                     <p class="text-gray-600 mt-4 font-semibold text-lg">5-Minute Break in Progress (Resumed)...</p>
-                                     <p id="break-timer-display" class="text-6xl font-mono text-red-600 mt-4">${Math.floor(window.state.timeLeft / 60).toString().padStart(2, '0')}:${(window.state.timeLeft % 60).toString().padStart(2, '0')}</p>
-                                     <button onclick="startModuleTwoImmediately()" class="mt-6 px-6 py-3 bg-indigo-500 text-white rounded-xl font-semibold shadow-md hover:bg-indigo-600 transition duration-150 transform hover:scale-105">
-                                         Skip Break and Start Module 2
-                                     </button>
-                                 </div>
-                             `;
-                             contentDiv.classList.add('flex', 'items-center', 'justify-center');
-                             startTimer();
-                             renderMath('break-screen');
-                         } else if (window.state.appStage === 'finished') {
-                             const m1 = window.state.testHistory.module1;
-                             const m2 = window.state.testHistory.module2;
-                             const totalCorrect = m1.score + m2.score;
-                             const finalScorePercentage = (totalCorrect / 44) * 100;
-                             renderScoreReport(totalCorrect, finalScorePercentage, 44);
-                         } else {
-                             window.navigateToHome();
-                         }
-                     } else {
-                         window.navigateToHome();
-                     }
-                 } else {
-                     authStatus.textContent = 'Guest';
-                     hiddenUserIdDisplay.textContent = 'Not Auth';
-                     renderLoginScreen();
-                 }
-             });
-        }
+         }
 
         window.fetchPastResults = async function() {
             if (!userId) return {};
