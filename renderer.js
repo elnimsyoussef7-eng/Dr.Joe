@@ -2601,8 +2601,8 @@
         // --- SCREEN RENDERING FUNCTIONS (LOGIN, SELECTION, WELCOME) ---
         
         /** Renders the initial login/authentication screen with Sign In / Sign Up views. */
-        let windowLoginView = 'signin'; // 'signin' or 'signup'
-        function renderLoginScreen(message) {
+        window.windowLoginView = 'signin'; // 'signin' or 'signup'
+        window.renderLoginScreen = function(message) {
             window.state.appStage = 'login';
             hideTestUIElements();
             document.getElementById('global-logout-btn').classList.add('hidden');
@@ -2610,7 +2610,7 @@
             saveState();
 
             document.getElementById('question-content').classList.add('flex', 'items-center', 'justify-center');
-            const isSignIn = windowLoginView === 'signin';
+            const isSignIn = window.windowLoginView === 'signin';
             document.getElementById('question-content').innerHTML = `
                 <div id="login-card" class="text-center p-8 bg-white rounded-xl shadow-lg border border-blue-200 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" style="width: 440px;">
                     <h1 class="text-3xl font-extrabold text-blue-700 mb-6 dark:text-blue-400">Welcome Dr.Joe Platform</h1>
@@ -2831,8 +2831,8 @@
                 
                 setTimeout(async () => {
                     await signOut(auth);
-                    windowLoginView = 'signin';
-                    renderLoginScreen("Account created! Your account is pending approval. Please wait for an admin to approve your account.");
+                    window.windowLoginView = 'signin';
+                    window.renderLoginScreen("Account created! Your account is pending approval. Please wait for an admin to approve your account.");
                 }, 2000);
 
             } catch (error) {
@@ -2847,7 +2847,7 @@
             try {
                 localStorage.removeItem(STORAGE_KEY);
                 window.state = JSON.parse(JSON.stringify(DEFAULT_STATE));
-                windowLoginView = 'signin';
+                window.windowLoginView = 'signin';
                 await signOut(auth);
                 window.toggleSidebar(false);
                 document.getElementById('global-logout-btn').classList.add('hidden');
