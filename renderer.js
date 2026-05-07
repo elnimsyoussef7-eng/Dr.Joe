@@ -15,7 +15,10 @@
             setDoc,
             doc,
             getDoc,
-            deleteDoc
+            deleteDoc,
+            onSnapshot,
+            updateDoc,
+            writeBatch
         } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         // Expose to window for debugging or global access if needed
@@ -51,6 +54,26 @@
         // Initialize state globally (will be overwritten by loadState())
         window.state = JSON.parse(JSON.stringify(DEFAULT_STATE));
 
+
+        // --- Theme Functions ---
+
+        window.toggleTheme = function() {
+            const html = document.documentElement;
+            const isDark = html.classList.toggle('dark');
+            localStorage.setItem('dsat-theme', isDark ? 'dark' : 'light');
+            const sunIcon = document.getElementById('theme-icon-sun');
+            if (sunIcon) {
+                sunIcon.style.display = isDark ? 'none' : 'block';
+            }
+        }
+
+        function initTheme() {
+            const saved = localStorage.getItem('dsat-theme');
+            if (saved === 'dark') {
+                document.documentElement.classList.add('dark');
+            }
+        }
+        initTheme();
 
         // --- Local Storage Functions (New for persistence) ---
 
@@ -2364,7 +2387,8 @@
             document.getElementById('timer-display').classList.add('hidden');
             document.getElementById('flag-button').classList.add('hidden');
             document.getElementById('student-name-header-display').classList.add('hidden');
-            document.getElementById('answer-area').innerHTML = ''; // Ensure answer area is clear
+            document.getElementById('answer-area').innerHTML = '';
+            document.getElementById('global-logout-btn').classList.remove('hidden');
             window.toggleSidebar(false); 
             if(window.state.isCalculatorOpen) window.toggleCalculator(false);
         }
@@ -2373,19 +2397,16 @@
              const authStatus = document.getElementById('auth-status');
              const hiddenUserIdDisplay = document.getElementById('full-user-id-hidden');
              
-             // Wait for auth state
              onAuthStateChanged(auth, async (user) => {
                  if (user) {
                      userId = user.uid;
                      const name = user.email.split('@')[0];
                      
-                     // window.state.studentName might be overwritten by loadState, but we ensure it matches user
                      window.state.studentName = name;
                      
                      authStatus.textContent = user.email;
                      hiddenUserIdDisplay.textContent = userId;
                      
-                     // Ensure we have the role from Firestore if starting fresh or reloading
                      try {
                          const userDoc = await getDoc(doc(db, "users", userId));
                          if (userDoc.exists()) {
@@ -2394,25 +2415,47 @@
                              window.state.studentName = userData.displayName || name;
                              window.state.parentEmail = userData.parentEmail;
                              window.state.parentPhone = userData.parentPhone;
+                             window.state.studentPhone = userData.studentPhone;
+                             
+                             // TASK 1c: Block unapproved users
+                             if (userData.status === "pending") {
+                                 authStatus.textContent = user.email + ' (Pending)';
+                                 document.getElementById('student-name-display-sidebar').textContent = window.state.studentName;
+                                 document.getElementById('student-name-header-display').textContent = window.state.studentName;
+                                 renderLoginScreen("Your account is pending approval. Please wait for an admin to approve your account.");
+                                 await signOut(auth);
+                                 return;
+                             }
+                             if (userData.status === "rejected") {
+                                 authStatus.textContent = user.email + ' (Rejected)';
+                                 renderLoginScreen("Your account has been rejected. Please contact support.");
+                                 await signOut(auth);
+                                 return;
+                             }
                          }
                      } catch (e) {
                          console.warn("Init fetch profile failed", e);
                      }
 
+                     // Set up onSnapshot listener for current user doc
+                     onSnapshot(doc(db, "users", userId), (snap) => {
+                         if (!snap.exists()) {
+                             signOut(auth);
+                             renderLoginScreen("Your account has been deleted. You have been signed out.");
+                         }
+                     });
+
                      document.getElementById('student-name-display-sidebar').textContent = window.state.studentName;
                      document.getElementById('student-name-header-display').textContent = window.state.studentName;
 
-                     // Attempt to load previous state
                      const stateLoaded = loadState();
 
                      if (stateLoaded && window.state.studentName !== '') {
-                         // Logic to resume based on state
                          if (window.state.appStage === 'teacher_dashboard' || window.state.role === 'teacher') {
                              window.renderTeacherDashboard();
                          } else if (window.state.appStage === 'active') {
                              window.startTest();
                          } else if (window.state.appStage === 'break') {
-                             // Break resume logic
                              hideTestUIElements();
                              document.getElementById('timer-display').classList.remove('hidden');
                              window.state.module = 2;
@@ -2446,7 +2489,6 @@
                          window.navigateToHome();
                      }
                  } else {
-                     // No user
                      authStatus.textContent = 'Guest';
                      hiddenUserIdDisplay.textContent = 'Not Auth';
                      renderLoginScreen();
@@ -2535,75 +2577,68 @@
 
         // --- SCREEN RENDERING FUNCTIONS (LOGIN, SELECTION, WELCOME) ---
         
-        /** Renders the initial login/authentication screen. */
-        function renderLoginScreen() {
+        /** Renders the initial login/authentication screen with Sign In / Sign Up views. */
+        let windowLoginView = 'signin'; // 'signin' or 'signup'
+        function renderLoginScreen(message) {
             window.state.appStage = 'login';
-            hideTestUIElements(); // Hide timer, flags, footer, sidebar
+            hideTestUIElements();
             document.getElementById('header-test-info').textContent = 'DSAT Mock Tests';
-            saveState(); // Save state after setting stage to login/default
+            saveState();
 
             document.getElementById('question-content').classList.add('flex', 'items-center', 'justify-center');
+            const isSignIn = windowLoginView === 'signin';
             document.getElementById('question-content').innerHTML = `
-                <div id="login-card" class="text-center p-12 bg-white rounded-xl shadow-lg border border-blue-200">
-                    <h1 class="text-3xl font-extrabold text-blue-700 mb-6">Welcome Dr.Joe Platform</h1>
-                    <div class="mx-auto max-w-sm mb-6 text-left">
+                <div id="login-card" class="text-center p-8 bg-white rounded-xl shadow-lg border border-blue-200 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" style="width: 440px;">
+                    <h1 class="text-3xl font-extrabold text-blue-700 mb-6 dark:text-blue-400">Welcome Dr.Joe Platform</h1>
+                    <div class="mx-auto max-w-sm mb-4 text-left">
+                        ${message ? `<div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-3 mb-4 rounded text-sm dark:bg-yellow-900 dark:text-yellow-200">${message}</div>` : ''}
                         <div class="mb-4">
-                            <span class="block text-lg font-semibold text-gray-800 mb-2">I am a:</span>
+                            <span class="block text-lg font-semibold text-gray-800 mb-2 dark:text-gray-200">I am a:</span>
                             <div class="flex flex-wrap items-center space-x-4">
                                 <label class="inline-flex items-center">
-                                    <input type="radio" class="form-radio text-blue-600" name="role" value="student" checked onchange="toggleParentEmail(true)">
+                                    <input type="radio" class="form-radio text-blue-600" name="role" value="student" checked onchange="window.toggleParentEmail(true)">
                                     <span class="ml-2">Student</span>
                                 </label>
                                 <label class="inline-flex items-center">
-                                    <input type="radio" class="form-radio text-blue-600" name="role" value="teacher" onchange="toggleParentEmail(false)">
+                                    <input type="radio" class="form-radio text-blue-600" name="role" value="teacher" onchange="window.toggleParentEmail(false)">
                                     <span class="ml-2">Teacher/Academy</span>
                                 </label>
                                 <label class="inline-flex items-center">
-                                    <input type="radio" class="form-radio text-blue-600" name="role" value="admin" onchange="toggleParentEmail(false)">
+                                    <input type="radio" class="form-radio text-blue-600" name="role" value="admin" onchange="window.toggleParentEmail(false)">
                                     <span class="ml-2">Admin</span>
                                 </label>
                             </div>
                         </div>
 
+                        ${!isSignIn ? `
                         <label for="full-name-input" class="block text-lg font-semibold text-gray-800 mb-1">Full Name:</label>
-                        <input type="text" id="full-name-input" 
-                               placeholder="Enter your full name"
-                               class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg mb-4">
+                        <input type="text" id="full-name-input" placeholder="Enter your full name" class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg mb-4">
+                        ` : ''}
 
                         <label for="login-email-input" class="block text-lg font-semibold text-gray-800 mb-1">Email:</label>
-                        <input type="email" id="login-email-input" 
-                               placeholder="Enter your email"
-                               class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg mb-4">
+                        <input type="email" id="login-email-input" placeholder="Enter your email" class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg mb-4">
 
                         <label for="password-input" class="block text-lg font-semibold text-gray-800 mb-1">Password:</label>
-                        <input type="password" id="password-input" 
-                               placeholder="Enter Password"
-                               class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg mb-4">
-                        
+                        <input type="password" id="password-input" placeholder="Enter Password" class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg mb-4">
+
                         <div id="parent-email-container">
-                            <label for="parent-email-input" class="block text-lg font-semibold text-gray-800 mb-1">Parent Email (Optional):</label>
-                            <input type="email" id="parent-email-input" 
-                                   placeholder="parent@example.com"
-                                   class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg mb-4">
-                            
-                            <label for="parent-phone-input" class="block text-lg font-semibold text-gray-800 mb-1">Parent Phone Number (Optional):</label>
-                            <input type="tel" id="parent-phone-input" 
-                                   placeholder="+1234567890"
-                                   class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg">
+                            <label for="student-phone-input" class="block text-lg font-semibold text-gray-800 mb-1">Student Phone Number:</label>
+                            <input type="tel" id="student-phone-input" placeholder="+1234567890" class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg mb-4">
+                            <label for="parent-phone-input" class="block text-lg font-semibold text-gray-800 mb-1">Parent Phone Number:</label>
+                            <input type="tel" id="parent-phone-input" placeholder="+1234567890" class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg">
                         </div>
-                                
-                        <p id="login-error-message" class="text-red-500 text-sm mt-3 hidden">Invalid email or password.</p>
+
+                        <p id="login-error-message" class="text-red-500 text-sm mt-3 hidden"></p>
                         <p id="login-success-message" class="text-green-500 text-sm mt-3 hidden"></p>
                     </div>
-                    
-                    <button onclick="handleLogin()"
-                            class="px-8 py-3 bg-gradient-to-r from-green-500 to-green-700 text-white text-xl font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150 mb-4 block w-full">
-                        Login
-                    </button>
-                    <button onclick="handleSignUp()"
-                            class="px-8 py-3 bg-gradient-to-r from-blue-500 to-blue-700 text-white text-xl font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150 block w-full">
-                        Sign Up
-                    </button>
+
+                    ${isSignIn ? `
+                    <button onclick="handleLogin()" class="px-8 py-3 bg-gradient-to-r from-green-500 to-green-700 text-white text-xl font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150 mb-3 block w-full">Sign In</button>
+                    <p class="text-sm text-gray-600">Don't have an account? <a href="#" onclick="windowLoginView='signup';renderLoginScreen();return false;" class="text-blue-600 font-semibold hover:underline">Sign Up</a></p>
+                    ` : `
+                    <button onclick="handleSignUp()" class="px-8 py-3 bg-gradient-to-r from-blue-500 to-blue-700 text-white text-xl font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150 mb-3 block w-full">Sign Up</button>
+                    <p class="text-sm text-gray-600">Already a participant? <a href="#" onclick="windowLoginView='signin';renderLoginScreen();return false;" class="text-blue-600 font-semibold hover:underline">Sign In</a></p>
+                    `}
                     ${window.state.studentName ? `<p class="text-sm text-gray-500 mt-4">Resuming saved session for: ${window.state.studentName}</p>` : ''}
                 </div>
             `;
@@ -2654,12 +2689,26 @@
                         const userData = userDoc.data();
                         role = userData.role || 'student';
                         parentEmail = userData.parentEmail || '';
+                        
+                        // Block pending/unapproved users
+                        if (userData.status === "pending") {
+                            errorMessage.textContent = "Your account is pending approval. Please wait for an admin to approve your account.";
+                            errorMessage.classList.remove('hidden');
+                            await signOut(auth);
+                            return;
+                        }
+                        if (userData.status === "rejected") {
+                            errorMessage.textContent = "Your account has been rejected. Please contact support.";
+                            errorMessage.classList.remove('hidden');
+                            await signOut(auth);
+                            return;
+                        }
                     }
                 } catch (e) {
                     console.warn("Could not fetch user profile:", e);
                 }
 
-                window.state.studentName = user.email.split('@')[0]; // Use part of email as name
+                window.state.studentName = user.email.split('@')[0];
                 window.state.role = role;
                 window.state.parentEmail = parentEmail;
                 userId = user.uid;
@@ -2695,19 +2744,18 @@
             const emailInput = document.getElementById('login-email-input');
             const passInput = document.getElementById('password-input');
             const fullNameInput = document.getElementById('full-name-input');
-            const parentEmailInput = document.getElementById('parent-email-input');
+            const studentPhoneInput = document.getElementById('student-phone-input');
             const parentPhoneInput = document.getElementById('parent-phone-input');
             const errorMessage = document.getElementById('login-error-message');
             const successMessage = document.getElementById('login-success-message');
             
-            // Get role
             const roleInput = document.querySelector('input[name="role"]:checked');
             const role = roleInput ? roleInput.value : 'student';
 
             const email = emailInput.value.trim();
             const password = passInput.value.trim();
             const fullName = fullNameInput ? fullNameInput.value.trim() : '';
-            const parentEmail = parentEmailInput ? parentEmailInput.value.trim() : '';
+            const studentPhone = studentPhoneInput ? studentPhoneInput.value.trim() : '';
             const parentPhone = parentPhoneInput ? parentPhoneInput.value.trim() : '';
 
             if (email === '' || password === '') {
@@ -2716,7 +2764,7 @@
                 return;
             }
 
-            if (role === 'student' && fullName === '') {
+            if (fullName === '') {
                 errorMessage.textContent = 'Please enter your full name.';
                 errorMessage.classList.remove('hidden');
                 return;
@@ -2732,44 +2780,33 @@
                 
                 const displayName = fullName || user.email.split('@')[0];
 
-                // Create user profile in Firestore
                 await setDoc(doc(db, "users", user.uid), {
                     uid: user.uid,
                     email: user.email,
                     displayName: displayName,
                     role: role,
-                    parentEmail: role === 'student' ? parentEmail : '',
-                    parentPhone: role === 'student' ? parentPhone : ''
+                    status: "pending",
+                    studentPhone: role === 'student' ? studentPhone : '',
+                    parentPhone: role === 'student' ? parentPhone : '',
+                    createdAt: new Date()
                 });
 
-                successMessage.textContent = "Account created! Logging in...";
+                successMessage.textContent = "Account created! Your account is pending approval. Please wait for an admin to approve your account.";
                 successMessage.classList.remove('hidden');
                 
                 window.state.studentName = displayName;
                 window.state.role = role;
-                window.state.parentEmail = parentEmail;
+                window.state.studentPhone = studentPhone;
                 window.state.parentPhone = parentPhone;
                 userId = user.uid;
                 
                 document.getElementById('student-name-display-sidebar').textContent = window.state.studentName;
                 
-                setTimeout(() => {
-                    if (role === 'teacher') {
-                        if (typeof window.renderTeacherDashboard === 'function') {
-                            window.renderTeacherDashboard();
-                        } else {
-                            window.navigateToHome(); // Fallback
-                        }
-                    } else if (role === 'admin') {
-                        if (typeof window.renderAdminDashboard === 'function') {
-                            window.renderAdminDashboard();
-                        } else {
-                            window.navigateToHome(); // Fallback
-                        }
-                    } else {
-                        window.navigateToHome();
-                    }
-                }, 1000);
+                setTimeout(async () => {
+                    await signOut(auth);
+                    windowLoginView = 'signin';
+                    renderLoginScreen("Account created! Your account is pending approval. Please wait for an admin to approve your account.");
+                }, 2000);
 
             } catch (error) {
                 console.error("Sign up error:", error);
@@ -2797,31 +2834,62 @@
             }
         }
 
+        const PRACTICE_QUIZZES = {
+            algebra: { name: 'Algebra Basics', questions: [
+                { text: 'Solve for x: $2x + 5 = 13$', choices: ['3', '4', '5', '6'], correctAnswer: 'B', explanation: '2x = 8, so x = 4' },
+                { text: 'What is the slope of $y = 3x - 2$?', choices: ['-2', '2', '3', '-3'], correctAnswer: 'C', explanation: 'In y=mx+b, m is the slope, so m=3' },
+                { text: 'Simplify: $(x^2)(x^3)$', choices: ['$x^5$', '$x^6$', '$x$', '$x^{-1}$'], correctAnswer: 'A', explanation: 'When multiplying, add exponents: 2+3=5' },
+                { text: 'If $f(x) = 2x + 1$, find $f(3)$', choices: ['5', '6', '7', '8'], correctAnswer: 'C', explanation: 'f(3) = 2(3) + 1 = 7' },
+                { text: 'Factor: $x^2 - 9$', choices: ['$(x-3)(x+3)$', '$(x-3)^2$', '$(x+3)^2$', '$(x-9)(x+9)$'], correctAnswer: 'A', explanation: 'Difference of squares: a²-b² = (a-b)(a+b)' },
+                { text: 'Solve: $3x - 7 = 14$', choices: ['5', '6', '7', '8'], correctAnswer: 'C', explanation: '3x = 21, x = 7' },
+                { text: 'What is the y-intercept of $y = -2x + 5$?', choices: ['-2', '2', '5', '-5'], correctAnswer: 'C', explanation: 'In y=mx+b, b is the y-intercept, so b=5' },
+            ]},
+            geometry: { name: 'Geometry Fundamentals', questions: [
+                { text: 'Area of a triangle with base 6 and height 4', choices: ['10', '12', '24', '48'], correctAnswer: 'B', explanation: 'A = ½bh = ½(6)(4) = 12' },
+                { text: 'A circle has radius 3. What is its area?', choices: ['$3\\pi$', '$6\\pi$', '$9\\pi$', '$12\\pi$'], correctAnswer: 'C', explanation: 'A = πr² = 9π' },
+                { text: 'What is the circumference of a circle with diameter 10?', choices: ['$5\\pi$', '$10\\pi$', '$20\\pi$', '$100\\pi$'], correctAnswer: 'B', explanation: 'C = πd = 10π' },
+                { text: 'In a right triangle, the legs are 3 and 4. Find the hypotenuse.', choices: ['5', '6', '7', '8'], correctAnswer: 'A', explanation: 'c² = 3²+4² = 25, c = 5' },
+                { text: 'Volume of a cube with side length 2', choices: ['4', '6', '8', '16'], correctAnswer: 'C', explanation: 'V = s³ = 8' },
+            ]},
+            trig: { name: 'Trigonometry Practice', questions: [
+                { text: '$\\sin(30^\\circ) = ?$', choices: ['$\\frac{1}{2}$', '$\\frac{\\sqrt{3}}{2}$', '$\\frac{\\sqrt{2}}{2}$', '1'], correctAnswer: 'A', explanation: 'sin(30°) = 1/2' },
+                { text: '$\\cos(60^\\circ) = ?$', choices: ['$\\frac{1}{2}$', '$\\frac{\\sqrt{3}}{2}$', '$\\frac{\\sqrt{2}}{2}$', '0'], correctAnswer: 'A', explanation: 'cos(60°) = 1/2' },
+                { text: '$\\tan(45^\\circ) = ?$', choices: ['0', '1', '$\\sqrt{3}$', '$\\frac{1}{\\sqrt{3}}$'], correctAnswer: 'B', explanation: 'tan(45°) = sin(45°)/cos(45°) = 1' },
+            ]}
+        };
+
         window.renderExamSelectionScreen = async function() { 
             window.state.appStage = 'selection';
             hideTestUIElements();
             document.getElementById('header-test-info').textContent = 'Select an Exam';
-            saveState(); // Save state after moving to selection
+            saveState();
+
+            const pastResults = await window.fetchPastResults(); 
+            
+            let firestoreTests = [];
+            try {
+                const testsSnap = await getDocs(collection(db, "tests"));
+                testsSnap.forEach(d => {
+                    firestoreTests.push({ id: d.id, ...d.data() });
+                });
+            } catch (e) {
+                console.warn("Could not fetch tests from Firestore:", e);
+            }
 
             const testList = Object.keys(ALL_TEST_QUESTIONS);
             let examsHtml = `<div class="space-y-4">`;
 
-            // Fetch past attempts for the current user
-            const pastResults = await window.fetchPastResults(); 
-            
             for (const testId of testList) {
                 const testData = ALL_TEST_QUESTIONS[testId];
                 const result = pastResults[testId];
                 const totalCorrect = result ? result.totalCorrect : 'N/A';
                 const attemptDate = result ? new Date(result.timestamp).toLocaleDateString() : 'Never taken';
-                
 
                 examsHtml += `
-                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-white border border-gray-300 rounded-lg shadow-md">
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-white border border-gray-300 rounded-lg shadow-md dark:bg-gray-800 dark:border-gray-600">
                         <div class="text-left mb-3 sm:mb-0 sm:pr-4">
-                            <h3 class="text-xl font-bold text-gray-800">${testData.name}</h3>
-                            <p class="text-sm text-gray-500 mt-1">Status: ${result ? `Score ${totalCorrect}/44 (Last taken: ${attemptDate})` : 'Ready to start'}</p>
-                            
+                            <h3 class="text-xl font-bold text-gray-800 dark:text-gray-100">${testData.name}</h3>
+                            <p class="text-sm text-gray-500 mt-1 dark:text-gray-400">Status: ${result ? `Score ${totalCorrect}/44 (Last taken: ${attemptDate})` : 'Ready to start'}</p>
                         </div>
                         <div class="space-x-3 flex items-center shrink-0">
                             <button onclick="loadTestQuestions('${testId}')" 
@@ -2833,21 +2901,167 @@
                                     class="px-4 py-2 bg-gradient-to-r from-indigo-500 to-indigo-700 text-white font-semibold rounded-lg shadow hover:shadow-md hover:scale-105 transition duration-150">
                                 Review
                             </button>` : ''}
-                            
                         </div>
                     </div>
                 `;
             }
 
+            firestoreTests.forEach(ft => {
+                const testId = ft.id;
+                const result = pastResults[testId];
+                const totalCorrect = result ? result.totalCorrect : 'N/A';
+                const attemptDate = result ? new Date(result.timestamp).toLocaleDateString() : 'Never taken';
+
+                examsHtml += `
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-white border border-gray-300 rounded-lg shadow-md dark:bg-gray-800 dark:border-gray-600">
+                        <div class="text-left mb-3 sm:mb-0 sm:pr-4">
+                            <h3 class="text-xl font-bold text-gray-800 dark:text-gray-100">${ft.name}</h3>
+                            <p class="text-sm text-gray-500 mt-1 dark:text-gray-400">${ft.difficulty ? `Difficulty: ${ft.difficulty}` : 'Custom Test'}</p>
+                        </div>
+                        <div class="space-x-3 flex items-center shrink-0">
+                            <button onclick="loadCustomTestQuestions('${testId}')" 
+                                    class="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-700 text-white font-semibold rounded-lg shadow hover:shadow-md hover:scale-105 transition duration-150">
+                                Start Test
+                            </button>
+                            ${result ? `
+                            <button onclick="reviewPastAttempt('${testId}')" 
+                                    class="px-4 py-2 bg-gradient-to-r from-indigo-500 to-indigo-700 text-white font-semibold rounded-lg shadow hover:shadow-md hover:scale-105 transition duration-150">
+                                Review
+                            </button>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+
             examsHtml += `</div>`;
+
+            // Practice quizzes section
+            let practiceHtml = `<div class="mt-8"><h3 class="text-2xl font-bold text-gray-800 mb-4">Practice Mini-Quizzes</h3><div class="grid grid-cols-1 md:grid-cols-3 gap-4">`;
+            Object.keys(PRACTICE_QUIZZES).forEach(key => {
+                const quiz = PRACTICE_QUIZZES[key];
+                practiceHtml += `
+                    <div class="p-4 bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-200 rounded-xl shadow-md hover:shadow-lg transition">
+                        <h4 class="text-lg font-bold text-indigo-800 mb-2">${quiz.name}</h4>
+                        <p class="text-sm text-gray-600 mb-3">${quiz.questions.length} questions</p>
+                        <button onclick="window.startPracticeQuiz('${key}')" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold text-sm">Start Practice</button>
+                    </div>`;
+            });
+            practiceHtml += `</div></div>`;
             
             const contentDiv = document.getElementById('question-content');
             contentDiv.classList.remove('flex', 'items-center', 'justify-center');
             contentDiv.innerHTML = `
-                <h2 id="exam-selection-title" class="text-3xl font-bold text-gray-800 mb-6">Exams Available for ${window.state.studentName}</h2>
-                ${examsHtml}
+                <div class="p-8 max-w-4xl mx-auto">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 id="exam-selection-title" class="text-3xl font-bold text-gray-800 dark:text-gray-100">Exams Available for ${window.state.studentName}</h2>
+                        <button onclick="window.showStudentSettings()" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-semibold">Settings</button>
+                    </div>
+                    ${examsHtml}
+                    ${practiceHtml}
+                </div>
             `;
             renderMath('exam-selection-title');
+        }
+
+        window.startPracticeQuiz = function(quizKey) {
+            const quiz = PRACTICE_QUIZZES[quizKey];
+            if (!quiz) return;
+            const testId = 'practice_' + quizKey;
+            ALL_TEST_QUESTIONS[testId] = {
+                name: 'Practice: ' + quiz.name,
+                M1: quiz.questions.map((q, i) => ({
+                    id: testId + '_Q' + (i + 1),
+                    module: 1,
+                    text: q.text,
+                    type: 'MC',
+                    options: q.choices,
+                    correctAnswer: q.correctAnswer,
+                    difficulty: 'Medium',
+                    imageUrl: null,
+                    explanation: q.explanation
+                }))
+            };
+            window.loadTestQuestions(testId);
+        }
+
+        window.loadCustomTestQuestions = async function(testId) {
+            try {
+                const testDoc = await getDoc(doc(db, "tests", testId));
+                if (!testDoc.exists()) {
+                    alert('Test not found');
+                    return;
+                }
+                const testData = testDoc.data();
+                const questions = testData.questions || [];
+                
+                ALL_TEST_QUESTIONS[testId] = {
+                    name: testData.name,
+                    M1: questions
+                };
+                
+                window.loadTestQuestions(testId);
+            } catch (e) {
+                alert('Error loading custom test: ' + e.message);
+            }
+        }
+
+        window.showStudentSettings = function() {
+            const contentDiv = document.getElementById('question-content');
+            const currentName = window.state.studentName || '';
+            const currentPhone = window.state.studentPhone || '';
+
+            contentDiv.innerHTML = `
+                <div class="p-8 max-w-2xl mx-auto">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold text-gray-800">Settings</h2>
+                        <button onclick="window.navigateToHome()" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">Back</button>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-lg p-6 space-y-4">
+                        <div>
+                            <label class="block font-semibold text-gray-700 mb-2">Display Name</label>
+                            <input type="text" id="settings-name" value="${currentName}" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label class="block font-semibold text-gray-700 mb-2">Phone Number</label>
+                            <input type="tel" id="settings-phone" value="${currentPhone}" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label class="block font-semibold text-gray-700 mb-2">Change Password</label>
+                            <input type="password" id="settings-current-password" placeholder="Current password" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2">
+                            <input type="password" id="settings-new-password" placeholder="New password" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <button onclick="window.saveStudentSettings()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">Save Changes</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        window.saveStudentSettings = async function() {
+            const name = document.getElementById('settings-name').value.trim();
+            const phone = document.getElementById('settings-phone').value.trim();
+            const currentPassword = document.getElementById('settings-current-password').value;
+            const newPassword = document.getElementById('settings-new-password').value;
+
+            try {
+                if (name) {
+                    await updateDoc(doc(db, "users", userId), { displayName: name, studentPhone: phone });
+                    window.state.studentName = name;
+                    window.state.studentPhone = phone;
+                    document.getElementById('student-name-display-sidebar').textContent = name;
+                }
+
+                if (currentPassword && newPassword) {
+                    const { reauthenticateWithCredential, EmailAuthProvider, updatePassword } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js");
+                    const credential = EmailAuthProvider.credential(auth.currentUser.email, currentPassword);
+                    await reauthenticateWithCredential(auth.currentUser, credential);
+                    await updatePassword(auth.currentUser, newPassword);
+                }
+
+                alert('Settings saved!');
+                window.navigateToHome();
+            } catch (e) {
+                alert('Error saving settings: ' + e.message);
+            }
         }
         
         /** Loads the questions for the selected test and transitions to the welcome screen. */
@@ -2934,17 +3148,36 @@
         window.startTest = function() {
             window.state.appStage = 'active';
             
-            // Show necessary test elements
             document.getElementById('menu-button').classList.remove('hidden');
             document.getElementById('test-footer').classList.remove('hidden');
             document.getElementById('timer-display').classList.remove('hidden');
             document.getElementById('flag-button').classList.remove('hidden');
-            document.getElementById('student-name-header-display').classList.remove('hidden'); 
+            document.getElementById('student-name-header-display').classList.remove('hidden');
+            document.getElementById('global-logout-btn').classList.add('hidden');
 
             renderQuestion();
             renderQuestionMap();
             startTimer();
-            saveState(); // Save state after starting test
+            saveState();
+        }
+
+        // --- ANNOTATION TOOLS ---
+        window.toggleStrikethrough = function() {
+            const selected = document.querySelector('.answer-option.bg-blue-100');
+            if (selected) {
+                selected.classList.toggle('line-through');
+                selected.classList.toggle('opacity-60');
+            }
+        }
+
+        window.toggleHighlight = function() {
+            const qText = document.getElementById('q-text-container');
+            if (qText) {
+                qText.classList.toggle('bg-yellow-200');
+                qText.classList.toggle('bg-opacity-50');
+                qText.classList.toggle('rounded');
+                qText.classList.toggle('p-1');
+            }
         }
 
         // --- REVIEW FUNCTIONS ---
@@ -3029,8 +3262,15 @@
 
             const contentDiv = document.getElementById('question-content');
             contentDiv.innerHTML = `
-                <h2 class="text-xl font-semibold mb-4 text-gray-800">${isReviewMode ? 'Review Question' : 'Question'} ${questionIndex + 1}</h2>
-                <div id="q-text-container" class="text-lg leading-relaxed text-gray-700">${q.text}</div>
+                <div class="flex justify-between items-start mb-4">
+                    <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-100">${isReviewMode ? 'Review Question' : 'Question'} ${questionIndex + 1}</h2>
+                    ${!isReviewMode ? `
+                    <div class="flex gap-2">
+                        <button onclick="window.toggleStrikethrough()" class="px-2 py-1 text-xs bg-gray-100 border border-gray-300 rounded hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600" title="Strike-through selected option">Strikethrough</button>
+                        <button onclick="window.toggleHighlight()" class="px-2 py-1 text-xs bg-yellow-100 border border-yellow-300 rounded hover:bg-yellow-200 dark:bg-yellow-900 dark:text-yellow-200 dark:border-yellow-700" title="Highlight question text">Highlight</button>
+                    </div>` : ''}
+                </div>
+                <div id="q-text-container" class="text-lg leading-relaxed text-gray-700 dark:text-gray-300">${q.text}</div>
                 ${imageHtml}
             `;
             renderMath('q-text-container');
@@ -3630,10 +3870,11 @@
         }
 
         /** Adaptive Algorithm: Determine Difficulty Based on Correct Answers */
+        // Configurable threshold: number of correct answers (out of 22) needed for Hard Module 2.
+        // Default is 13 (~60%). The DSAT typically uses a threshold around 12-14.
+        const MODULE_TWO_THRESHOLD = 13;
         function determineModuleTwo(correctCount) {
-            // Threshold: If student answers 13 or more correctly out of 22 (approx 60%), they get the Hard module.
-            const threshold = 13;
-            if (correctCount >= threshold) {
+            if (correctCount >= MODULE_TWO_THRESHOLD) {
                 return 'M2H'; // Hard Module 2
             } else {
                 return 'M2E'; // Easy Module 2
@@ -3653,18 +3894,16 @@
             contentDiv.innerHTML = '<p class="text-center text-xl">Loading results...</p>';
 
             try {
-                // Fetch all results, ordered by timestamp
                 const q = query(collection(db, "results")); 
                 const querySnapshot = await getDocs(q);
                 
                 let allResults = [];
                 querySnapshot.forEach((doc) => {
                     const data = doc.data();
-                    data.id = doc.id; // Capture Firestore document ID
+                    data.id = doc.id;
                     allResults.push(data);
                 });
                 
-                // Sort client-side if needed (descending timestamp)
                 allResults.sort((a, b) => b.timestamp - a.timestamp);
 
                 if (!window.tempStudentResults) window.tempStudentResults = {};
@@ -3673,12 +3912,15 @@
                     <div class="p-8 max-w-7xl mx-auto">
                         <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
                             <div>
-                                <h1 class="text-3xl font-extrabold text-gray-800">Teacher Dashboard</h1>
-                                <p class="text-gray-500 mt-1">Real-time Student Progress</p>
+                                <h1 class="text-3xl font-extrabold text-gray-800 dark:text-gray-100">Teacher Dashboard</h1>
+                                <p class="text-gray-500 mt-1 dark:text-gray-400">Real-time Student Progress</p>
                             </div>
                             <div class="flex gap-2">
                                 <button onclick="window.showTeacherTestCreationPanel()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 shadow transition-colors font-semibold">
                                     + Create Test
+                                </button>
+                                <button onclick="window.exportTeacherData()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow transition-colors font-semibold">
+                                    Export My Data
                                 </button>
                                 <button onclick="window.handleLogout()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 shadow transition-colors">
                                     Logout
@@ -3785,6 +4027,27 @@
             const encodedMessage = encodeURIComponent(message);
             const whatsappUrl = `https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodedMessage}`;
             window.open(whatsappUrl, '_blank');
+        }
+
+        window.exportTeacherData = async function() {
+            try {
+                const data = { tests: [], results: [] };
+                const testsSnap = await getDocs(collection(db, "custom_tests"));
+                testsSnap.forEach(d => data.tests.push({ id: d.id, ...d.data() }));
+                const resultsSnap = await getDocs(query(collection(db, "results"), where("userId", "==", userId)));
+                resultsSnap.forEach(d => data.results.push({ id: d.id, ...d.data() }));
+
+                const json = JSON.stringify(data, null, 2);
+                const blob = new Blob([json], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `teacher-data-${new Date().toISOString().slice(0,10)}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+            } catch (e) {
+                alert('Error exporting data: ' + e.message);
+            }
         }
 
         window.viewStudentHistory = async function(studentId, studentName, parentPhone) {
@@ -3910,8 +4173,8 @@ window.renderAdminDashboard = async function() {
             <div class="p-8 max-w-7xl mx-auto">
                 <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
                     <div>
-                        <h1 class="text-4xl font-extrabold text-gray-800">Admin Dashboard</h1>
-                        <p class="text-gray-500 mt-1">User Management & Platform Control</p>
+                        <h1 class="text-4xl font-extrabold text-gray-800 dark:text-gray-100">Admin Dashboard</h1>
+                        <p class="text-gray-500 mt-1 dark:text-gray-400">User Management & Platform Control</p>
                     </div>
                     <button onclick="window.handleLogout()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 shadow transition-colors">
                         Logout
@@ -3947,6 +4210,8 @@ window.renderAdminDashboard = async function() {
                                     <th class="px-5 py-3">Email</th>
                                     <th class="px-5 py-3">Display Name</th>
                                     <th class="px-5 py-3">Role</th>
+                                    <th class="px-5 py-3">Student Phone</th>
+                                    <th class="px-5 py-3">Parent Phone</th>
                                     <th class="px-5 py-3">Status</th>
                                     <th class="px-5 py-3 text-center">Actions</th>
                                 </tr>
@@ -3957,22 +4222,12 @@ window.renderAdminDashboard = async function() {
                     </div>
                 </div>
 
-                <div class="bg-white rounded-xl shadow-lg p-6">
-                    <h2 class="text-2xl font-bold mb-4 text-gray-800">System Management</h2>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <button onclick="window.exportAllData()" class="px-4 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-semibold transition">
-                            📊 Export All Data
-                        </button>
-                        <button onclick="window.viewSystemLogs()" class="px-4 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 font-semibold transition">
-                            📋 View System Logs
-                        </button>
-                        <button onclick="window.manageTestBank()" class="px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-semibold transition">
-                            📚 Manage Test Bank
-                        </button>
-                        <button onclick="window.systemSettings()" class="px-4 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-semibold transition">
-                            ⚙️ System Settings
-                        </button>
-                    </div>
+                <div class="flex gap-2 mb-6 flex-wrap">
+                    <button onclick="window.renderAdminDashboard()" class="px-5 py-2.5 rounded-lg font-semibold transition bg-blue-600 text-white shadow">User Management</button>
+                    <button onclick="window.viewSystemLogs()" class="px-5 py-2.5 rounded-lg font-semibold transition bg-gray-200 text-gray-700 hover:bg-gray-300 shadow">System Logs</button>
+                    <button onclick="window.manageTestBank()" class="px-5 py-2.5 rounded-lg font-semibold transition bg-gray-200 text-gray-700 hover:bg-gray-300 shadow">Test Bank</button>
+                    <button onclick="window.systemSettings()" class="px-5 py-2.5 rounded-lg font-semibold transition bg-gray-200 text-gray-700 hover:bg-gray-300 shadow">Settings</button>
+                    <button onclick="window.exportAllData()" class="px-5 py-2.5 rounded-lg font-semibold transition bg-blue-500 text-white hover:bg-blue-600 shadow ml-auto">Export All Data</button>
                 </div>
             </div>
 
@@ -4022,6 +4277,16 @@ window.renderAdminDashboard = async function() {
                 'admin': 'bg-red-100 text-red-800'
             };
 
+            const statusColors = {
+                'pending': 'bg-yellow-100 text-yellow-800',
+                'approved': 'bg-green-100 text-green-800',
+                'rejected': 'bg-red-100 text-red-800'
+            };
+
+            const userStatus = user.status || 'approved';
+            const studentPhone = user.studentPhone || '';
+            const parentPhone = user.parentPhone || '';
+
             const row = document.createElement('tr');
             row.className = "hover:bg-gray-50 border-b border-gray-100";
             row.innerHTML = `
@@ -4032,8 +4297,12 @@ window.renderAdminDashboard = async function() {
                         ${user.role.toUpperCase()}
                     </span>
                 </td>
+                <td class="px-5 py-4 text-sm">${studentPhone ? `<a href="https://wa.me/${studentPhone.replace(/[^0-9]/g, '')}" target="_blank" class="text-green-600 hover:underline">${studentPhone}</a>` : '<span class="text-gray-400">—</span>'}</td>
+                <td class="px-5 py-4 text-sm">${parentPhone ? `<a href="https://wa.me/${parentPhone.replace(/[^0-9]/g, '')}" target="_blank" class="text-green-600 hover:underline">${parentPhone}</a>` : '<span class="text-gray-400">—</span>'}</td>
                 <td class="px-5 py-4 text-sm">
-                    <span class="px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800">Active</span>
+                    <span class="px-3 py-1 rounded-full text-xs font-bold ${statusColors[userStatus] || 'bg-green-100 text-green-800'}">
+                        ${userStatus.toUpperCase()}
+                    </span>
                 </td>
                 <td class="px-5 py-4 text-sm text-center">
                     <button onclick="window.editUser('${user.id}')" class="mr-2 text-blue-600 hover:text-blue-900 font-semibold">Edit</button>
@@ -4092,9 +4361,23 @@ window.createNewUser = async function() {
 };
 
 window.deleteUser = async function(userId) {
-    if (confirm('Are you sure you want to delete this user?')) {
+    if (confirm('Are you sure you want to permanently delete this user? This will remove their Firestore data and trigger Auth deletion.')) {
         try {
             await deleteDoc(doc(db, "users", userId));
+            // Attempt to delete from Firebase Auth via Cloud Function
+            const cloudFunctionUrl = `https://us-central1-dr-joe-for-sat.cloudfunctions.net/deleteUser`;
+            try {
+                const response = await fetch(cloudFunctionUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ uid: userId })
+                });
+                if (!response.ok) {
+                    console.warn('Cloud function delete failed, user deleted from Firestore only:', await response.text());
+                }
+            } catch (cfErr) {
+                console.warn('Cloud function unreachable, user deleted from Firestore only:', cfErr);
+            }
             alert('User deleted successfully');
             window.renderAdminDashboard();
         } catch (e) {
@@ -4104,24 +4387,319 @@ window.deleteUser = async function(userId) {
 };
 
 window.editUser = function(userId) {
-    alert('Edit user feature coming soon. User ID: ' + userId);
+    const modal = document.createElement('div');
+    modal.id = 'edit-user-modal';
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    modal.innerHTML = `
+        <div class="bg-white rounded-xl shadow-2xl p-8 max-w-md w-full mx-4 max-h-screen overflow-y-auto">
+            <h2 class="text-2xl font-bold mb-6">Edit User</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block font-semibold text-gray-700 mb-2">Display Name</label>
+                    <input type="text" id="edit-user-name" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block font-semibold text-gray-700 mb-2">Email (Firestore only)</label>
+                    <input type="email" id="edit-user-email" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block font-semibold text-gray-700 mb-2">Role</label>
+                    <select id="edit-user-role" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="student">Student</option>
+                        <option value="teacher">Teacher</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-semibold text-gray-700 mb-2">Student Phone</label>
+                    <input type="tel" id="edit-user-student-phone" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block font-semibold text-gray-700 mb-2">Parent Phone</label>
+                    <input type="tel" id="edit-user-parent-phone" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block font-semibold text-gray-700 mb-2">Change Password (Cloud Function - logging for now)</label>
+                    <input type="password" id="edit-user-password" placeholder="Leave blank to keep current" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block font-semibold text-gray-700 mb-2">Status</label>
+                    <select id="edit-user-status" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="pending">Pending</option>
+                        <option value="approved">Approved</option>
+                        <option value="rejected">Rejected</option>
+                    </select>
+                </div>
+                <div class="flex gap-2 pt-4">
+                    <button onclick="window.saveEditUser('${userId}')" class="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-semibold">Save</button>
+                    <button onclick="window.closeEditUserModal()" class="flex-1 px-4 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500 font-semibold">Cancel</button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    // Load existing data
+    getDoc(doc(db, "users", userId)).then(userDoc => {
+        if (userDoc.exists()) {
+            const data = userDoc.data();
+            document.getElementById('edit-user-name').value = data.displayName || '';
+            document.getElementById('edit-user-email').value = data.email || '';
+            document.getElementById('edit-user-role').value = data.role || 'student';
+            document.getElementById('edit-user-student-phone').value = data.studentPhone || '';
+            document.getElementById('edit-user-parent-phone').value = data.parentPhone || '';
+            document.getElementById('edit-user-status').value = data.status || 'approved';
+        }
+    });
 };
 
-window.exportAllData = function() {
-    alert('Data export feature coming soon');
+window.closeEditUserModal = function() {
+    const modal = document.getElementById('edit-user-modal');
+    if (modal) modal.remove();
 };
 
-window.viewSystemLogs = function() {
-    alert('System logs feature coming soon');
+window.saveEditUser = async function(userId) {
+    const displayName = document.getElementById('edit-user-name').value.trim();
+    const email = document.getElementById('edit-user-email').value.trim();
+    const role = document.getElementById('edit-user-role').value;
+    const studentPhone = document.getElementById('edit-user-student-phone').value.trim();
+    const parentPhone = document.getElementById('edit-user-parent-phone').value.trim();
+    const status = document.getElementById('edit-user-status').value;
+    const password = document.getElementById('edit-user-password').value.trim();
+
+    try {
+        await updateDoc(doc(db, "users", userId), {
+            displayName: displayName,
+            email: email,
+            role: role,
+            studentPhone: studentPhone,
+            parentPhone: parentPhone,
+            status: status
+        });
+
+        // TASK 1d: Approval notification - When admin changes status to "approved",
+        // a Firebase Extension (e.g., Firebase Extensions - Trigger Email) would send
+        // an email notification to the user. For now we just log it.
+        if (status === 'approved') {
+            console.log(`User ${userId} approved. Email notification would be sent via Firebase Extension.`);
+        }
+
+        if (password) {
+            console.log(`Password change requested for user ${userId}. Would call Cloud Function: https://us-central1-dr-joe-for-sat.cloudfunctions.net/changePassword`);
+        }
+
+        alert('User updated successfully!');
+        window.closeEditUserModal();
+        window.renderAdminDashboard();
+    } catch (e) {
+        alert('Error updating user: ' + e.message);
+    }
 };
 
-window.manageTestBank = function() {
-    alert('Test bank management feature coming soon');
+window.exportAllData = async function() {
+    try {
+        const allData = { users: [], tests: [], results: [] };
+        const usersSnap = await getDocs(collection(db, "users"));
+        usersSnap.forEach(d => allData.users.push({ id: d.id, ...d.data() }));
+        const testsSnap = await getDocs(collection(db, "custom_tests"));
+        testsSnap.forEach(d => allData.tests.push({ id: d.id, ...d.data() }));
+        const resultsSnap = await getDocs(collection(db, "results"));
+        resultsSnap.forEach(d => allData.results.push({ id: d.id, ...d.data() }));
+
+        const json = JSON.stringify(allData, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `dr-joe-export-${new Date().toISOString().slice(0,10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        alert('Data exported successfully!');
+    } catch (e) {
+        alert('Export failed: ' + e.message);
+    }
 };
 
-window.systemSettings = function() {
-    alert('System settings feature coming soon');
+let adminCurrentTab = 'users';
+
+window.viewSystemLogs = async function() {
+    adminCurrentTab = 'logs';
+    const contentDiv = document.getElementById('question-content');
+    contentDiv.innerHTML = '<p class="text-center text-xl">Loading system logs...</p>';
+    try {
+        const logsSnap = await getDocs(collection(db, "system_logs"));
+        let logs = [];
+        logsSnap.forEach(d => logs.push({ id: d.id, ...d.data() }));
+        logs.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
+
+        let rows = logs.map(log => `
+            <tr class="border-b hover:bg-gray-50">
+                <td class="px-4 py-2 text-sm">${log.timestamp ? new Date(log.timestamp.toMillis()).toLocaleString() : 'N/A'}</td>
+                <td class="px-4 py-2 text-sm">${log.action || '—'}</td>
+                <td class="px-4 py-2 text-sm">${log.user || '—'}</td>
+                <td class="px-4 py-2 text-sm">${log.details || '—'}</td>
+            </tr>
+        `).join('');
+
+        contentDiv.innerHTML = `
+            <div class="p-8 max-w-7xl mx-auto">
+                <div class="flex justify-between items-center mb-6">
+                    <h1 class="text-3xl font-extrabold text-gray-800">System Logs</h1>
+                    <button onclick="window.renderAdminDashboard()" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">Back</button>
+                </div>
+                ${adminTabsHtml()}
+                <div class="bg-white rounded-xl shadow-lg overflow-hidden overflow-x-auto">
+                    <table class="min-w-full">
+                        <thead><tr class="bg-gray-100 text-left text-xs font-semibold uppercase tracking-wider">
+                            <th class="px-4 py-3">Timestamp</th>
+                            <th class="px-4 py-3">Action</th>
+                            <th class="px-4 py-3">User</th>
+                            <th class="px-4 py-3">Details</th>
+                        </tr></thead>
+                        <tbody>${rows || '<tr><td colspan="4" class="text-center py-4 text-gray-500">No logs found.</td></tr>'}</tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    } catch (e) {
+        contentDiv.innerHTML = `<p class="text-red-500 text-center">Error loading logs: ${e.message}</p>`;
+    }
 };
+
+window.manageTestBank = async function() {
+    adminCurrentTab = 'testbank';
+    const contentDiv = document.getElementById('question-content');
+    contentDiv.innerHTML = '<p class="text-center text-xl">Loading test bank...</p>';
+    try {
+        const testsSnap = await getDocs(collection(db, "custom_tests"));
+        let allQuestions = [];
+        testsSnap.forEach(d => {
+            const data = d.data();
+            (data.questions || []).forEach((q, idx) => {
+                allQuestions.push({ testId: d.id, testName: data.name, questionIndex: idx, ...q });
+            });
+        });
+
+        let rows = allQuestions.map((q, i) => `
+            <tr class="border-b hover:bg-gray-50">
+                <td class="px-4 py-2 text-sm">${i + 1}</td>
+                <td class="px-4 py-2 text-sm">${q.testName || '—'}</td>
+                <td class="px-4 py-2 text-sm max-w-xs truncate">${q.text || '—'}</td>
+                <td class="px-4 py-2 text-sm">${q.correctAnswer || '—'}</td>
+                <td class="px-4 py-2 text-sm">
+                    <button onclick="alert('Edit question feature - testId: ${q.testId}, index: ${q.questionIndex}')" class="text-blue-600 hover:underline mr-2">Edit</button>
+                    <button onclick="alert('Delete question feature - testId: ${q.testId}, index: ${q.questionIndex}')" class="text-red-600 hover:underline">Delete</button>
+                </td>
+            </tr>
+        `).join('');
+
+        contentDiv.innerHTML = `
+            <div class="p-8 max-w-7xl mx-auto">
+                <div class="flex justify-between items-center mb-6">
+                    <h1 class="text-3xl font-extrabold text-gray-800">Test Bank</h1>
+                    <button onclick="window.renderAdminDashboard()" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">Back</button>
+                </div>
+                ${adminTabsHtml()}
+                <div class="mb-4">
+                    <input type="text" id="testbank-search" placeholder="Search questions..." oninput="filterTestBank(this.value)" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="bg-white rounded-xl shadow-lg overflow-hidden overflow-x-auto">
+                    <table class="min-w-full">
+                        <thead><tr class="bg-gray-100 text-left text-xs font-semibold uppercase tracking-wider">
+                            <th class="px-4 py-3">#</th>
+                            <th class="px-4 py-3">Test</th>
+                            <th class="px-4 py-3">Question</th>
+                            <th class="px-4 py-3">Answer</th>
+                            <th class="px-4 py-3">Actions</th>
+                        </tr></thead>
+                        <tbody id="testbank-body">${rows || '<tr><td colspan="5" class="text-center py-4 text-gray-500">No questions found.</td></tr>'}</tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    } catch (e) {
+        contentDiv.innerHTML = `<p class="text-red-500 text-center">Error loading test bank: ${e.message}</p>`;
+    }
+};
+
+window.filterTestBank = function(query) {
+    const rows = document.querySelectorAll('#testbank-body tr');
+    rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(query.toLowerCase()) ? '' : 'none';
+    });
+};
+
+window.systemSettings = async function() {
+    adminCurrentTab = 'settings';
+    const contentDiv = document.getElementById('question-content');
+    try {
+        const settingsDoc = await getDoc(doc(db, "settings", "platform"));
+        const settings = settingsDoc.exists() ? settingsDoc.data() : { disableSignups: false, maintenanceMode: false };
+
+        contentDiv.innerHTML = `
+            <div class="p-8 max-w-4xl mx-auto">
+                <div class="flex justify-between items-center mb-6">
+                    <h1 class="text-3xl font-extrabold text-gray-800">System Settings</h1>
+                    <button onclick="window.renderAdminDashboard()" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">Back</button>
+                </div>
+                ${adminTabsHtml()}
+                <div class="bg-white rounded-xl shadow-lg p-8">
+                    <div class="space-y-6">
+                        <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                            <div>
+                                <h3 class="text-lg font-semibold text-gray-800">Disable New Signups</h3>
+                                <p class="text-sm text-gray-500">Prevent new users from creating accounts</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" class="sr-only peer" ${settings.disableSignups ? 'checked' : ''} onchange="window.toggleSetting('disableSignups', this.checked)">
+                                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                            </label>
+                        </div>
+                        <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                            <div>
+                                <h3 class="text-lg font-semibold text-gray-800">Maintenance Mode</h3>
+                                <p class="text-sm text-gray-500">Show maintenance page to all users</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" class="sr-only peer" ${settings.maintenanceMode ? 'checked' : ''} onchange="window.toggleSetting('maintenanceMode', this.checked)">
+                                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    } catch (e) {
+        contentDiv.innerHTML = `<p class="text-red-500 text-center">Error loading settings: ${e.message}</p>`;
+    }
+};
+
+window.toggleSetting = async function(key, value) {
+    try {
+        await setDoc(doc(db, "settings", "platform"), { [key]: value }, { merge: true });
+        alert(`Setting "${key}" updated to ${value}`);
+    } catch (e) {
+        alert('Error updating setting: ' + e.message);
+    }
+};
+
+function adminTabsHtml() {
+    const tabs = [
+        { id: 'users', label: 'User Management' },
+        { id: 'logs', label: 'System Logs' },
+        { id: 'testbank', label: 'Test Bank' },
+        { id: 'settings', label: 'Settings' }
+    ];
+    return `<div class="flex gap-2 mb-6 flex-wrap">
+        ${tabs.map(t => `
+            <button onclick="${t.id === 'users' ? 'window.renderAdminDashboard()' : t.id === 'logs' ? 'window.viewSystemLogs()' : t.id === 'testbank' ? 'window.manageTestBank()' : 'window.systemSettings()'}" 
+                    class="px-4 py-2 rounded-lg font-semibold transition ${adminCurrentTab === t.id ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}">
+                ${t.label}
+            </button>
+        `).join('')}
+    </div>`;
+}
 
 // ============================================
 // TEACHER TEST CREATION FEATURES
@@ -4171,6 +4749,13 @@ window.showTeacherTestCreationPanel = async function() {
                             <button onclick="window.addNewQuestion()" class="w-full px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-bold transition">
                                 + Add Question
                             </button>
+                            <div class="mt-4 pt-4 border-t border-gray-200">
+                                <label class="block font-semibold text-gray-700 mb-2 text-sm">Bulk Upload (CSV/Excel)</label>
+                                <input type="file" id="bulk-upload-input" accept=".csv,.xlsx,.xls" class="w-full text-sm p-2 border rounded-lg">
+                                <button onclick="window.handleBulkUpload()" class="mt-2 w-full px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 font-bold transition text-sm">
+                                    Upload Questions
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -4193,7 +4778,8 @@ window.showTeacherTestCreationPanel = async function() {
                     <div class="space-y-4">
                         <div>
                             <label class="block font-semibold text-gray-700 mb-2">Question Text</label>
-                            <textarea id="question-text" placeholder="Enter question..." class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 h-24"></textarea>
+                            <textarea id="question-text" placeholder="Enter question..." class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 h-24" oninput="window.previewKaTeX(this.value)"></textarea>
+                            <div id="katex-preview" class="mt-2 p-3 bg-gray-50 border rounded-lg text-sm text-gray-600 min-h-[40px]">Preview will appear here</div>
                         </div>
 
                         <div>
@@ -4386,7 +4972,15 @@ window.saveTest = async function() {
             updatedAt: new Date()
         };
 
-        await addDoc(collection(db, "custom_tests"), testData);
+        const testRef = await addDoc(collection(db, "custom_tests"), testData);
+
+        // Also save/update to central "tests" collection for cross-user access
+        await setDoc(doc(db, "tests", testRef.id), {
+            ...testData,
+            source: "custom_tests",
+            originalId: testRef.id
+        });
+
         alert('Test saved successfully!');
         window.currentTestQuestions = [];
         window.renderTeacherDashboard();
@@ -4398,4 +4992,69 @@ window.saveTest = async function() {
 window.backToTeacherDashboard = function() {
     window.currentTestQuestions = [];
     window.renderTeacherDashboard();
+};
+
+window.handleBulkUpload = function() {
+    const input = document.getElementById('bulk-upload-input');
+    if (!input || !input.files || !input.files[0]) {
+        alert('Please select a CSV file');
+        return;
+    }
+    const file = input.files[0];
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const text = e.target.result;
+            const lines = text.split('\n').filter(l => l.trim());
+            if (lines.length < 2) {
+                alert('CSV must have a header row and at least one question');
+                return;
+            }
+            const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+            const questions = [];
+            for (let i = 1; i < lines.length; i++) {
+                const cells = lines[i].split(',').map(c => c.trim());
+                const q = { text: '', choices: ['', '', '', ''], correctAnswer: '', explanation: '' };
+                headers.forEach((h, idx) => {
+                    if (h === 'question' || h === 'text') q.text = cells[idx] || '';
+                    if (h === 'choice_a' || h === 'a') q.choices[0] = cells[idx] || '';
+                    if (h === 'choice_b' || h === 'b') q.choices[1] = cells[idx] || '';
+                    if (h === 'choice_c' || h === 'c') q.choices[2] = cells[idx] || '';
+                    if (h === 'choice_d' || h === 'd') q.choices[3] = cells[idx] || '';
+                    if (h === 'answer' || h === 'correct') q.correctAnswer = cells[idx] || '';
+                    if (h === 'explanation') q.explanation = cells[idx] || '';
+                });
+                if (q.text) questions.push(q);
+            }
+            if (questions.length === 0) {
+                alert('No valid questions found in CSV');
+                return;
+            }
+            window.currentTestQuestions = window.currentTestQuestions || [];
+            window.currentTestQuestions.push(...questions);
+            window.updateQuestionsList();
+            alert(`${questions.length} questions imported successfully!`);
+            input.value = '';
+        } catch (err) {
+            alert('Error parsing CSV: ' + err.message);
+        }
+    };
+    reader.readAsText(file);
+};
+
+window.previewKaTeX = function(value) {
+    const preview = document.getElementById('katex-preview');
+    if (!preview) return;
+    if (!value.trim()) {
+        preview.innerHTML = 'Preview will appear here';
+        return;
+    }
+    try {
+        preview.innerHTML = value;
+        if (typeof katex !== 'undefined') {
+            renderMath('katex-preview');
+        }
+    } catch (e) {
+        preview.innerHTML = value;
+    }
 };

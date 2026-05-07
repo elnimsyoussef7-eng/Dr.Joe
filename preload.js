@@ -1,7 +1,8 @@
-// Preload runs in isolated context.
-// Expose a safe API here if needed.
-const { contextBridge } = require('electron');
+const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  // Add methods if you need native features
+  enterKiosk: () => ipcRenderer.send('enter-kiosk'),
+  exitKiosk: () => ipcRenderer.send('exit-kiosk'),
+  disableShortcuts: () => ipcRenderer.send('disable-shortcuts'),
+  clearClipboard: () => ipcRenderer.send('clear-clipboard')
 });
