@@ -13,6 +13,7 @@
             where,
             Timestamp,
             setDoc,
+            updateDoc,
             doc,
             getDoc,
             deleteDoc
@@ -2535,41 +2536,19 @@
 
         // --- SCREEN RENDERING FUNCTIONS (LOGIN, SELECTION, WELCOME) ---
         
-        /** Renders the initial login/authentication screen. */
+        /** Renders the Sign In screen. */
         function renderLoginScreen() {
             window.state.appStage = 'login';
-            hideTestUIElements(); // Hide timer, flags, footer, sidebar
+            hideTestUIElements();
             document.getElementById('header-test-info').textContent = 'DSAT Mock Tests';
-            saveState(); // Save state after setting stage to login/default
+            saveState();
 
             document.getElementById('question-content').classList.add('flex', 'items-center', 'justify-center');
             document.getElementById('question-content').innerHTML = `
-                <div id="login-card" class="text-center p-12 bg-white rounded-xl shadow-lg border border-blue-200">
-                    <h1 class="text-3xl font-extrabold text-blue-700 mb-6">Welcome Dr.Joe Platform</h1>
+                <div id="login-card" class="text-center p-12 bg-white rounded-xl shadow-lg border border-blue-200 max-w-md w-full">
+                    <h1 class="text-3xl font-extrabold text-blue-700 mb-2">Welcome Back</h1>
+                    <p class="text-gray-500 mb-6">Sign in to Dr.Joe Platform</p>
                     <div class="mx-auto max-w-sm mb-6 text-left">
-                        <div class="mb-4">
-                            <span class="block text-lg font-semibold text-gray-800 mb-2">I am a:</span>
-                            <div class="flex flex-wrap items-center space-x-4">
-                                <label class="inline-flex items-center">
-                                    <input type="radio" class="form-radio text-blue-600" name="role" value="student" checked onchange="toggleParentEmail(true)">
-                                    <span class="ml-2">Student</span>
-                                </label>
-                                <label class="inline-flex items-center">
-                                    <input type="radio" class="form-radio text-blue-600" name="role" value="teacher" onchange="toggleParentEmail(false)">
-                                    <span class="ml-2">Teacher/Academy</span>
-                                </label>
-                                <label class="inline-flex items-center">
-                                    <input type="radio" class="form-radio text-blue-600" name="role" value="admin" onchange="toggleParentEmail(false)">
-                                    <span class="ml-2">Admin</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <label for="full-name-input" class="block text-lg font-semibold text-gray-800 mb-1">Full Name:</label>
-                        <input type="text" id="full-name-input" 
-                               placeholder="Enter your full name"
-                               class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg mb-4">
-
                         <label for="login-email-input" class="block text-lg font-semibold text-gray-800 mb-1">Email:</label>
                         <input type="email" id="login-email-input" 
                                placeholder="Enter your email"
@@ -2579,18 +2558,6 @@
                         <input type="password" id="password-input" 
                                placeholder="Enter Password"
                                class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg mb-4">
-                        
-                        <div id="parent-email-container">
-                            <label for="parent-email-input" class="block text-lg font-semibold text-gray-800 mb-1">Parent Email (Optional):</label>
-                            <input type="email" id="parent-email-input" 
-                                   placeholder="parent@example.com"
-                                   class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg mb-4">
-                            
-                            <label for="parent-phone-input" class="block text-lg font-semibold text-gray-800 mb-1">Parent Phone Number (Optional):</label>
-                            <input type="tel" id="parent-phone-input" 
-                                   placeholder="+1234567890"
-                                   class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg">
-                        </div>
                                 
                         <p id="login-error-message" class="text-red-500 text-sm mt-3 hidden">Invalid email or password.</p>
                         <p id="login-success-message" class="text-green-500 text-sm mt-3 hidden"></p>
@@ -2598,29 +2565,64 @@
                     
                     <button onclick="handleLogin()"
                             class="px-8 py-3 bg-gradient-to-r from-green-500 to-green-700 text-white text-xl font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150 mb-4 block w-full">
-                        Login
+                        Sign In
                     </button>
-                    <button onclick="handleSignUp()"
-                            class="px-8 py-3 bg-gradient-to-r from-blue-500 to-blue-700 text-white text-xl font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150 block w-full">
-                        Sign Up
-                    </button>
-                    ${window.state.studentName ? `<p class="text-sm text-gray-500 mt-4">Resuming saved session for: ${window.state.studentName}</p>` : ''}
+                    <p class="text-gray-600 mt-4">Don't have an account? <a href="#" onclick="window.renderSignUpScreen(); return false;" class="text-blue-600 font-semibold hover:underline">Sign Up</a></p>
                 </div>
             `;
         }
 
-        /** Handles the login attempt. */
+        /** Renders the Sign Up screen. */
+        window.renderSignUpScreen = function() {
+            window.state.appStage = 'login';
+            hideTestUIElements();
+            document.getElementById('header-test-info').textContent = 'DSAT Mock Tests';
 
-        window.toggleParentEmail = function(show) {
-            const container = document.getElementById('parent-email-container');
-            if (show) {
-                container.classList.remove('hidden');
-            } else {
-                container.classList.add('hidden');
-            }
+            document.getElementById('question-content').classList.add('flex', 'items-center', 'justify-center');
+            document.getElementById('question-content').innerHTML = `
+                <div id="login-card" class="text-center p-10 bg-white rounded-xl shadow-lg border border-blue-200 max-w-md w-full">
+                    <h1 class="text-3xl font-extrabold text-blue-700 mb-2">Create Account</h1>
+                    <p class="text-gray-500 mb-6">Join Dr.Joe Platform</p>
+                    <div class="mx-auto max-w-sm mb-6 text-left">
+                        <label for="full-name-input" class="block text-sm font-semibold text-gray-800 mb-1">Full Name <span class="text-red-500">*</span></label>
+                        <input type="text" id="full-name-input" 
+                               placeholder="Enter your full name"
+                               class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-base mb-3">
+
+                        <label for="login-email-input" class="block text-sm font-semibold text-gray-800 mb-1">Email <span class="text-red-500">*</span></label>
+                        <input type="email" id="login-email-input" 
+                               placeholder="Enter your email"
+                               class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-base mb-3">
+
+                        <label for="password-input" class="block text-sm font-semibold text-gray-800 mb-1">Password <span class="text-red-500">*</span></label>
+                        <input type="password" id="password-input" 
+                               placeholder="Create a password"
+                               class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-base mb-3">
+
+                        <label for="student-phone-input" class="block text-sm font-semibold text-gray-800 mb-1">Student Phone Number <span class="text-red-500">*</span></label>
+                        <input type="tel" id="student-phone-input" 
+                               placeholder="+1234567890"
+                               class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-base mb-3">
+
+                        <label for="parent-phone-input" class="block text-sm font-semibold text-gray-800 mb-1">Parent Phone Number <span class="text-red-500">*</span></label>
+                        <input type="tel" id="parent-phone-input" 
+                               placeholder="+1234567890"
+                               class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-base mb-3">
+                                
+                        <p id="login-error-message" class="text-red-500 text-sm mt-3 hidden">Error.</p>
+                        <p id="login-success-message" class="text-green-500 text-sm mt-3 hidden"></p>
+                    </div>
+                    
+                    <button onclick="handleSignUp()"
+                            class="px-8 py-3 bg-gradient-to-r from-blue-500 to-blue-700 text-white text-xl font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150 block w-full">
+                        Sign Up
+                    </button>
+                    <p class="text-gray-600 mt-4">Already a participant? <a href="#" onclick="renderLoginScreen(); return false;" class="text-blue-600 font-semibold hover:underline">Sign In</a></p>
+                </div>
+            `;
         }
 
-        /** Handles the login attempt. */
+        /** Handles the login attempt — checks user status before granting access. */
         window.handleLogin = async function() {
             const emailInput = document.getElementById('login-email-input');
             const passInput = document.getElementById('password-input');
@@ -2644,9 +2646,10 @@
                 const user = userCredential.user;
                 console.log("Logged in:", user.email);
                 
-                // Fetch user profile
-                let role = 'student'; // Default
+                // Fetch user profile and check status
+                let role = 'student';
                 let parentEmail = '';
+                let userStatus = 'approved'; // Default for legacy users
                 
                 try {
                     const userDoc = await getDoc(doc(db, "users", user.uid));
@@ -2654,12 +2657,27 @@
                         const userData = userDoc.data();
                         role = userData.role || 'student';
                         parentEmail = userData.parentEmail || '';
+                        userStatus = userData.status || 'approved';
                     }
                 } catch (e) {
                     console.warn("Could not fetch user profile:", e);
                 }
 
-                window.state.studentName = user.email.split('@')[0]; // Use part of email as name
+                // Check pending/rejected status
+                if (userStatus === 'pending') {
+                    await signOut(auth);
+                    errorMessage.textContent = '⏳ Your account is pending admin approval. Please wait for confirmation.';
+                    errorMessage.classList.remove('hidden');
+                    return;
+                }
+                if (userStatus === 'rejected') {
+                    await signOut(auth);
+                    errorMessage.textContent = '❌ Your account has been rejected. Please contact the administrator.';
+                    errorMessage.classList.remove('hidden');
+                    return;
+                }
+
+                window.state.studentName = user.email.split('@')[0];
                 window.state.role = role;
                 window.state.parentEmail = parentEmail;
                 userId = user.uid;
@@ -2695,29 +2713,25 @@
             const emailInput = document.getElementById('login-email-input');
             const passInput = document.getElementById('password-input');
             const fullNameInput = document.getElementById('full-name-input');
-            const parentEmailInput = document.getElementById('parent-email-input');
+            const studentPhoneInput = document.getElementById('student-phone-input');
             const parentPhoneInput = document.getElementById('parent-phone-input');
             const errorMessage = document.getElementById('login-error-message');
             const successMessage = document.getElementById('login-success-message');
-            
-            // Get role
-            const roleInput = document.querySelector('input[name="role"]:checked');
-            const role = roleInput ? roleInput.value : 'student';
 
-            const email = emailInput.value.trim();
-            const password = passInput.value.trim();
+            const email = emailInput ? emailInput.value.trim() : '';
+            const password = passInput ? passInput.value.trim() : '';
             const fullName = fullNameInput ? fullNameInput.value.trim() : '';
-            const parentEmail = parentEmailInput ? parentEmailInput.value.trim() : '';
+            const studentPhone = studentPhoneInput ? studentPhoneInput.value.trim() : '';
             const parentPhone = parentPhoneInput ? parentPhoneInput.value.trim() : '';
 
-            if (email === '' || password === '') {
-                errorMessage.textContent = 'Please enter email and password.';
+            if (!email || !password || !fullName || !studentPhone || !parentPhone) {
+                errorMessage.textContent = 'All fields are required.';
                 errorMessage.classList.remove('hidden');
                 return;
             }
 
-            if (role === 'student' && fullName === '') {
-                errorMessage.textContent = 'Please enter your full name.';
+            if (password.length < 6) {
+                errorMessage.textContent = 'Password must be at least 6 characters.';
                 errorMessage.classList.remove('hidden');
                 return;
             }
@@ -2729,47 +2743,24 @@
                 const userCredential = await createUserWithEmailAndPassword(auth, email, password);
                 const user = userCredential.user;
                 console.log("Signed up:", user.email);
-                
-                const displayName = fullName || user.email.split('@')[0];
 
-                // Create user profile in Firestore
+                // Create user profile in Firestore with pending status
                 await setDoc(doc(db, "users", user.uid), {
                     uid: user.uid,
                     email: user.email,
-                    displayName: displayName,
-                    role: role,
-                    parentEmail: role === 'student' ? parentEmail : '',
-                    parentPhone: role === 'student' ? parentPhone : ''
+                    displayName: fullName,
+                    role: 'student',
+                    studentPhone: studentPhone,
+                    parentPhone: parentPhone,
+                    status: 'pending',
+                    createdAt: Timestamp.now()
                 });
 
-                successMessage.textContent = "Account created! Logging in...";
+                // Sign out immediately — user must wait for admin approval
+                await signOut(auth);
+
+                successMessage.textContent = "✅ Account created! Your account is pending admin approval. You will be notified once approved.";
                 successMessage.classList.remove('hidden');
-                
-                window.state.studentName = displayName;
-                window.state.role = role;
-                window.state.parentEmail = parentEmail;
-                window.state.parentPhone = parentPhone;
-                userId = user.uid;
-                
-                document.getElementById('student-name-display-sidebar').textContent = window.state.studentName;
-                
-                setTimeout(() => {
-                    if (role === 'teacher') {
-                        if (typeof window.renderTeacherDashboard === 'function') {
-                            window.renderTeacherDashboard();
-                        } else {
-                            window.navigateToHome(); // Fallback
-                        }
-                    } else if (role === 'admin') {
-                        if (typeof window.renderAdminDashboard === 'function') {
-                            window.renderAdminDashboard();
-                        } else {
-                            window.navigateToHome(); // Fallback
-                        }
-                    } else {
-                        window.navigateToHome();
-                    }
-                }, 1000);
 
             } catch (error) {
                 console.error("Sign up error:", error);
@@ -3677,6 +3668,9 @@
                                 <p class="text-gray-500 mt-1">Real-time Student Progress</p>
                             </div>
                             <div class="flex gap-2">
+                                <button onclick="window.exportTeacherData()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow transition-colors font-semibold">
+                                    📊 Export CSV
+                                </button>
                                 <button onclick="window.showTeacherTestCreationPanel()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 shadow transition-colors font-semibold">
                                     + Create Test
                                 </button>
@@ -3936,23 +3930,22 @@ window.renderAdminDashboard = async function() {
                 <div class="bg-white rounded-xl shadow-lg overflow-hidden mb-8">
                     <div class="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-6 flex justify-between items-center">
                         <h2 class="text-2xl font-bold">User Management</h2>
-                        <button onclick="window.showAddUserModal()" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600">
-                            + Add User
-                        </button>
+                        <button onclick="window.showAddUserModal()" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600">+ Add User</button>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="min-w-full leading-normal">
                             <thead>
                                 <tr class="bg-gray-100 text-left text-xs font-semibold uppercase tracking-wider border-b">
-                                    <th class="px-5 py-3">Email</th>
-                                    <th class="px-5 py-3">Display Name</th>
-                                    <th class="px-5 py-3">Role</th>
-                                    <th class="px-5 py-3">Status</th>
-                                    <th class="px-5 py-3 text-center">Actions</th>
+                                    <th class="px-4 py-3">Email</th>
+                                    <th class="px-4 py-3">Name</th>
+                                    <th class="px-4 py-3">Role</th>
+                                    <th class="px-4 py-3">Student Phone</th>
+                                    <th class="px-4 py-3">Parent Phone</th>
+                                    <th class="px-4 py-3">Status</th>
+                                    <th class="px-4 py-3 text-center">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody id="admin-users-body">
-                            </tbody>
+                            <tbody id="admin-users-body"></tbody>
                         </table>
                     </div>
                 </div>
@@ -3960,18 +3953,10 @@ window.renderAdminDashboard = async function() {
                 <div class="bg-white rounded-xl shadow-lg p-6">
                     <h2 class="text-2xl font-bold mb-4 text-gray-800">System Management</h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <button onclick="window.exportAllData()" class="px-4 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-semibold transition">
-                            📊 Export All Data
-                        </button>
-                        <button onclick="window.viewSystemLogs()" class="px-4 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 font-semibold transition">
-                            📋 View System Logs
-                        </button>
-                        <button onclick="window.manageTestBank()" class="px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-semibold transition">
-                            📚 Manage Test Bank
-                        </button>
-                        <button onclick="window.systemSettings()" class="px-4 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-semibold transition">
-                            ⚙️ System Settings
-                        </button>
+                        <button onclick="window.exportAllData()" class="px-4 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-semibold transition">📊 Export All Data</button>
+                        <button onclick="window.viewSystemLogs()" class="px-4 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 font-semibold transition">📋 View System Logs</button>
+                        <button onclick="window.manageTestBank()" class="px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-semibold transition">📚 Manage Test Bank</button>
+                        <button onclick="window.systemSettings()" class="px-4 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-semibold transition">⚙️ System Settings</button>
                     </div>
                 </div>
             </div>
@@ -3980,33 +3965,30 @@ window.renderAdminDashboard = async function() {
                 <div class="bg-white rounded-xl shadow-2xl p-8 max-w-sm w-full">
                     <h2 class="text-2xl font-bold mb-6">Add New User</h2>
                     <div class="space-y-4">
-                        <div>
-                            <label class="block font-semibold text-gray-700 mb-2">Email</label>
-                            <input type="email" id="new-user-email" placeholder="user@example.com" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        </div>
-                        <div>
-                            <label class="block font-semibold text-gray-700 mb-2">Display Name</label>
-                            <input type="text" id="new-user-name" placeholder="John Doe" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        </div>
-                        <div>
-                            <label class="block font-semibold text-gray-700 mb-2">Password</label>
-                            <input type="password" id="new-user-password" placeholder="••••••••" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        </div>
-                        <div>
-                            <label class="block font-semibold text-gray-700 mb-2">Role</label>
-                            <select id="new-user-role" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                <option value="student">Student</option>
-                                <option value="teacher">Teacher</option>
-                                <option value="admin">Admin</option>
-                            </select>
-                        </div>
+                        <div><label class="block font-semibold text-gray-700 mb-2">Email</label><input type="email" id="new-user-email" placeholder="user@example.com" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+                        <div><label class="block font-semibold text-gray-700 mb-2">Display Name</label><input type="text" id="new-user-name" placeholder="John Doe" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+                        <div><label class="block font-semibold text-gray-700 mb-2">Password</label><input type="password" id="new-user-password" placeholder="••••••••" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+                        <div><label class="block font-semibold text-gray-700 mb-2">Role</label><select id="new-user-role" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"><option value="student">Student</option><option value="teacher">Teacher</option><option value="admin">Admin</option></select></div>
                         <div class="flex gap-2 pt-4">
-                            <button onclick="window.createNewUser()" class="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-semibold">
-                                Create User
-                            </button>
-                            <button onclick="window.closeAddUserModal()" class="flex-1 px-4 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500 font-semibold">
-                                Cancel
-                            </button>
+                            <button onclick="window.createNewUser()" class="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-semibold">Create User</button>
+                            <button onclick="window.closeAddUserModal()" class="flex-1 px-4 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500 font-semibold">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="edit-user-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div class="bg-white rounded-xl shadow-2xl p-8 max-w-sm w-full">
+                    <h2 class="text-2xl font-bold mb-6">Edit User</h2>
+                    <div class="space-y-4">
+                        <div><label class="block font-semibold text-gray-700 mb-2">Display Name</label><input type="text" id="edit-user-name" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+                        <div><label class="block font-semibold text-gray-700 mb-2">Role</label><select id="edit-user-role" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"><option value="student">Student</option><option value="teacher">Teacher</option><option value="admin">Admin</option></select></div>
+                        <div><label class="block font-semibold text-gray-700 mb-2">Student Phone</label><input type="tel" id="edit-user-student-phone" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+                        <div><label class="block font-semibold text-gray-700 mb-2">Parent Phone</label><input type="tel" id="edit-user-parent-phone" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+                        <input type="hidden" id="edit-user-id">
+                        <div class="flex gap-2 pt-4">
+                            <button onclick="window.saveEditUser()" class="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-semibold">Save</button>
+                            <button onclick="document.getElementById('edit-user-modal').classList.add('hidden')" class="flex-1 px-4 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500 font-semibold">Cancel</button>
                         </div>
                     </div>
                 </div>
@@ -4016,29 +3998,28 @@ window.renderAdminDashboard = async function() {
         // Populate users table
         const usersBody = document.getElementById('admin-users-body');
         allUsers.forEach(user => {
-            const roleColors = {
-                'student': 'bg-blue-100 text-blue-800',
-                'teacher': 'bg-purple-100 text-purple-800',
-                'admin': 'bg-red-100 text-red-800'
-            };
+            const roleColors = { 'student': 'bg-blue-100 text-blue-800', 'teacher': 'bg-purple-100 text-purple-800', 'admin': 'bg-red-100 text-red-800' };
+            const statusColors = { 'approved': 'bg-green-100 text-green-800', 'pending': 'bg-yellow-100 text-yellow-800', 'rejected': 'bg-red-100 text-red-800' };
+            const userStatus = user.status || 'approved';
+            const sPhone = user.studentPhone || '';
+            const pPhone = user.parentPhone || '';
+            const waLink = (phone) => phone ? `<a href="https://wa.me/${phone.replace(/[^0-9]/g,'')}" target="_blank" class="text-green-600 hover:underline">${phone} 💬</a>` : 'N/A';
+
+            const statusActions = userStatus === 'pending' ? `
+                <button onclick="window.approveUser('${user.id}')" class="mr-1 px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600">✓ Approve</button>
+                <button onclick="window.rejectUser('${user.id}')" class="mr-1 px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600">✗ Reject</button>
+            ` : '';
 
             const row = document.createElement('tr');
             row.className = "hover:bg-gray-50 border-b border-gray-100";
             row.innerHTML = `
-                <td class="px-5 py-4 text-sm font-medium text-gray-900">${user.email}</td>
-                <td class="px-5 py-4 text-sm text-gray-700">${user.displayName || 'N/A'}</td>
-                <td class="px-5 py-4 text-sm">
-                    <span class="px-3 py-1 rounded-full text-xs font-bold ${roleColors[user.role] || roleColors['student']}">
-                        ${user.role.toUpperCase()}
-                    </span>
-                </td>
-                <td class="px-5 py-4 text-sm">
-                    <span class="px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800">Active</span>
-                </td>
-                <td class="px-5 py-4 text-sm text-center">
-                    <button onclick="window.editUser('${user.id}')" class="mr-2 text-blue-600 hover:text-blue-900 font-semibold">Edit</button>
-                    <button onclick="window.deleteUser('${user.id}')" class="text-red-600 hover:text-red-900 font-semibold">Delete</button>
-                </td>
+                <td class="px-4 py-3 text-sm font-medium text-gray-900">${user.email}</td>
+                <td class="px-4 py-3 text-sm text-gray-700">${user.displayName || 'N/A'}</td>
+                <td class="px-4 py-3 text-sm"><span class="px-2 py-1 rounded-full text-xs font-bold ${roleColors[user.role] || roleColors['student']}">${(user.role||'student').toUpperCase()}</span></td>
+                <td class="px-4 py-3 text-sm">${waLink(sPhone)}</td>
+                <td class="px-4 py-3 text-sm">${waLink(pPhone)}</td>
+                <td class="px-4 py-3 text-sm"><span class="px-2 py-1 rounded-full text-xs font-bold ${statusColors[userStatus]}">${userStatus.toUpperCase()}</span></td>
+                <td class="px-4 py-3 text-sm text-center">${statusActions}<button onclick="window.editUser('${user.id}')" class="mr-1 text-blue-600 hover:text-blue-900 font-semibold text-xs">Edit</button><button onclick="window.deleteUser('${user.id}')" class="text-red-600 hover:text-red-900 font-semibold text-xs">Delete</button></td>
             `;
             usersBody.appendChild(row);
         });
@@ -4065,50 +4046,91 @@ window.createNewUser = async function() {
     const password = document.getElementById('new-user-password').value.trim();
     const role = document.getElementById('new-user-role').value;
 
-    if (!email || !name || !password) {
-        alert('Please fill in all fields');
-        return;
-    }
+    if (!email || !name || !password) { alert('Please fill in all fields'); return; }
 
     try {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
-
         await setDoc(doc(db, "users", user.uid), {
-            uid: user.uid,
-            email: user.email,
-            displayName: name,
-            role: role,
-            createdAt: new Date(),
-            createdBy: userId
+            uid: user.uid, email: user.email, displayName: name, role: role,
+            status: 'approved', createdAt: Timestamp.now(), createdBy: userId
         });
-
         alert('User created successfully!');
         window.closeAddUserModal();
         window.renderAdminDashboard();
-    } catch (e) {
-        alert('Error creating user: ' + e.message);
-    }
+    } catch (e) { alert('Error creating user: ' + e.message); }
 };
 
-window.deleteUser = async function(userId) {
-    if (confirm('Are you sure you want to delete this user?')) {
+window.deleteUser = async function(uid) {
+    if (confirm('Are you sure you want to delete this user? This cannot be undone.')) {
         try {
-            await deleteDoc(doc(db, "users", userId));
-            alert('User deleted successfully');
+            await deleteDoc(doc(db, "users", uid));
+            alert('User deleted from database.');
             window.renderAdminDashboard();
-        } catch (e) {
-            alert('Error deleting user: ' + e.message);
-        }
+        } catch (e) { alert('Error deleting user: ' + e.message); }
     }
 };
 
-window.editUser = function(userId) {
-    alert('Edit user feature coming soon. User ID: ' + userId);
+window.editUser = async function(uid) {
+    try {
+        const userDoc = await getDoc(doc(db, "users", uid));
+        if (!userDoc.exists()) { alert('User not found'); return; }
+        const data = userDoc.data();
+        document.getElementById('edit-user-name').value = data.displayName || '';
+        document.getElementById('edit-user-role').value = data.role || 'student';
+        document.getElementById('edit-user-student-phone').value = data.studentPhone || '';
+        document.getElementById('edit-user-parent-phone').value = data.parentPhone || '';
+        document.getElementById('edit-user-id').value = uid;
+        document.getElementById('edit-user-modal').classList.remove('hidden');
+    } catch (e) { alert('Error loading user: ' + e.message); }
 };
 
-window.exportAllData = function() {
-    alert('Data export feature coming soon');
+window.saveEditUser = async function() {
+    const uid = document.getElementById('edit-user-id').value;
+    try {
+        await updateDoc(doc(db, "users", uid), {
+            displayName: document.getElementById('edit-user-name').value.trim(),
+            role: document.getElementById('edit-user-role').value,
+            studentPhone: document.getElementById('edit-user-student-phone').value.trim(),
+            parentPhone: document.getElementById('edit-user-parent-phone').value.trim()
+        });
+        alert('User updated!');
+        document.getElementById('edit-user-modal').classList.add('hidden');
+        window.renderAdminDashboard();
+    } catch (e) { alert('Error saving user: ' + e.message); }
+};
+
+window.approveUser = async function(uid) {
+    if (confirm('Approve this user?')) {
+        try {
+            await updateDoc(doc(db, "users", uid), { status: 'approved' });
+            alert('User approved!');
+            window.renderAdminDashboard();
+        } catch (e) { alert('Error: ' + e.message); }
+    }
+};
+
+window.rejectUser = async function(uid) {
+    if (confirm('Reject this user?')) {
+        try {
+            await updateDoc(doc(db, "users", uid), { status: 'rejected' });
+            alert('User rejected.');
+            window.renderAdminDashboard();
+        } catch (e) { alert('Error: ' + e.message); }
+    }
+};
+
+window.exportAllData = async function() {
+    try {
+        const usersSnap = await getDocs(collection(db, "users"));
+        const testsSnap = await getDocs(collection(db, "custom_tests"));
+        const users = []; usersSnap.forEach(d => users.push(d.data()));
+        const tests = []; testsSnap.forEach(d => tests.push(d.data()));
+        const blob = new Blob([JSON.stringify({ users, tests }, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'drjoe_export.json'; a.click();
+        URL.revokeObjectURL(url);
+    } catch (e) { alert('Export error: ' + e.message); }
 };
 
 window.viewSystemLogs = function() {
