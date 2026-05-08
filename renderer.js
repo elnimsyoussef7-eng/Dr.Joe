@@ -81,6 +81,11 @@
         }
         initTheme();
 
+        function toggleGlobalNav(show) {
+            document.getElementById('global-logout-btn')?.classList.toggle('hidden', !show);
+            document.getElementById('global-settings-btn')?.classList.toggle('hidden', !show);
+        }
+
         // --- Local Storage Functions (New for persistence) ---
 
         const STORAGE_KEY = 'dsatMockState';
@@ -2395,11 +2400,7 @@
             document.getElementById('student-name-header-display').classList.add('hidden');
             document.getElementById('answer-area').innerHTML = '';
             // Show logout btn only if user is logged in and not on login screen
-            if (window.state.role) {
-                document.getElementById('global-logout-btn').classList.remove('hidden');
-            } else {
-                document.getElementById('global-logout-btn').classList.add('hidden');
-            }
+            toggleGlobalNav(!!window.state.role);
             window.toggleSidebar(false); 
             if(window.state.isCalculatorOpen) window.toggleCalculator(false);
         }
@@ -2447,11 +2448,15 @@
                                  return;
                              }
                          }
-                     } catch (e) {
-                         console.warn("Init fetch profile failed", e);
-                     }
+                      } catch (e) {
+                          console.warn("Init fetch profile failed", e);
+                      }
 
-                     // Set up onSnapshot listener for current user doc – signs out if doc is deleted
+                      // Capture fresh Firestore values before loadState overwrites them
+                      const firestoreRole = window.state.role;
+                      const firestoreName = window.state.studentName;
+
+                      // Set up onSnapshot listener for current user doc – signs out if doc is deleted
                      onSnapshot(doc(db, "users", userId), (snap) => {
                          if (!snap.exists()) {
                              signOut(auth);
@@ -2468,9 +2473,17 @@
                          return;
                      }
 
-                     const stateLoaded = loadState();
+                      const stateLoaded = loadState();
 
-                     if (stateLoaded && window.state.studentName !== '') {
+                      // Re-apply Firestore values (loadState may have overwritten with stale saved data)
+                      if (firestoreRole) {
+                          window.state.role = firestoreRole;
+                      }
+                      if (firestoreName) {
+                          window.state.studentName = firestoreName;
+                      }
+
+                      if (stateLoaded && window.state.studentName !== '') {
                          if (window.state.appStage === 'teacher_dashboard' || window.state.role === 'teacher') {
                              window.renderTeacherDashboard();
                          } else if (window.state.appStage === 'admin_dashboard' || window.state.role === 'admin') {
@@ -2498,12 +2511,13 @@
                              contentDiv.classList.add('flex', 'items-center', 'justify-center');
                              startTimer();
                              renderMath('break-screen');
-                         } else if (window.state.appStage === 'finished') {
-                             const m1 = window.state.testHistory.module1;
-                             const m2 = window.state.testHistory.module2;
-                             const totalCorrect = m1.score + m2.score;
-                             const finalScorePercentage = (totalCorrect / 44) * 100;
-                             renderScoreReport(totalCorrect, finalScorePercentage, 44);
+                          } else if (window.state.appStage === 'finished') {
+                              const m1 = window.state.testHistory.module1;
+                              const m2 = window.state.testHistory.module2;
+                              const totalQ = (m1.questions?.length || 22) + (m2.questions?.length || 22);
+                              const totalCorrect = m1.score + m2.score;
+                              const finalScorePercentage = (totalCorrect / totalQ) * 100;
+                              renderScoreReport(totalCorrect, finalScorePercentage, totalQ);
                          } else {
                              window.navigateToHome();
                          }
@@ -2511,10 +2525,10 @@
                          window.navigateToHome();
                      }
                  } else {
-                     // No user
-                     authStatus.textContent = 'Guest';
-                     hiddenUserIdDisplay.textContent = 'Not Auth';
-                     renderLoginScreen();
+                      // No user
+                      authStatus.textContent = 'Guest';
+                      hiddenUserIdDisplay.textContent = 'Not Auth';
+                      renderLoginScreen();
                  }
              });
          }
@@ -2601,69 +2615,75 @@
         // --- SCREEN RENDERING FUNCTIONS (LOGIN, SELECTION, WELCOME) ---
         
         /** Renders the initial login/authentication screen with Sign In / Sign Up views. */
-        window.windowLoginView = 'signin'; // 'signin' or 'signup'
+        window.windowLoginView = 'signup'; // 'signin' or 'signup'
         window.renderLoginScreen = function(message) {
             window.state.appStage = 'login';
             hideTestUIElements();
-            document.getElementById('global-logout-btn').classList.add('hidden');
-            document.getElementById('header-test-info').textContent = 'DSAT Mock Tests';
+            toggleGlobalNav(false);
+            document.getElementById('header-test-info').textContent = 'Dr.Joe Platform';
             saveState();
 
             document.getElementById('question-content').classList.add('flex', 'items-center', 'justify-center');
             const isSignIn = window.windowLoginView === 'signin';
             document.getElementById('question-content').innerHTML = `
-                <div id="login-card" class="text-center p-8 bg-white rounded-xl shadow-lg border border-blue-200 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600" style="width: 440px;">
-                    <h1 class="text-3xl font-extrabold text-blue-700 mb-6 dark:text-blue-400">Welcome Dr.Joe Platform</h1>
-                    <div class="mx-auto max-w-sm mb-4 text-left">
-                        ${message ? `<div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-3 mb-4 rounded text-sm dark:bg-yellow-900 dark:text-yellow-200">${message}</div>` : ''}
-                        <div class="mb-4">
-                            <span class="block text-lg font-semibold text-gray-800 mb-2 dark:text-gray-200">I am a:</span>
-                            <div class="flex flex-wrap items-center space-x-4">
-                                <label class="inline-flex items-center">
-                                    <input type="radio" class="form-radio text-blue-600" name="role" value="student" checked onchange="window.toggleParentEmail(true)">
-                                    <span class="ml-2">Student</span>
-                                </label>
-                                <label class="inline-flex items-center">
-                                    <input type="radio" class="form-radio text-blue-600" name="role" value="teacher" onchange="window.toggleParentEmail(false)">
-                                    <span class="ml-2">Teacher/Academy</span>
-                                </label>
-                                <label class="inline-flex items-center">
-                                    <input type="radio" class="form-radio text-blue-600" name="role" value="admin" onchange="window.toggleParentEmail(false)">
-                                    <span class="ml-2">Admin</span>
-                                </label>
+                <div class="flex items-center justify-center min-h-screen bg-white">
+                    <div class="text-center p-8 bg-white rounded-2xl shadow-lg w-full max-w-md">
+                        <h1 class="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 mb-6">${isSignIn ? 'Welcome Back' : 'Welcome to Dr.JOE Platform'}</h1>
+                        <div class="text-left">
+                            ${message ? `<div class="bg-yellow-50 border-l-4 border-yellow-400 text-yellow-700 p-3 mb-4 rounded text-sm">${message}</div>` : ''}
+                            <div class="mb-4">
+                                <span class="block text-sm font-semibold text-gray-600 mb-2">I am a:</span>
+                                <div class="flex flex-wrap items-center gap-3">
+                                    <label class="inline-flex items-center text-sm text-gray-700">
+                                        <input type="radio" class="form-radio text-blue-500" name="role" value="student" checked onchange="window.toggleParentEmail(true)">
+                                        <span class="ml-2">Student</span>
+                                    </label>
+                                    <label class="inline-flex items-center text-sm text-gray-700">
+                                        <input type="radio" class="form-radio text-blue-500" name="role" value="teacher" onchange="window.toggleParentEmail(false)">
+                                        <span class="ml-2">Teacher/Academy</span>
+                                    </label>
+                                    <label class="inline-flex items-center text-sm text-gray-700">
+                                        <input type="radio" class="form-radio text-blue-500" name="role" value="admin" onchange="window.toggleParentEmail(false)">
+                                        <span class="ml-2">Admin</span>
+                                    </label>
+                                </div>
                             </div>
+
+                            ${!isSignIn ? `
+                            <label class="block text-sm font-semibold text-gray-600 mb-1">Full Name:</label>
+                            <input type="text" id="full-name-input" placeholder="Enter your full name" class="w-full p-2.5 border border-gray-300 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm mb-3">
+                            ` : ''}
+
+                            <label class="block text-sm font-semibold text-gray-600 mb-1">Email:</label>
+                            <input type="email" id="login-email-input" placeholder="Enter your email" class="w-full p-2.5 border border-gray-300 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm mb-3">
+
+                            <label class="block text-sm font-semibold text-gray-600 mb-1">Password:</label>
+                            <input type="password" id="password-input" placeholder="Enter Password" class="w-full p-2.5 border border-gray-300 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm mb-3">
+
+                            <div id="parent-email-container" class="space-y-3 ${isSignIn ? 'hidden' : ''}">
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-600 mb-1">Student Phone:</label>
+                                    <input type="tel" id="student-phone-input" placeholder="+20 100 000 0000" value="${!isSignIn ? '+20' : ''}" class="w-full p-2.5 border border-gray-300 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-600 mb-1">Parent Phone:</label>
+                                    <input type="tel" id="parent-phone-input" placeholder="+20 100 000 0000" value="${!isSignIn ? '+20' : ''}" class="w-full p-2.5 border border-gray-300 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                                </div>
+                            </div>
+
+                            <p id="login-error-message" class="text-red-500 text-sm mt-3 hidden"></p>
+                            <p id="login-success-message" class="text-green-500 text-sm mt-3 hidden"></p>
                         </div>
 
-                        ${!isSignIn ? `
-                        <label for="full-name-input" class="block text-lg font-semibold text-gray-800 mb-1">Full Name:</label>
-                        <input type="text" id="full-name-input" placeholder="Enter your full name" class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg mb-4">
-                        ` : ''}
-
-                        <label for="login-email-input" class="block text-lg font-semibold text-gray-800 mb-1">Email:</label>
-                        <input type="email" id="login-email-input" placeholder="Enter your email" class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg mb-4">
-
-                        <label for="password-input" class="block text-lg font-semibold text-gray-800 mb-1">Password:</label>
-                        <input type="password" id="password-input" placeholder="Enter Password" class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg mb-4">
-
-                        <div id="parent-email-container">
-                            <label for="student-phone-input" class="block text-lg font-semibold text-gray-800 mb-1">Student Phone Number:</label>
-                            <input type="tel" id="student-phone-input" placeholder="+1234567890" class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg mb-4">
-                            <label for="parent-phone-input" class="block text-lg font-semibold text-gray-800 mb-1">Parent Phone Number:</label>
-                            <input type="tel" id="parent-phone-input" placeholder="+1234567890" class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-lg">
-                        </div>
-
-                        <p id="login-error-message" class="text-red-500 text-sm mt-3 hidden"></p>
-                        <p id="login-success-message" class="text-green-500 text-sm mt-3 hidden"></p>
+                        ${isSignIn ? `
+                        <button onclick="handleLogin()" class="w-full px-6 py-2.5 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-base font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150 mb-3">Sign In</button>
+                        <p class="text-sm text-gray-500">Don't have an account? <a href="#" onclick="windowLoginView='signup';renderLoginScreen();return false;" class="text-blue-600 font-semibold hover:underline">Sign Up</a></p>
+                        ` : `
+                        <button onclick="handleSignUp()" class="w-full px-6 py-2.5 bg-gradient-to-r from-purple-500 to-blue-600 text-white text-base font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150 mb-3">Sign Up</button>
+                        <p class="text-sm text-gray-500">Already a participant? <a href="#" onclick="windowLoginView='signin';renderLoginScreen();return false;" class="text-blue-600 font-semibold hover:underline">Sign In</a></p>
+                        `}
+                        ${window.state.studentName ? `<p class="text-xs text-gray-500 mt-3">Resuming saved session for: ${window.state.studentName}</p>` : ''}
                     </div>
-
-                    ${isSignIn ? `
-                    <button onclick="handleLogin()" class="px-8 py-3 bg-gradient-to-r from-green-500 to-green-700 text-white text-xl font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150 mb-3 block w-full">Sign In</button>
-                    <p class="text-sm text-gray-600">Don't have an account? <a href="#" onclick="windowLoginView='signup';renderLoginScreen();return false;" class="text-blue-600 font-semibold hover:underline">Sign Up</a></p>
-                    ` : `
-                    <button onclick="handleSignUp()" class="px-8 py-3 bg-gradient-to-r from-blue-500 to-blue-700 text-white text-xl font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150 mb-3 block w-full">Sign Up</button>
-                    <p class="text-sm text-gray-600">Already a participant? <a href="#" onclick="windowLoginView='signin';renderLoginScreen();return false;" class="text-blue-600 font-semibold hover:underline">Sign In</a></p>
-                    `}
-                    ${window.state.studentName ? `<p class="text-sm text-gray-500 mt-4">Resuming saved session for: ${window.state.studentName}</p>` : ''}
                 </div>
             `;
         }
@@ -2672,7 +2692,9 @@
 
         window.toggleParentEmail = function(show) {
             const container = document.getElementById('parent-email-container');
-            if (show) {
+            if (window.windowLoginView === 'signin') {
+                container.classList.add('hidden');
+            } else if (show) {
                 container.classList.remove('hidden');
             } else {
                 container.classList.add('hidden');
@@ -2850,7 +2872,7 @@
                 window.windowLoginView = 'signin';
                 await signOut(auth);
                 window.toggleSidebar(false);
-                document.getElementById('global-logout-btn').classList.add('hidden');
+                toggleGlobalNav(false);
             } catch (error) {
                 console.error("Logout error", error);
             }
@@ -2869,26 +2891,41 @@
 
         const PRACTICE_QUIZZES = {
             algebra: { name: 'Algebra Basics', questions: [
-                { text: 'Solve for x: $2x + 5 = 13$', choices: ['3', '4', '5', '6'], correctAnswer: 'B', explanation: '2x = 8, so x = 4' },
-                { text: 'What is the slope of $y = 3x - 2$?', choices: ['-2', '2', '3', '-3'], correctAnswer: 'C', explanation: 'In y=mx+b, m is the slope, so m=3' },
-                { text: 'Simplify: $(x^2)(x^3)$', choices: ['$x^5$', '$x^6$', '$x$', '$x^{-1}$'], correctAnswer: 'A', explanation: 'When multiplying, add exponents: 2+3=5' },
-                { text: 'If $f(x) = 2x + 1$, find $f(3)$', choices: ['5', '6', '7', '8'], correctAnswer: 'C', explanation: 'f(3) = 2(3) + 1 = 7' },
-                { text: 'Factor: $x^2 - 9$', choices: ['$(x-3)(x+3)$', '$(x-3)^2$', '$(x+3)^2$', '$(x-9)(x+9)$'], correctAnswer: 'A', explanation: 'Difference of squares: a²-b² = (a-b)(a+b)' },
-                { text: 'Solve: $3x - 7 = 14$', choices: ['5', '6', '7', '8'], correctAnswer: 'C', explanation: '3x = 21, x = 7' },
-                { text: 'What is the y-intercept of $y = -2x + 5$?', choices: ['-2', '2', '5', '-5'], correctAnswer: 'C', explanation: 'In y=mx+b, b is the y-intercept, so b=5' },
+                { text: 'Solve for $x$: $2x + 5 = 13$', choices: ['3', '4', '5', '6'], correctAnswer: 'B', explanation: '$2x = 8$, so $x = 4$' },
+                { text: 'What is the slope of $y = 3x - 2$?', choices: ['-2', '2', '3', '-3'], correctAnswer: 'C', explanation: 'In $y=mx+b$, $m$ is the slope, so $m=3$' },
+                { text: 'Simplify: $(x^2)(x^3)$', choices: ['$x^5$', '$x^6$', '$x$', '$x^{-1}$'], correctAnswer: 'A', explanation: 'When multiplying, add exponents: $2+3=5$' },
+                { text: 'If $f(x) = 2x + 1$, find $f(3)$', choices: ['5', '6', '7', '8'], correctAnswer: 'C', explanation: '$f(3) = 2(3) + 1 = 7$' },
+                { text: 'Factor: $x^2 - 9$', choices: ['$(x-3)(x+3)$', '$(x-3)^2$', '$(x+3)^2$', '$(x-9)(x+9)$'], correctAnswer: 'A', explanation: 'Difference of squares: $a^2-b^2 = (a-b)(a+b)$' },
+                { text: 'Solve: $3x - 7 = 14$', choices: ['5', '6', '7', '8'], correctAnswer: 'C', explanation: '$3x = 21$, $x = 7$' },
+                { text: 'What is the $y$-intercept of $y = -2x + 5$?', choices: ['-2', '2', '5', '-5'], correctAnswer: 'C', explanation: 'In $y=mx+b$, $b$ is the $y$-intercept, so $b=5$' },
+                { text: 'If $3(x-4) = 18$, what is $x$?', choices: ['6', '8', '10', '12'], correctAnswer: 'C', explanation: '$3x-12=18$, $3x=30$, $x=10$' },
+                { text: 'What is the value of $x$ if $\\frac{2x}{3} = 8$?', choices: ['8', '10', '12', '16'], correctAnswer: 'C', explanation: '$2x = 24$, $x = 12$' },
+                { text: 'A line passes through $(2,5)$ and $(4,9)$. What is its slope?', choices: ['1', '2', '3', '4'], correctAnswer: 'B', explanation: '$m = \\frac{9-5}{4-2} = \\frac{4}{2} = 2$' },
+                { text: 'Solve: $|x-3| = 7$', choices: ['$x=10$ only', '$x=-4$ only', '$x=10$ or $x=-4$', '$x=7$ or $x=3$'], correctAnswer: 'C', explanation: '$x-3=7$ gives $x=10$, $x-3=-7$ gives $x=-4$' },
+                { text: 'If $f(x) = 3x^2 - 2x + 1$, find $f(-1)$', choices: ['2', '4', '6', '8'], correctAnswer: 'C', explanation: '$f(-1)=3(1)-2(-1)+1=3+2+1=6$' },
             ]},
-            geometry: { name: 'Geometry Fundamentals', questions: [
-                { text: 'Area of a triangle with base 6 and height 4', choices: ['10', '12', '24', '48'], correctAnswer: 'B', explanation: 'A = ½bh = ½(6)(4) = 12' },
-                { text: 'A circle has radius 3. What is its area?', choices: ['$3\\pi$', '$6\\pi$', '$9\\pi$', '$12\\pi$'], correctAnswer: 'C', explanation: 'A = πr² = 9π' },
-                { text: 'What is the circumference of a circle with diameter 10?', choices: ['$5\\pi$', '$10\\pi$', '$20\\pi$', '$100\\pi$'], correctAnswer: 'B', explanation: 'C = πd = 10π' },
-                { text: 'In a right triangle, the legs are 3 and 4. Find the hypotenuse.', choices: ['5', '6', '7', '8'], correctAnswer: 'A', explanation: 'c² = 3²+4² = 25, c = 5' },
-                { text: 'Volume of a cube with side length 2', choices: ['4', '6', '8', '16'], correctAnswer: 'C', explanation: 'V = s³ = 8' },
+            geometry: { name: 'Geometry & Measurement', questions: [
+                { text: 'Area of a triangle with base $6$ and height $4$', choices: ['10', '12', '24', '48'], correctAnswer: 'B', explanation: '$A = \\frac{1}{2}bh = \\frac{1}{2}(6)(4) = 12$' },
+                { text: 'A circle has radius $3$. What is its area?', choices: ['$3\\pi$', '$6\\pi$', '$9\\pi$', '$12\\pi$'], correctAnswer: 'C', explanation: '$A = \\pi r^2 = 9\\pi$' },
+                { text: 'Circumference of a circle with diameter $10$', choices: ['$5\\pi$', '$10\\pi$', '$20\\pi$', '$100\\pi$'], correctAnswer: 'B', explanation: '$C = \\pi d = 10\\pi$' },
+                { text: 'Right triangle legs are $3$ and $4$. Hypotenuse = ?', choices: ['5', '6', '7', '8'], correctAnswer: 'A', explanation: '$c^2 = 3^2+4^2 = 25$, $c=5$' },
+                { text: 'Volume of a cube with side length $2$', choices: ['4', '6', '8', '16'], correctAnswer: 'C', explanation: '$V = s^3 = 8$' },
+                { text: 'A rectangle has length $8$ and width $5$. What is its perimeter?', choices: ['13', '26', '40', '20'], correctAnswer: 'B', explanation: '$P=2(l+w)=2(8+5)=26$' },
+                { text: 'A cylinder has radius $2$ and height $5$. What is its volume?', choices: ['$10\\pi$', '$20\\pi$', '$30\\pi$', '$40\\pi$'], correctAnswer: 'B', explanation: '$V=\\pi r^2 h = \\pi(4)(5)=20\\pi$' },
+                { text: 'What is the area of a circle with diameter $12$?', choices: ['$12\\pi$', '$24\\pi$', '$36\\pi$', '$144\\pi$'], correctAnswer: 'C', explanation: '$r=6$, $A=\\pi(36)=36\\pi$' },
+                { text: 'A triangle has angles $50^\\circ$ and $70^\\circ$. What is the third angle?', choices: ['$50^\\circ$', '$60^\\circ$', '$70^\\circ$', '$80^\\circ$'], correctAnswer: 'B', explanation: 'Sum of angles $=180^\\circ$, so third $=180-120=60^\\circ$' },
+                { text: 'A sphere has radius $3$. What is its volume?', choices: ['$27\\pi$', '$36\\pi$', '$48\\pi$', '$108\\pi$'], correctAnswer: 'B', explanation: '$V=\\frac{4}{3}\\pi r^3 = 36\\pi$' },
             ]},
-            trig: { name: 'Trigonometry Practice', questions: [
-                { text: '$\\sin(30^\\circ) = ?$', choices: ['$\\frac{1}{2}$', '$\\frac{\\sqrt{3}}{2}$', '$\\frac{\\sqrt{2}}{2}$', '1'], correctAnswer: 'A', explanation: 'sin(30°) = 1/2' },
-                { text: '$\\cos(60^\\circ) = ?$', choices: ['$\\frac{1}{2}$', '$\\frac{\\sqrt{3}}{2}$', '$\\frac{\\sqrt{2}}{2}$', '0'], correctAnswer: 'A', explanation: 'cos(60°) = 1/2' },
-                { text: '$\\tan(45^\\circ) = ?$', choices: ['0', '1', '$\\sqrt{3}$', '$\\frac{1}{\\sqrt{3}}$'], correctAnswer: 'B', explanation: 'tan(45°) = sin(45°)/cos(45°) = 1' },
-            ]}
+            trig: { name: 'Trigonometry & Advanced', questions: [
+                { text: '$\\sin(30^\\circ) = ?$', choices: ['$\\frac{1}{2}$', '$\\frac{\\sqrt{3}}{2}$', '$\\frac{\\sqrt{2}}{2}$', '1'], correctAnswer: 'A', explanation: '$\\sin(30^\\circ) = 1/2$' },
+                { text: '$\\cos(60^\\circ) = ?$', choices: ['$\\frac{1}{2}$', '$\\frac{\\sqrt{3}}{2}$', '$\\frac{\\sqrt{2}}{2}$', '0'], correctAnswer: 'A', explanation: '$\\cos(60^\\circ) = 1/2$' },
+                { text: '$\\tan(45^\\circ) = ?$', choices: ['0', '1', '$\\sqrt{3}$', '$\\frac{1}{\\sqrt{3}}$'], correctAnswer: 'B', explanation: '$\\tan(45^\\circ) = 1$' },
+                { text: 'If $\\sin \\theta = \\frac{3}{5}$ and $\\theta$ is acute, find $\\cos \\theta$', choices: ['$\\frac{2}{5}$', '$\\frac{4}{5}$', '$\\frac{3}{4}$', '$\\frac{5}{3}$'], correctAnswer: 'B', explanation: '$\\cos^2\\theta = 1 - \\sin^2\\theta = 1 - \\frac{9}{25} = \\frac{16}{25}$, so $\\cos\\theta = \\frac{4}{5}$' },
+                { text: 'Simplify: $i^3$ where $i = \\sqrt{-1}$', choices: ['$1$', '$-1$', '$i$', '$-i$'], correctAnswer: 'D', explanation: '$i^3 = i^2 \\cdot i = -1 \\cdot i = -i$' },
+                { text: 'What is the period of $y = \\sin(2x)$?', choices: ['$\\pi$', '$2\\pi$', '$\\frac{\\pi}{2}$', '$4\\pi$'], correctAnswer: 'A', explanation: 'Period $= \\frac{2\\pi}{2} = \\pi$' },
+                { text: 'If $\\log_2 x = 5$, what is $x$?', choices: ['10', '16', '25', '32'], correctAnswer: 'D', explanation: '$2^5 = 32$' },
+                { text: 'A data set has mean $10$ and standard deviation $2$. What is the $z$-score of $14$?', choices: ['1', '2', '3', '4'], correctAnswer: 'B', explanation: '$z = \\frac{14-10}{2} = 2$' },
+            ]},
         };
 
         window.renderExamSelectionScreen = async function() { 
@@ -2987,7 +3024,6 @@
                 <div class="p-8 max-w-4xl mx-auto">
                     <div class="flex justify-between items-center mb-6">
                         <h2 id="exam-selection-title" class="text-3xl font-bold text-gray-800 dark:text-gray-100">Exams Available for ${window.state.studentName}</h2>
-                        <button onclick="window.showStudentSettings()" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-semibold">Settings</button>
                     </div>
                     ${examsHtml}
                     ${practiceHtml}
@@ -2996,24 +3032,597 @@
             renderMath('exam-selection-title');
         }
 
-        window.startPracticeQuiz = function(quizKey) {
-            const quiz = PRACTICE_QUIZZES[quizKey];
-            if (!quiz) return;
-            const testId = 'practice_' + quizKey;
+        // ============================================================
+        // AI TUTOR SYSTEM — Chat, advice, topic analysis & weak-topic quizzes
+        // ============================================================
+
+        const AI_TUTOR = {
+            mascot: { name: 'Dr. Dot', emoji: '🧑‍🏫', avatar: '🧑‍🏫' },
+            topics: {
+                algebra: {
+                    keywords: ['algebra', 'equation', 'slope', 'intercept', 'linear', 'quadratic', 'factor', 'expression', 'solve for', 'variable', 'inequality', 'function', 'polynomial'],
+                    explanation: 'Algebra covers equations, functions, slopes, factoring, and working with variables.',
+                    commonMistakes: [
+                        'Forgetting to distribute the negative sign when subtracting expressions',
+                        'Mixing up slope and y-intercept in y=mx+b',
+                        'Not checking solutions in the original equation'
+                    ]
+                },
+                geometry: {
+                    keywords: ['geometry', 'triangle', 'circle', 'area', 'volume', 'angle', 'perimeter', 'rectangle', 'sphere', 'cylinder', 'cone', 'cube', 'polygon', 'similar', 'congruent', 'pythagorean', 'hypotenuse'],
+                    explanation: 'Geometry involves shapes, their properties, area, volume, and angle relationships.',
+                    commonMistakes: [
+                        'Forgetting to use the correct formula (area vs. circumference)',
+                        'Mixing up radius and diameter',
+                        'Not converting units before calculating'
+                    ]
+                },
+                trig: {
+                    keywords: ['trig', 'sin', 'cos', 'tan', 'sine', 'cosine', 'tangent', 'angle', 'radian', 'degree', 'unit circle', 'identity', 'period', 'amplitude', 'log', 'logarithm', 'exponent', 'imaginary', 'complex', 'i '],
+                    explanation: 'Trigonometry covers sine, cosine, tangent, logarithms, and complex numbers.',
+                    commonMistakes: [
+                        'Using degrees instead of radians (or vice versa) in calculations',
+                        'Forgetting the reciprocal trig identities',
+                        'Not checking the domain when solving logarithmic equations'
+                    ]
+                },
+                data: {
+                    keywords: ['data', 'mean', 'median', 'mode', 'range', 'standard deviation', 'probability', 'percent', 'statistics', 'average', 'chart', 'graph', 'table', 'scatter', 'correlation', 'z-score'],
+                    explanation: 'Data analysis includes mean, median, probability, standard deviation, and interpreting charts.',
+                    commonMistakes: [
+                        'Confusing mean and median',
+                        'Forgetting to divide by the total when calculating probability',
+                        'Misreading graph scales and axes'
+                    ]
+                }
+            },
+            advice: [
+                '💡 Read every question twice before answering — it saves mistakes!',
+                '💡 Eliminate wrong answers first when you are unsure of the correct one.',
+                '💡 Remember: the DSAT Math section tests reasoning, not just memorization.',
+                '💡 Draw diagrams for geometry problems — it makes everything clearer.',
+                '💡 Check your answer by plugging it back into the original equation.',
+                '💡 Skip hard questions and return to them — don\'t get stuck!',
+                '💡 Use the Desmos calculator strategically — not every problem needs it.',
+                '💡 Pay attention to units: feet vs. inches, minutes vs. hours.',
+                '💡 The quadratic formula is your friend — memorize it!',
+                '💡 A 10-second break and deep breath can refocus your brain.',
+                '💡 Estimate before calculating to catch unreasonable answers.',
+                '💡 For "which is true" questions, test each option one at a time.',
+                '💡 Word problems: underline the key numbers and what is being asked.',
+                '💡 Fraction answers? Simplify fully unless told otherwise.',
+                '💡 You\'ve practiced hard — trust your preparation!'
+            ],
+            chatResponses: [
+                { keywords: ['hello', 'hi', 'hey', 'good morning', 'good evening'], response: 'Hey there! 👋 I\'m Dr. Dot, your SAT Math buddy. Ask me anything about the problems you\'re solving!' },
+                { keywords: ['how are you'], response: 'I\'m doing great, ready to help you ace the SAT! 🎯 How can I help?' },
+                { keywords: ['thank', 'thanks', 'appreciate'], response: 'You\'re welcome! 🌟 Keep up the great work — every question makes you stronger.' },
+                { keywords: ['slope', 'y=mx+b', 'linear equation'], response: 'The slope-intercept form is $y = mx + b$ where $m$ is the slope (rise/run) and $b$ is the y-intercept. For example, $y = 2x + 3$ has slope 2 and crosses the y-axis at (0,3).' },
+                { keywords: ['quadratic', 'factor', 'x²', 'x^2', 'parabola'], response: 'Quadratic equations have the form $ax^2 + bx + c = 0$. You can factor them, use the quadratic formula $x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$, or complete the square. The graph is a parabola! 📈' },
+                { keywords: ['pythagorean', 'hypotenuse', 'right triangle'], response: 'The Pythagorean Theorem says $a^2 + b^2 = c^2$, where $c$ is the hypotenuse (longest side). For a 3-4-5 triangle: $3^2 + 4^2 = 9 + 16 = 25 = 5^2$ ✅' },
+                { keywords: ['circle', 'area', 'circumference'], response: 'Circle formulas: Area = $\\pi r^2$, Circumference = $2\\pi r$ (or $\\pi d$). Remember: radius is half the diameter! 🎯' },
+                { keywords: ['triangle', 'area of triangle'], response: 'Area of a triangle = $\\frac{1}{2} \\times \\text{base} \\times \\text{height}$. The sum of all three interior angles is always $180^\\circ$! 📐' },
+                { keywords: ['volume', 'cylinder', 'sphere', 'cone'], response: 'Key volume formulas: Cylinder: $V = \\pi r^2 h$, Sphere: $V = \\frac{4}{3}\\pi r^3$, Cone: $V = \\frac{1}{3}\\pi r^2 h$, Rectangular prism: $V = lwh$ 📦' },
+                { keywords: ['mean', 'average', 'median', 'mode'], response: 'Mean = sum of values ÷ number of values. Median = middle value when sorted. Mode = most frequent value. For the SAT, know how outliers affect the mean vs. median! 📊' },
+                { keywords: ['probability'], response: 'Probability = (favorable outcomes) ÷ (total possible outcomes). For multiple events, multiply the probabilities. Example: rolling a 6 on a die is 1/6. 🎲' },
+                { keywords: ['function', 'f(x)', 'f of x'], response: 'A function $f(x)$ takes an input $x$ and gives an output. For $f(x) = 2x + 1$, $f(3) = 2(3) + 1 = 7$. Think of it as a machine: number in → rule applied → number out! ⚙️' },
+                { keywords: ['inequality', 'greater than', 'less than'], response: 'Inequalities work like equations but with <, >, ≤, ≥. Flip the sign when multiplying/dividing by a negative! Example: $-2x > 6$ → $x < -3$ ⚠️' },
+                { keywords: ['exponent', 'power', 'x^2', 'x^3'], response: 'Exponent rules: $x^a \\cdot x^b = x^{a+b}$, $(x^a)^b = x^{ab}$, $x^{-a} = \\frac{1}{x^a}$. Memorize these — they appear a lot on the SAT! 🚀' },
+                { keywords: ['log', 'logarithm'], response: 'Logarithms are the inverse of exponents: $\\log_b a = c$ means $b^c = a$. For the SAT, focus on $\\log_{10}$ and natural log $\\ln$. Example: $\\log_2 8 = 3$ because $2^3 = 8$ 🧮' },
+                { keywords: ['trig', 'sin', 'cos', 'tan', 'sine', 'cosine', 'tangent'], response: 'SOH-CAH-TOA: $\\sin \\theta = \\frac{\\text{opposite}}{\\text{hypotenuse}}$, $\\cos \\theta = \\frac{\\text{adjacent}}{\\text{hypotenuse}}$, $\\tan \\theta = \\frac{\\text{opposite}}{\\text{adjacent}}$. Unit circle values for 30°, 45°, 60° are essential! 📐' },
+                { keywords: ['desmos', 'calculator'], response: 'Desmos is a powerful tool on the DSAT! Use it for graphing, solving equations, and checking work. But don\'t rely on it for everything — mental math saves time! 🧮' },
+                { keywords: ['stuck', 'difficult', 'hard', 'confused', 'don\'t understand'], response: 'No worries — getting stuck is part of learning! Try these: 1) Rewrite the problem in your own words 2) Eliminate obviously wrong answers 3) Take a deep breath. You\'ve got this! 💪' },
+                { keywords: ['tip', 'advice', 'strategy', 'how to improve'], response: 'Great question! Here\'s my top advice: Practice consistently (15 min/day > 3 hours once a week), review every mistake, and focus on your weak topics. Would you like me to analyze your strengths and weaknesses? 🎯' },
+                { keywords: ['weak', 'improve', 'practice', 'mistake'], response: 'The best way to improve is targeted practice. I can suggest mini-quizzes on specific topics! Click "Practice Quiz" on the main menu and pick a topic, or check your score report for personalized recommendations. 📈' },
+                { keywords: ['bored', 'tired', 'break', 'rest'], response: 'Taking breaks is super important! Your brain needs rest to learn effectively. Stand up, stretch, drink water, and come back refreshed. You\'ll do better after a short break! 🌟' },
+                { keywords: ['nervous', 'anxious', 'stress', 'scared', 'worried'], response: 'It\'s totally normal to feel nervous! Remember: you\'ve prepared, you know the material, and this is just one step in your journey. Take a deep breath — you are capable and ready! 🧘‍♂️💪' },
+                { keywords: ['time', 'speed', 'fast', 'slow'], response: 'Time management tip: Aim for about 90 seconds per question on average. Flag hard ones and come back. With practice, your speed will naturally increase! ⏱️' },
+            ],
+            fallback: 'That\'s an interesting question! 🤔 I\'m a focused SAT Math tutor, so I specialize in algebra, geometry, trigonometry, and data analysis. Could you ask me about one of those topics? Or try asking about a specific problem you\'re working on!'
+        };
+
+        // --- AI Chat Panel ---
+
+        window.toggleAIChat = function() {
+            const panel = document.getElementById('ai-chat-panel');
+            if (panel) {
+                const isHidden = panel.classList.contains('hidden');
+                panel.classList.toggle('hidden');
+                if (isHidden) {
+                    const msg = document.getElementById('ai-chat-messages');
+                    if (msg && msg.children.length <= 1) {
+                        msg.innerHTML = '';
+                        addAIChatMessage('Hey there! 👋 I\'m Dr. Dot, your SAT Math buddy. Ask me anything about math problems, get tips, or just say hi!');
+                    }
+                }
+            }
+        };
+
+        function addAIChatMessage(text, isUser) {
+            const container = document.getElementById('ai-chat-messages');
+            if (!container) return;
+            const div = document.createElement('div');
+            div.className = 'flex items-start gap-2 ' + (isUser ? 'justify-end' : '');
+            div.innerHTML = isUser ? `
+                <div class="bg-blue-500 text-white px-3 py-2 rounded-2xl rounded-br-sm max-w-[80%] text-sm shadow">${text}</div>
+                <div class="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0">👤</div>
+            ` : `
+                <div class="bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 px-3 py-2 rounded-2xl rounded-bl-sm max-w-[80%] text-sm shadow">${text}</div>
+            `;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+            if (typeof renderMath === 'function') renderMath('ai-chat-messages');
+        }
+
+        window.sendAIChatMessage = async function() {
+            const input = document.getElementById('ai-chat-input');
+            if (!input || !input.value.trim()) return;
+            const msg = input.value.trim();
+            input.value = '';
+            addAIChatMessage(msg, true);
+
+            showTypingIndicator();
+
+            const response = await generateWithGemini(msg);
+
+            removeTypingIndicator();
+            addAIChatMessage(response);
+        };
+
+        window.handleAIChatKey = function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                window.sendAIChatMessage();
+            }
+        };
+
+        // ============================================================
+        // Gemini AI Integration (replaces rule-based responses)
+        // ============================================================
+        const GEMINI_API_KEY = 'AIzaSyBA1At3Tg1zGg2krdsVNvrpzaaHnT5yjxw';
+        const GEMINI_MODEL = 'gemini-1.5-flash';
+        const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+
+        async function generateWithGemini(userMessage) {
+            let questionContext = '';
+            const mq = window.state.moduleQuestions;
+            const qi = window.state.questionIndex;
+            if (mq && mq[qi] && window.state.appStage === 'active') {
+                const q = mq[qi];
+                questionContext = `\n[Current question] ${q.text || ''}\nOptions: ${(q.options || []).join(', ')}`;
+            }
+
+            const fullMsg = `System: You are Dr. Dot, a friendly SAT Math tutor. ONLY help with SAT Math (algebra, geometry, trig, data). Be concise (1-3 sentences). Use $$...$$ for math. NEVER give the answer — hint and guide. Be warm.
+
+Student: ${userMessage}${questionContext}`;
+
+            try {
+                const response = await fetch(GEMINI_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: fullMsg }] }],
+                        generationConfig: { temperature: 0.7, maxOutputTokens: 500 }
+                    })
+                });
+
+                if (!response.ok) {
+                    const err = await response.text();
+                    console.error('Gemini API error:', response.status, err.substr(0, 300));
+                    throw new Error(`Gemini ${response.status}`);
+                }
+
+                const data = await response.json();
+                const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (text) return text;
+
+                console.warn('Gemini empty response');
+                return smartFallback(userMessage);
+            } catch (error) {
+                console.error('Gemini failed:', error.message);
+                return smartFallback(userMessage);
+            }
+        }
+
+        function smartFallback(input) {
+            const lower = input.toLowerCase();
+
+            // Check topic keywords
+            for (const [, topic] of Object.entries(AI_TUTOR.topics)) {
+                if (topic.keywords.some(kw => lower.includes(kw))) {
+                    const mistake = topic.commonMistakes[Math.floor(Math.random() * topic.commonMistakes.length)];
+                    return `${topic.explanation} ⭐ ${mistake}`;
+                }
+            }
+
+            // Check chat responses
+            for (const entry of AI_TUTOR.chatResponses) {
+                if (entry.keywords.some(kw => lower.includes(kw))) return entry.response;
+            }
+
+            // Try to detect if it looks like a math question and give generic help
+            if (/\d/.test(lower) || lower.includes('what') || lower.includes('how') || lower.includes('find') || lower.includes('solve') || lower.includes('calculate') || lower.includes('value')) {
+                const strategies = [
+                    'Try breaking the problem into smaller steps. What information are you given, and what are you trying to find?',
+                    'Think about which SAT Math topic this falls under — algebra, geometry, trig, or data analysis. That will guide your approach.',
+                    'Start by eliminating obviously wrong answer choices, then work through the remaining ones carefully.',
+                    'Write down the key numbers and what the question is asking. Sometimes just organizing the information helps!',
+                    'Check if you can plug the answer choices back into the problem to verify which one works.'
+                ];
+                return strategies[Math.floor(Math.random() * strategies.length)] + ' 🤖 Need more help? Tell me the specific topic!';
+            }
+
+            return AI_TUTOR.fallback;
+        }
+
+        function showTypingIndicator() {
+            const container = document.getElementById('ai-chat-messages');
+            if (!container) return;
+            const div = document.createElement('div');
+            div.id = 'ai-typing-indicator';
+            div.className = 'flex items-start gap-2';
+            div.innerHTML = `
+                <div class="bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 px-4 py-3 rounded-2xl rounded-bl-sm shadow">
+                    <div class="flex gap-1">
+                        <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0s"></span>
+                        <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0.15s"></span>
+                        <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0.3s"></span>
+                    </div>
+                </div>`;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function removeTypingIndicator() {
+            const el = document.getElementById('ai-typing-indicator');
+            if (el) el.remove();
+        }
+
+        // --- Advice Timer (every 10 minutes during tests) ---
+
+        let adviceTimerInterval = null;
+
+        window.startAdviceTimer = function() {
+            window.stopAdviceTimer();
+            // Show first advice after 10 minutes (600 seconds)
+            // For testing, we use 10 minutes
+            adviceTimerInterval = setInterval(() => {
+                const advice = AI_TUTOR.advice[Math.floor(Math.random() * AI_TUTOR.advice.length)];
+                showAdvicePopup(advice);
+            }, 10 * 60 * 1000);
+        };
+
+        window.stopAdviceTimer = function() {
+            if (adviceTimerInterval) {
+                clearInterval(adviceTimerInterval);
+                adviceTimerInterval = null;
+            }
+        };
+
+        function showAdvicePopup(text) {
+            const existing = document.getElementById('advice-popup');
+            if (existing) existing.remove();
+
+            const popup = document.createElement('div');
+            popup.id = 'advice-popup';
+            popup.className = 'fixed bottom-20 right-4 z-50 animate-bounce-in';
+            popup.style.animation = 'slideUpFade 0.4s ease-out';
+            popup.innerHTML = `
+                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border-2 border-blue-300 p-4 max-w-xs">
+                    <div class="flex items-start gap-3">
+                        <div>
+                            <p class="text-sm font-bold text-blue-600 dark:text-blue-400 mb-1">Dr. Dot says:</p>
+                            <p class="text-sm text-gray-700 dark:text-gray-200">${text}</p>
+                        </div>
+                        <button onclick="this.closest('#advice-popup').remove()" class="text-gray-400 hover:text-gray-600 text-lg leading-none ml-1">&times;</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(popup);
+            setTimeout(() => { if (popup.parentNode) popup.remove(); }, 8000);
+        }
+
+// Add CSS animation for advice popup
+        const adviceStyle = document.createElement('style');
+        adviceStyle.textContent = `
+            @keyframes slideUpFade {
+                from { opacity: 0; transform: translateY(20px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            #ai-chat-panel { scrollbar-width: thin; }
+            #ai-chat-panel::-webkit-scrollbar { width: 4px; }
+            #ai-chat-panel::-webkit-scrollbar-thumb { background: #ccc; border-radius: 2px; }
+        `;
+        document.head.appendChild(adviceStyle);
+
+        // --- Topic Analysis for Score Report ---
+
+        function analyzeWeakTopics(moduleQuestions, userAnswers) {
+            const topicScores = {};
+            for (const [key, topic] of Object.entries(AI_TUTOR.topics)) {
+                topicScores[key] = { name: topic.explanation.split('.')[0], correct: 0, total: 0, questions: [] };
+            }
+            topicScores.other = { name: 'Other', correct: 0, total: 0, questions: [] };
+
+            moduleQuestions.forEach((q, i) => {
+                const text = (q.text || '').toLowerCase();
+                let matched = false;
+                for (const [key, topic] of Object.entries(AI_TUTOR.topics)) {
+                    if (topic.keywords.some(kw => text.includes(kw))) {
+                        topicScores[key].total++;
+                        if (userAnswers[i] && userAnswers[i] === q.correctAnswer) {
+                            topicScores[key].correct++;
+                        } else {
+                            topicScores[key].questions.push(q);
+                        }
+                        matched = true;
+                        break;
+                    }
+                }
+                if (!matched) {
+                    topicScores.other.total++;
+                    if (userAnswers[i] && userAnswers[i] === q.correctAnswer) {
+                        topicScores.other.correct++;
+                    } else {
+                        topicScores.other.questions.push(q);
+                    }
+                }
+            });
+
+            const weak = [];
+            for (const [key, data] of Object.entries(topicScores)) {
+                if (data.total > 0) {
+                    const pct = (data.correct / data.total) * 100;
+                    data.percentage = pct;
+                    data.key = key;
+                    if (pct < 70) weak.push(data);
+                }
+            }
+
+            weak.sort((a, b) => a.percentage - b.percentage);
+            return { topicScores, weak };
+        }
+
+        // --- Weak-Topic Quiz Generator ---
+
+        function generateWeakTopicQuiz(weakTopics) {
+            const questions = [];
+            weakTopics.forEach(topic => {
+                if (topic.key === 'other' || !AI_TUTOR.topics[topic.key]) return;
+                const t = AI_TUTOR.topics[topic.key];
+                // Generate up to 5 questions from the topic's missed questions, plus generic ones
+                const missed = topic.questions || [];
+                missed.slice(0, 5).forEach(q => {
+                    if (questions.length < 20) questions.push(q);
+                });
+            });
+            return questions;
+        }
+
+        window.startWeakTopicQuiz = function() {
+            const analysis = analyzeWeakTopics(
+                window.state.testHistory.module1.questions || [],
+                window.state.testHistory.module1.answers || []
+            );
+            const weakQuestions = generateWeakTopicQuiz(analysis.weak);
+            if (weakQuestions.length === 0) {
+                alert('Great job! No weak topics found — you\'re doing well across the board! 🎉');
+                return;
+            }
+            const testId = 'practice_weak_' + Date.now();
             ALL_TEST_QUESTIONS[testId] = {
-                name: 'Practice: ' + quiz.name,
-                M1: quiz.questions.map((q, i) => ({
+                name: 'Personalized Practice: Weak Topics',
+                M1: weakQuestions.map((q, i) => ({
                     id: testId + '_Q' + (i + 1),
                     module: 1,
                     text: q.text,
                     type: 'MC',
-                    options: q.choices,
+                    options: q.options || q.choices || ['', '', '', ''],
                     correctAnswer: q.correctAnswer,
                     difficulty: 'Medium',
                     imageUrl: null,
-                    explanation: q.explanation
+                    explanation: q.explanation || 'Review this topic to strengthen your skills!'
                 }))
             };
+            if (weakQuestions.length > 0) {
+                window.isPracticeQuiz = true;
+                window.loadTestQuestions(testId);
+            }
+        };
+
+        // --- Inject AI Chat Panel into DOM ---
+        // Called once during initialization
+        // ============================================================
+        // Hint system (5 hints per session)
+        // ============================================================
+        window.hintPoints = 5;
+
+        function resetHintPoints() {
+            window.hintPoints = 5;
+            updateHintBadge();
+        }
+
+        function updateHintBadge() {
+            const btnCount = document.getElementById('hint-btn-count');
+            if (btnCount) btnCount.textContent = window.hintPoints;
+        }
+
+        window.useHint = function() {
+            if (window.hintPoints <= 0) {
+                addAIChatMessage('You\'ve used all 5 hints for this session! 🎯 Try solving the problem step by step, or ask me a general question in the chat.', false);
+                window.toggleAIChat();
+                return;
+            }
+            if (window.state.appStage !== 'active') return;
+
+            const q = window.state.moduleQuestions[window.state.questionIndex];
+            if (!q) return;
+
+            window.hintPoints--;
+            updateHintBadge();
+
+            const text = q.text || '';
+            const options = q.options || [];
+            const hint = generateMathHint(text, options);
+            addAIChatMessage(hint, false);
+            window.toggleAIChat();
+        };
+
+        function generateMathHint(questionText, options) {
+            const lower = questionText.toLowerCase();
+
+            let topicHint = '';
+            for (const [key, topic] of Object.entries(AI_TUTOR.topics)) {
+                if (topic.keywords.some(kw => lower.includes(kw))) {
+                    const mistake = topic.commonMistakes[Math.floor(Math.random() * topic.commonMistakes.length)];
+                    topicHint = `This looks like a **${topic.explanation.split('.')[0]}** problem. ⚠️ ${mistake}. `;
+                    break;
+                }
+            }
+
+            const strategyHints = [
+                'Try rewriting the problem in your own words.',
+                'Eliminate obviously wrong answers first.',
+                'Plug the answer choices back into the equation to check.',
+                'Draw a diagram or picture to visualize the problem.',
+                'Look for keywords that tell you which formula to use.',
+                'Break the problem into smaller steps.',
+                'Check your units — are they consistent?',
+                'Estimate the answer first, then look for a close match.'
+            ];
+            const strategy = strategyHints[Math.floor(Math.random() * strategyHints.length)];
+
+            return `🧑‍🏫 **Dr. Dot's Hint** (${window.hintPoints} left)\n\n${topicHint}💡 ${strategy}\n\nTry solving now, and if you need more help, just ask me a specific question in the chat!`;
+        }
+
+        function injectAIChatPanel() {
+            if (document.getElementById('ai-chat-panel')) return;
+
+            // --- Chat panel ---
+            const panel = document.createElement('div');
+            panel.id = 'ai-chat-panel';
+            panel.className = 'hidden fixed bottom-20 right-4 z-50 w-80 h-96 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border-2 border-blue-300 flex flex-col overflow-hidden';
+            panel.innerHTML = `
+                <div class="bg-gradient-to-r from-blue-500 to-blue-700 text-white px-4 py-3 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <div>
+                            <p class="font-bold text-sm">Dr. Dot</p>
+                            <p class="text-xs text-white/80">SAT Math Tutor</p>
+                        </div>
+                    </div>
+                    <button onclick="toggleAIChat()" class="text-white/80 hover:text-white text-xl leading-none">&times;</button>
+                </div>
+                <div id="ai-chat-messages" class="flex-1 overflow-y-auto p-3 space-y-3 bg-gray-50 dark:bg-gray-900">
+                    <div class="flex items-start">
+                        <div class="bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 px-3 py-2 rounded-2xl rounded-bl-sm max-w-[80%] text-sm shadow">Hey there! 👋 I\'m Dr. Dot, your SAT Math buddy. Ask me anything about math problems, get tips, or just say hi!</div>
+                    </div>
+                </div>
+                <div class="p-2 border-t border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 flex gap-2">
+                    <textarea id="ai-chat-input" placeholder="Ask Dr. Dot..." rows="1" onkeydown="window.handleAIChatKey(event)" class="flex-1 text-sm p-2 border border-gray-300 dark:border-gray-500 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"></textarea>
+                    <button onclick="window.sendAIChatMessage()" class="px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold text-sm transition">Send</button>
+                </div>
+            `;
+            document.body.appendChild(panel);
+        }
+
+        // --- Score Report Integration: Add weak-topic analysis ---
+        // Called from renderScoreReport to add the analysis section
+        function injectTopicAnalysis() {
+            const m1q = window.state.testHistory.module1?.questions || [];
+            const m1a = window.state.testHistory.module1?.answers || [];
+            const analysis = analyzeWeakTopics(m1q, m1a);
+            if (analysis.weak.length === 0) return;
+
+            const container = document.getElementById('score-card-container');
+            if (!container) return;
+
+            const analysisDiv = document.createElement('div');
+            analysisDiv.className = 'bg-indigo-50 border-t-4 border-indigo-400 rounded-xl p-6 shadow-md';
+            analysisDiv.innerHTML = `
+                <h3 class="text-xl font-bold text-indigo-800 mb-4">📊 Topics to Improve</h3>
+                <div class="space-y-3">
+                    ${analysis.weak.map(t => `
+                        <div class="flex items-center justify-between bg-white rounded-lg p-3 shadow-sm border border-indigo-200">
+                            <div>
+                                <p class="font-semibold text-gray-800">${t.name}</p>
+                                <p class="text-sm text-gray-500">${t.correct}/${t.total} correct (${Math.round(t.percentage)}%)</p>
+                            </div>
+                            <div class="w-20 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                <div class="h-full bg-indigo-400 rounded-full" style="width:${Math.round(t.percentage)}%"></div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                <button onclick="window.startWeakTopicQuiz()" class="mt-4 px-5 py-2.5 bg-gradient-to-r from-indigo-500 to-blue-700 text-white font-bold rounded-xl shadow-md hover:shadow-lg hover:scale-105 transition">
+                    🎯 Practice Weak Topics
+                </button>
+            `;
+
+            // Insert after the scaled score card (first child)
+            const scoreCard = container.querySelector('.bg-indigo-50');
+            if (scoreCard) {
+                scoreCard.after(analysisDiv);
+            } else {
+                container.insertBefore(analysisDiv, container.firstChild);
+            }
+        }
+
+        // Patch renderScoreReport to call injectTopicAnalysis
+        const origRenderScoreReport = renderScoreReport;
+        renderScoreReport = function(totalCorrect, finalScorePercentage, totalQuestions) {
+            origRenderScoreReport(totalCorrect, finalScorePercentage, totalQuestions);
+            // Use setTimeout to ensure DOM is rendered before injecting
+            setTimeout(injectTopicAnalysis, 100);
+            // Show chat button during score review
+            const toggle = document.getElementById('ai-chat-toggle');
+            if (toggle) toggle.classList.remove('hidden');
+        };
+
+        // Patch startTest to add advice timer and hide chat during test
+        const origStartTest = window.startTest;
+        window.startTest = function() {
+            origStartTest();
+            window.startAdviceTimer();
+            const toggle = document.getElementById('ai-chat-toggle');
+            if (toggle) toggle.classList.remove('hidden');
+        };
+
+        // Patch loadTestQuestions to clean up
+        const origLoadTestQuestions = window.loadTestQuestions;
+        window.loadTestQuestions = function(testId) {
+            window.stopAdviceTimer();
+            if (origLoadTestQuestions) origLoadTestQuestions(testId);
+        };
+
+        // Inject the chat panel on first interaction
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', injectAIChatPanel);
+        } else {
+            injectAIChatPanel();
+        }
+
+        window.startPracticeQuiz = function(quizKey) {
+            const quiz = PRACTICE_QUIZZES[quizKey];
+            if (!quiz) return;
+            const testId = 'practice_' + quizKey;
+            const converted = quiz.questions.map((q, i) => ({
+                id: testId + '_Q' + (i + 1),
+                module: 1,
+                text: q.text,
+                type: 'MC',
+                options: q.choices,
+                correctAnswer: q.correctAnswer,
+                difficulty: 'Medium',
+                imageUrl: null,
+                explanation: q.explanation
+            }));
+            ALL_TEST_QUESTIONS[testId] = {
+                name: 'Practice: ' + quiz.name,
+                M1: converted,
+                M2E: converted,
+                M2H: converted
+            };
+            window.isPracticeQuiz = true;
             window.loadTestQuestions(testId);
         }
 
@@ -3026,12 +3635,10 @@
                     return;
                 }
                 const testData = testDoc.data();
-                const rawQuestions = testData.questions || [];
                 
-                // Convert teacher format {text, choices, correctAnswer, explanation} to engine format {id, module, text, type, options, correctAnswer, difficulty, imageUrl}
-                const converted = rawQuestions.map((q, i) => ({
-                    id: testId + '_Q' + (i + 1),
-                    module: 1,
+                const convertQuestions = (questions, moduleNum) => (questions || []).map((q, i) => ({
+                    id: testId + '_M' + moduleNum + '_Q' + (i + 1),
+                    module: moduleNum,
                     text: q.text || '',
                     type: 'MC',
                     options: q.choices || ['', '', '', ''],
@@ -3039,10 +3646,28 @@
                     difficulty: testData.difficulty || 'Medium',
                     imageUrl: q.image || null
                 }));
+
+                // Support both new (modules) and old (flat questions) formats
+                let M1, M2E, M2H;
+                if (testData.modules) {
+                    M1 = convertQuestions(testData.modules.M1, 1);
+                    M2E = convertQuestions(testData.modules.M2E, 2);
+                    M2H = convertQuestions(testData.modules.M2H, 2);
+                } else {
+                    const flat = convertQuestions(testData.questions || [], 1);
+                    const half = Math.ceil(flat.length / 2);
+                    M1 = flat.slice(0, half);
+                    const m2q = flat.slice(half);
+                    M2E = m2q;
+                    M2H = m2q;
+                }
                 
                 ALL_TEST_QUESTIONS[testId] = {
                     name: testData.name || 'Custom Test',
-                    M1: converted
+                    M1: M1,
+                    M2E: M2E,
+                    M2H: M2H,
+                    timePerModule: testData.timePerModule || 33
                 };
                 
                 window.loadTestQuestions(testId);
@@ -3060,7 +3685,7 @@
                 <div class="p-8 max-w-2xl mx-auto">
                     <div class="flex justify-between items-center mb-6">
                         <h2 class="text-2xl font-bold text-gray-800">Settings</h2>
-                        <button onclick="window.navigateToHome()" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">Back</button>
+                        <button onclick="window.navigateToHome()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow transition-colors font-semibold">Back</button>
                     </div>
                     <div class="bg-white rounded-xl shadow-lg p-6 space-y-4">
                         <div>
@@ -3134,7 +3759,8 @@
                 window.state.moduleQuestions = testData.M1;  
                 window.state.userAnswers = new Array(testData.M1.length).fill(null);
                 window.state.flags = new Array(testData.M1.length).fill(false);
-                window.state.timeLeft = 33 * 60;  
+                const timePerModule = testData.timePerModule || 33;
+                window.state.timeLeft = timePerModule * 60;  
                 window.state.timerInterval = null;
                 window.state.testHistory = {
                     module1: { questions: [], answers: [], score: 0, percentage: 0 },
@@ -3166,7 +3792,7 @@
                         <p class="font-semibold text-gray-800">Test Structure:</p>
                         <ul class="list-disc list-inside space-y-1 pl-4">
                             <li>The test is divided into 2 modules of 22 questions each.</li>
-                            <li>Each module is timed for 33 minutes.</li>
+                            <li>Each module is timed for ${ALL_TEST_QUESTIONS[window.state.currentTestId].timePerModule || 33} minutes.</li>
                             <li>Your performance on Module 1 determines if you receive a Hard or Easy Module 2.</li>
                         </ul>
                         <p class="font-semibold text-gray-800 pt-2">Instructions:</p>
@@ -3199,7 +3825,7 @@
             document.getElementById('timer-display').classList.remove('hidden');
             document.getElementById('flag-button').classList.remove('hidden');
             document.getElementById('student-name-header-display').classList.remove('hidden');
-            document.getElementById('global-logout-btn').classList.add('hidden');
+            toggleGlobalNav(false);
 
             renderQuestion();
             renderQuestionMap();
@@ -3208,24 +3834,6 @@
         }
 
         // --- ANNOTATION TOOLS ---
-        window.toggleStrikethrough = function() {
-            const selected = document.querySelector('.answer-option.bg-blue-100');
-            if (selected) {
-                selected.classList.toggle('line-through');
-                selected.classList.toggle('opacity-60');
-            }
-        }
-
-        window.toggleHighlight = function() {
-            const qText = document.getElementById('q-text-container');
-            if (qText) {
-                qText.classList.toggle('bg-yellow-200');
-                qText.classList.toggle('bg-opacity-50');
-                qText.classList.toggle('rounded');
-                qText.classList.toggle('p-1');
-            }
-        }
-
         // --- REVIEW FUNCTIONS ---
         
         /** Loads and renders a past attempt of a specific test */
@@ -3241,28 +3849,44 @@
                  return;
              }
 
-             // Set up state
+             // Set the student name so the header shows the correct student
+             if (result.studentName) {
+                 window.state.studentName = result.studentName;
+             }
+
              window.state.currentTestId = testId;
              window.state.appStage = 'review';
-             
-             const testData = ALL_TEST_QUESTIONS[testId];
-             const m2Key = result.details.module2Difficulty || 'M2E';
-             
-             window.state.testHistory = {
-                 module1: {
-                     questions: testData.M1,
-                     answers: result.answers.module1,
-                     score: result.details.module1Score,
-                     percentage: (result.details.module1Score / 22) * 100
-                 },
-                 module2: {
-                     questions: testData[m2Key],
-                     answers: result.answers.module2,
-                     score: result.details.module2Score,
-                     percentage: (result.details.module2Score / 22) * 100,
-                     difficulty: m2Key
+
+             // Try to use testHistory (saved with full question data) first
+             if (result.testHistory && result.testHistory.module1) {
+                 window.state.testHistory = result.testHistory;
+             } else {
+                 // Fallback: build from ALL_TEST_QUESTIONS for older results
+                 const testData = ALL_TEST_QUESTIONS[testId];
+                 if (!testData) {
+                     alert("Test data not found. Cannot review this test.");
+                     return;
                  }
-             };
+                 const m2Key = (result.details && result.details.module2Difficulty) || 'M2E';
+                 const m1Score = (result.details && result.details.module1Score) || 0;
+                 const m2Score = (result.details && result.details.module2Score) || 0;
+
+                 window.state.testHistory = {
+                     module1: {
+                         questions: testData.M1,
+                         answers: result.answers.module1 || [],
+                         score: m1Score,
+                         percentage: (m1Score / 22) * 100
+                     },
+                     module2: {
+                         questions: testData[m2Key] || testData.M1 || [],
+                         answers: result.answers.module2 || [],
+                         score: m2Score,
+                         percentage: (m2Score / 22) * 100,
+                         difficulty: m2Key
+                     }
+                 };
+             }
              
              // Start review mode
              window.startReviewMode();
@@ -3310,11 +3934,6 @@
             contentDiv.innerHTML = `
                 <div class="flex justify-between items-start mb-4">
                     <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-100">${isReviewMode ? 'Review Question' : 'Question'} ${questionIndex + 1}</h2>
-                    ${!isReviewMode ? `
-                    <div class="flex gap-2">
-                        <button onclick="window.toggleStrikethrough()" class="px-2 py-1 text-xs bg-gray-100 border border-gray-300 rounded hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600" title="Strike-through selected option">Strikethrough</button>
-                        <button onclick="window.toggleHighlight()" class="px-2 py-1 text-xs bg-yellow-100 border border-yellow-300 rounded hover:bg-yellow-200 dark:bg-yellow-900 dark:text-yellow-200 dark:border-yellow-700" title="Highlight question text">Highlight</button>
-                    </div>` : ''}
                 </div>
                 <div id="q-text-container" class="text-lg leading-relaxed text-gray-700 dark:text-gray-300">${q.text}</div>
                 ${imageHtml}
@@ -3678,9 +4297,11 @@
             if (window.state.timerInterval) clearInterval(window.state.timerInterval);
             
             window.state.appStage = 'active'; 
-            window.state.timeLeft = 33 * 60; 
+            const timePerModule = (ALL_TEST_QUESTIONS[window.state.currentTestId] && ALL_TEST_QUESTIONS[window.state.currentTestId].timePerModule) || 33;
+            window.state.timeLeft = timePerModule * 60;
             
-            document.getElementById('timer-display').textContent = '33:00';
+            const minutesStr = String(timePerModule).padStart(2, '0');
+            document.getElementById('timer-display').textContent = minutesStr + ':00';
             
             // Show necessary test elements for Module 2 restart
             document.getElementById('test-footer').classList.remove('hidden');
@@ -3695,24 +4316,18 @@
         }
         
         /** Converts raw correct count (out of 44) to the SAT scale (200-800) */
-        function convertRawToScaledScore(rawScore) {
-            const minRaw = 0;
-            const maxRaw = 44;
+        function convertRawToScaledScore(rawScore, maxRaw) {
+            if (maxRaw !== 44) return rawScore;
             const minScaled = 200;
             const maxScaled = 800;
 
-            // Simple linear scaling: (Score - MinRaw) * (MaxScaled - MinScaled) / (MaxRaw - MinRaw) + MinScaled
-            // 44 questions span a range of 600 points (800 - 200).
-            // Each correct question is worth approximately 600 / 44 ≈ 13.63 points (with a base of 200).
-            
-            if (rawScore <= minRaw) return minScaled;
+            if (rawScore <= 0) return minScaled;
             if (rawScore >= maxRaw) return maxScaled;
             
             const scaledScore = Math.round(
-                (rawScore - minRaw) * (maxScaled - minScaled) / (maxRaw - minRaw) + minScaled
+                rawScore * (maxScaled - minScaled) / maxRaw + minScaled
             );
             
-            // Round to the nearest 10 for a typical SAT score look
             return Math.round(scaledScore / 10) * 10;
         }
 
@@ -3726,7 +4341,7 @@
             const m2 = window.state.testHistory.module2;
             
             // Calculate the 800-point scaled score
-            const scaledScore800 = convertRawToScaledScore(totalCorrect);
+            const scaledScore800 = convertRawToScaledScore(totalCorrect, totalQuestions);
 
             document.getElementById('answer-area').innerHTML = ''; 
             document.getElementById('question-content').classList.remove('flex', 'items-center', 'justify-center');
@@ -3755,23 +4370,24 @@
 
 
                     <!-- Module Breakdown -->
-                    <div class="grid md:grid-cols-2 gap-6">
+                    <div class="grid md:grid-cols-${m2.questions ? 2 : 1} gap-6">
                         <!-- Module 1 Summary -->
                         <div class="bg-gray-100 p-5 rounded-lg border border-gray-200 shadow-md">
-                            <h3 class="text-2xl font-bold text-gray-800 mb-3">Module 1 </h3>
-                            <p class="text-lg text-gray-700">Correct: <span class="font-semibold text-blue-600">${m1.score} / 22</span></p>
+                            <h3 class="text-2xl font-bold text-gray-800 mb-3">${m2.questions ? 'Module 1' : 'Quiz Results'}</h3>
+                            <p class="text-lg text-gray-700">Correct: <span class="font-semibold text-blue-600">${m1.score} / ${m1.questions.length}</span></p>
                             <p class="text-lg text-gray-700">Accuracy: <span class="font-semibold text-blue-600">${m1.percentage.toFixed(1)}%</span></p>
-                            <p class="text-sm text-gray-500 mt-2">M1 performance determined the difficulty of the next module.</p>
+                            ${m2.questions ? '<p class="text-sm text-gray-500 mt-2">M1 performance determined the difficulty of the next module.</p>' : ''}
                         </div>
 
+                        ${m2.questions ? `
                         <!-- Module 2 Summary -->
                         <div class="bg-gray-100 p-5 rounded-lg border border-gray-200 shadow-md">
                             <h3 class="text-2xl font-bold text-gray-800 mb-3">Module 2 </h3>
                             <p class="text-lg text-gray-700">Difficulty: <span class="font-bold text-red-600">${m2.difficulty === 'M2H' ? 'HARD' : 'EASY'}</span></p>
-                            <p class="text-lg text-gray-700">Correct: <span class="font-semibold text-blue-600">${m2.score} / 22</span></p>
+                            <p class="text-lg text-gray-700">Correct: <span class="font-semibold text-blue-600">${m2.score} / ${m2.questions.length}</span></p>
                             <p class="text-lg text-gray-700">Accuracy: <span class="font-semibold text-blue-600">${m2.percentage.toFixed(1)}%</span></p>
                             <p class="text-sm text-gray-500 mt-2">You were placed on the ${m2.difficulty === 'M2H' ? 'Hard' : 'Easy'} path.</p>
-                        </div>
+                        </div>` : ''}
                     </div>
                     
                     <div class="flex flex-col space-y-4 mt-8 max-w-4xl mx-auto">
@@ -3785,6 +4401,11 @@
                             class="w-full px-6 py-3 bg-gradient-to-r from-purple-500 to-purple-700 text-white text-xl font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150">
                             Email Report to Parent
                         </button>` : ''}
+
+                        <button onclick="takeScoreScreenshot()"
+                            class="w-full px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-xl font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150">
+                            📸 Take Screenshot
+                        </button>
 
                         <button onclick="startReviewMode()" 
                                 class="w-full px-6 py-3 bg-gradient-to-r from-indigo-500 to-indigo-700 text-white text-xl font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150">
@@ -3810,6 +4431,26 @@
             // For now, we keep the last finished state until a new test is started.
             saveState(); 
         }
+
+        window.takeScoreScreenshot = async function() {
+            const target = document.getElementById('score-card-container');
+            if (!target || typeof html2canvas === 'undefined') {
+                alert('Screenshot library not loaded. Please try again.');
+                return;
+            }
+            try {
+                const canvas = await html2canvas(target, { scale: 2, useCORS: true, logging: false });
+                const link = document.createElement('a');
+                link.download = 'score-report.png';
+                link.href = canvas.toDataURL('image/png');
+                document.body.appendChild(link);
+                link.click();
+                setTimeout(() => { document.body.removeChild(link); URL.revokeObjectURL(link.href); }, 1000);
+            } catch (e) {
+                console.error('Screenshot failed:', e);
+                alert('Failed to take screenshot.');
+            }
+        };
         
         window.sendParentEmail = function(score, correct, total) {
             const subject = encodeURIComponent(`Test Results for ${window.state.studentName}`);
@@ -3832,19 +4473,17 @@
             if (window.state.isCalculatorOpen) window.toggleCalculator(false); 
             
             if (window.state.module === 1) {
-                // End of Module 1 - Transition to break
                 clearInterval(window.state.timerInterval);
-                window.state.appStage = 'break';
 
                 let correctCount = 0;
                 window.state.moduleQuestions.forEach((q, i) => {
-                    // Check if answer exists and matches correct answer
                     if (window.state.userAnswers[i] && window.state.userAnswers[i] === q.correctAnswer) {
                         correctCount++;
                     }
                 });
 
-                const percentage = (correctCount / window.state.moduleQuestions.length) * 100;
+                const qCount = window.state.moduleQuestions.length;
+                const percentage = (correctCount / qCount) * 100;
                 
                 window.state.testHistory.module1 = {
                     questions: window.state.moduleQuestions,
@@ -3853,9 +4492,20 @@
                     percentage: percentage
                 };
 
+                // Practice quizzes are single-module — go straight to score
+                if (window.isPracticeQuiz) {
+                    window.isPracticeQuiz = false;
+                    renderScoreReport(correctCount, percentage, qCount);
+                    saveState();
+                    return;
+                }
+
+                // Regular test — transition to Module 2 break
+                window.state.appStage = 'break';
+
                 const moduleTwoSet = determineModuleTwo(percentage);
                 const testData = ALL_TEST_QUESTIONS[window.state.currentTestId];
-                const nextQuestions = testData[moduleTwoSet]; // Load M2H or M2E questions for THIS test
+                const nextQuestions = testData[moduleTwoSet] || testData.M1;
                 const m2DifficultyName = moduleTwoSet === 'M2H' ? 'HARD' : 'EASY';
 
                 window.state.module = 2;
@@ -3877,14 +4527,14 @@
                         <span class="font-bold text-indigo-700">${m2DifficultyName}</span> Module 2.</p>
                         <p class="text-gray-600 mt-4 font-semibold text-lg">5-Minute Break in Progress...</p>
                         <p id="break-timer-display" class="text-6xl font-mono text-red-600 mt-4">05:00</p>
-                        <button onclick="startModuleTwoImmediately()" class="mt-6 px-6 py-3 bg-indigo-500 text-white rounded-xl font-semibold shadow-md hover:bg-indigo-600 transition duration-150 transform hover:scale-105">
+                        <button onclick="startModuleTwoImmediately()" class="mt-6 px-6 py-3 bg-indigo-500 text-white rounded-xl font-semibold shadow-md hover:bg-indigo-600 transition duration-150 transform hover:scale-110">
                             Skip Break and Start Module 2
                         </button>
                     </div>
                 `;
                 contentDiv.classList.add('flex', 'items-center', 'justify-center');
 
-                window.state.timeLeft = 5 * 60; // 5 minute break (300 seconds)
+                window.state.timeLeft = 5 * 60;
                 startTimer();
                 renderMath('break-screen');
                 saveState();
@@ -3895,7 +4545,6 @@
                 
                 let correctCountM2 = 0;
                 window.state.moduleQuestions.forEach((q, i) => {
-                    // Check if answer exists and matches correct answer
                     if (window.state.userAnswers[i] && window.state.userAnswers[i] === q.correctAnswer) {
                         correctCountM2++;
                     }
@@ -3904,7 +4553,7 @@
                 window.state.testHistory.module2.questions = window.state.moduleQuestions;
                 window.state.testHistory.module2.answers = window.state.userAnswers;
                 window.state.testHistory.module2.score = correctCountM2;
-                window.state.testHistory.module2.percentage = (correctCountM2 / 22) * 100;
+                window.state.testHistory.module2.percentage = (correctCountM2 / window.state.moduleQuestions.length) * 100;
                 
                 const totalQuestions = 44;
                 const totalCorrect = window.state.testHistory.module1.score + correctCountM2;
@@ -3972,6 +4621,11 @@
                                     Logout
                                 </button>
                             </div>
+                        </div>
+
+                        <!-- Search Bar -->
+                        <div class="mb-4">
+                            <input type="text" id="teacher-search-input" placeholder="🔍 Search by student name, test ID, or phone..." oninput="window.filterTeacherTable()" class="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
                         </div>
 
                         <div class="bg-white rounded-xl shadow-lg overflow-hidden overflow-x-auto">
@@ -4058,6 +4712,20 @@
             }
         }
 
+        window.filterTeacherTable = function() {
+            const input = document.getElementById('teacher-search-input');
+            const filter = input ? input.value.toLowerCase().trim() : '';
+            const rows = document.querySelectorAll('#teacher-results-body tr');
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                if (cells.length < 4) return;
+                const name = cells[0].textContent.toLowerCase();
+                const testId = cells[1].textContent.toLowerCase();
+                const phone = cells[3].textContent.toLowerCase();
+                row.style.display = (!filter || name.includes(filter) || testId.includes(filter) || phone.includes(filter)) ? '' : 'none';
+            });
+        }
+
         window.sendParentWhatsApp = function(phone, studentName, testName, score, total) {
             if (!phone) {
                 alert("No parent phone number available for this student.");
@@ -4077,20 +4745,36 @@
 
         window.exportTeacherData = async function() {
             try {
-                const data = { tests: [], results: [] };
-                const testsSnap = await getDocs(collection(db, "custom_tests"));
-                testsSnap.forEach(d => data.tests.push({ id: d.id, ...d.data() }));
                 const resultsSnap = await getDocs(query(collection(db, "results"), where("userId", "==", userId)));
-                resultsSnap.forEach(d => data.results.push({ id: d.id, ...d.data() }));
+                const rows = [['Student Name', 'Test ID', 'Total Score', 'M1 Score', 'M2 Score', 'Difficulty', 'Parent Phone', 'Date']];
+                resultsSnap.forEach(d => {
+                    const data = d.data();
+                    const testName = ALL_TEST_QUESTIONS[data.testId] ? ALL_TEST_QUESTIONS[data.testId].name : data.testId;
+                    const m1 = data.details ? data.details.module1Score : (data.testHistory?.module1?.score || 0);
+                    const m2 = data.details ? data.details.module2Score : (data.testHistory?.module2?.score || 0);
+                    const diff = data.details ? data.details.module2Difficulty : (data.testHistory?.module2?.difficulty || '');
+                    const date = data.timestamp ? new Date(data.timestamp).toLocaleDateString() : '';
+                    rows.push([
+                        data.studentName || '',
+                        testName,
+                        String(m1 + m2),
+                        String(m1),
+                        String(m2),
+                        diff === 'M2H' ? 'Hard' : 'Easy',
+                        data.parentPhone || '',
+                        date
+                    ]);
+                });
 
-                const json = JSON.stringify(data, null, 2);
-                const blob = new Blob([json], { type: 'application/json' });
+                const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
+                const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `teacher-data-${new Date().toISOString().slice(0,10)}.json`;
+                a.download = `teacher-data-${new Date().toISOString().slice(0,10)}.csv`;
+                document.body.appendChild(a);
                 a.click();
-                URL.revokeObjectURL(url);
+                setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
             } catch (e) {
                 alert('Error exporting data: ' + e.message);
             }
@@ -4249,6 +4933,9 @@ window.renderAdminDashboard = async function() {
                             + Add User
                         </button>
                     </div>
+                    <div class="p-4 border-b border-gray-200">
+                        <input type="text" id="admin-search-input" placeholder="🔍 Search by email, name, role, phone, or status..." oninput="window.filterAdminTable()" class="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
                     <div class="overflow-x-auto">
                         <table class="min-w-full leading-normal">
                             <thead>
@@ -4363,6 +5050,24 @@ window.renderAdminDashboard = async function() {
         contentDiv.innerHTML = '<p class="text-red-500 text-center">Error loading admin dashboard.</p>';
     }
 };
+
+window.filterAdminTable = function() {
+    const input = document.getElementById('admin-search-input');
+    const filter = input ? input.value.toLowerCase().trim() : '';
+    const rows = document.querySelectorAll('#admin-users-body tr');
+    rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        if (cells.length < 5) return;
+        const email = cells[0].textContent.toLowerCase();
+        const name = cells[1].textContent.toLowerCase();
+        const role = cells[2].textContent.toLowerCase();
+        const studentPhone = cells[3].textContent.toLowerCase();
+        const parentPhone = cells[4].textContent.toLowerCase();
+        const status = cells[5].textContent.toLowerCase();
+        const allText = [email, name, role, studentPhone, parentPhone, status].join(' ');
+        row.style.display = (!filter || allText.includes(filter)) ? '' : 'none';
+    });
+}
 
 window.showAddUserModal = function() {
     const modal = document.getElementById('add-user-modal');
@@ -4544,22 +5249,33 @@ window.saveEditUser = async function(userId) {
 
 window.exportAllData = async function() {
     try {
-        const allData = { users: [], tests: [], results: [] };
-        const usersSnap = await getDocs(collection(db, "users"));
-        usersSnap.forEach(d => allData.users.push({ id: d.id, ...d.data() }));
-        const testsSnap = await getDocs(collection(db, "custom_tests"));
-        testsSnap.forEach(d => allData.tests.push({ id: d.id, ...d.data() }));
-        const resultsSnap = await getDocs(collection(db, "results"));
-        resultsSnap.forEach(d => allData.results.push({ id: d.id, ...d.data() }));
+        const toCSV = (rows) => rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
+        const fmtDate = (ts) => ts && ts.toMillis ? new Date(ts.toMillis()).toLocaleDateString() : (ts ? new Date(ts).toLocaleDateString() : '');
 
-        const json = JSON.stringify(allData, null, 2);
-        const blob = new Blob([json], { type: 'application/json' });
+        const usersSnap = await getDocs(collection(db, "users"));
+        const userRows = [['ID', 'Email', 'Display Name', 'Role', 'Status', 'Student Phone', 'Parent Phone', 'Created']];
+        usersSnap.forEach(d => {
+            const u = d.data();
+            userRows.push([d.id, u.email || '', u.displayName || '', u.role || '', u.status || '', u.studentPhone || '', u.parentPhone || '', fmtDate(u.createdAt)]);
+        });
+
+        const resultsSnap = await getDocs(collection(db, "results"));
+        const resultRows = [['ID', 'Student Name', 'User ID', 'Test ID', 'Total Correct', 'Difficulty', 'Date']];
+        resultsSnap.forEach(d => {
+            const r = d.data();
+            const diff = r.details ? r.details.module2Difficulty : (r.testHistory?.module2?.difficulty || '');
+            resultRows.push([d.id, r.studentName || '', r.userId || '', r.testId || '', String(r.totalCorrect || 0), diff === 'M2H' ? 'Hard' : 'Easy', fmtDate(r.timestamp)]);
+        });
+
+        const csv = '\uFEFF=== USERS ===\n' + toCSV(userRows) + '\n\n=== RESULTS ===\n' + toCSV(resultRows);
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `dr-joe-export-${new Date().toISOString().slice(0,10)}.json`;
+        a.download = `dr-joe-export-${new Date().toISOString().slice(0,10)}.csv`;
+        document.body.appendChild(a);
         a.click();
-        URL.revokeObjectURL(url);
+        setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
         alert('Data exported successfully!');
     } catch (e) {
         alert('Export failed: ' + e.message);
@@ -4591,7 +5307,7 @@ window.viewSystemLogs = async function() {
             <div class="p-8 max-w-7xl mx-auto">
                 <div class="flex justify-between items-center mb-6">
                     <h1 class="text-3xl font-extrabold text-gray-800">System Logs</h1>
-                    <button onclick="window.renderAdminDashboard()" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">Back</button>
+                    <button onclick="window.renderAdminDashboard()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow transition-colors font-semibold">Back</button>
                 </div>
                 ${adminTabsHtml()}
                 <div class="bg-white rounded-xl shadow-lg overflow-hidden overflow-x-auto">
@@ -4643,7 +5359,7 @@ window.manageTestBank = async function() {
             <div class="p-8 max-w-7xl mx-auto">
                 <div class="flex justify-between items-center mb-6">
                     <h1 class="text-3xl font-extrabold text-gray-800">Test Bank</h1>
-                    <button onclick="window.renderAdminDashboard()" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">Back</button>
+                    <button onclick="window.renderAdminDashboard()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow transition-colors font-semibold">Back</button>
                 </div>
                 ${adminTabsHtml()}
                 <div class="mb-4">
@@ -4687,7 +5403,7 @@ window.systemSettings = async function() {
             <div class="p-8 max-w-4xl mx-auto">
                 <div class="flex justify-between items-center mb-6">
                     <h1 class="text-3xl font-extrabold text-gray-800">System Settings</h1>
-                    <button onclick="window.renderAdminDashboard()" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">Back</button>
+                    <button onclick="window.renderAdminDashboard()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow transition-colors font-semibold">Back</button>
                 </div>
                 ${adminTabsHtml()}
                 <div class="bg-white rounded-xl shadow-lg p-8">
@@ -4759,11 +5475,14 @@ window.showTeacherTestCreationPanel = async function() {
     const contentDiv = document.getElementById('question-content');
     contentDiv.classList.remove('flex', 'items-center', 'justify-center');
     
+    window.currentTestQuestions = window.currentTestQuestions || { M1: [], M2E: [], M2H: [] };
+    window.currentTestModule = 'M1';
+    
     contentDiv.innerHTML = `
         <div class="p-8 max-w-6xl mx-auto">
             <div class="mb-8">
                 <h1 class="text-4xl font-extrabold text-gray-800 mb-2">Create New Test</h1>
-                <p class="text-gray-600">Add questions, answers, choices, explanations and images</p>
+                <p class="text-gray-600">Add questions separately for Module 1, Module 2 (Easy), and Module 2 (Hard)</p>
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -4777,14 +5496,6 @@ window.showTeacherTestCreationPanel = async function() {
                                 <input type="text" id="test-name" placeholder="e.g., SAT Mock Test 1" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                             </div>
                             <div>
-                                <label class="block font-semibold text-gray-700 mb-2">Module</label>
-                                <select id="test-module" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                    <option value="M1">Module 1</option>
-                                    <option value="M2E">Module 2 (Easy)</option>
-                                    <option value="M2H">Module 2 (Hard)</option>
-                                </select>
-                            </div>
-                            <div>
                                 <label class="block font-semibold text-gray-700 mb-2">Difficulty</label>
                                 <select id="test-difficulty" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                                     <option value="Easy">Easy</option>
@@ -4792,24 +5503,40 @@ window.showTeacherTestCreationPanel = async function() {
                                     <option value="Hard">Hard</option>
                                 </select>
                             </div>
-                            <button onclick="window.addNewQuestion()" class="w-full px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-bold transition">
-                                + Add Question
-                            </button>
+                            <div>
+                                <label class="block font-semibold text-gray-700 mb-2">Time per Module (minutes)</label>
+                                <input type="number" id="test-time" value="33" min="1" max="120" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
                             <div class="mt-4 pt-4 border-t border-gray-200">
-                                <label class="block font-semibold text-gray-700 mb-2 text-sm">Bulk Upload (CSV/Excel)</label>
-                                <input type="file" id="bulk-upload-input" accept=".csv,.xlsx,.xls" class="w-full text-sm p-2 border rounded-lg">
+                                <label class="block font-semibold text-gray-700 mb-2 text-sm">Bulk Upload (CSV)</label>
+                                <input type="file" id="bulk-upload-input" accept=".csv" class="w-full text-sm p-2 border rounded-lg">
                                 <button onclick="window.handleBulkUpload()" class="mt-2 w-full px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 font-bold transition text-sm">
                                     Upload Questions
+                                </button>
+                                <button onclick="window.downloadCsvTemplate()" class="mt-2 w-full px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-bold transition text-sm">
+                                    📄 Download CSV Template
                                 </button>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Right: Questions List -->
+                <!-- Right: Questions List with Tabs -->
                 <div class="lg:col-span-2">
-                    <div class="bg-white rounded-xl shadow-lg p-6">
-                        <h2 class="text-2xl font-bold mb-4 text-gray-800">Questions</h2>
+                    <!-- Module Tabs -->
+                    <div class="flex gap-1 mb-4">
+                        <button id="tab-M1" onclick="window.switchTestModule('M1')" class="flex-1 px-4 py-3 font-bold rounded-t-lg transition text-sm tab-M1 bg-blue-600 text-white">Module 1</button>
+                        <button id="tab-M2E" onclick="window.switchTestModule('M2E')" class="flex-1 px-4 py-3 font-bold rounded-t-lg transition text-sm tab-M2E bg-gray-200 text-gray-600 hover:bg-gray-300">Module 2 (Easy)</button>
+                        <button id="tab-M2H" onclick="window.switchTestModule('M2H')" class="flex-1 px-4 py-3 font-bold rounded-t-lg transition text-sm tab-M2H bg-gray-200 text-gray-600 hover:bg-gray-300">Module 2 (Hard)</button>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-lg p-6 rounded-tl-none">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-2xl font-bold text-gray-800">Questions - <span id="current-module-label">Module 1</span></h2>
+                            <span id="module-question-count" class="text-sm text-gray-500">0 questions</span>
+                        </div>
+                        <button onclick="window.addNewQuestion()" class="w-full px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-bold transition mb-4">
+                            + Add Question to <span id="add-btn-module-label">Module 1</span>
+                        </button>
                         <div id="questions-list" class="space-y-4 max-h-96 overflow-y-auto">
                             <p class="text-gray-500 italic text-center py-8">No questions added yet. Click "Add Question" to begin.</p>
                         </div>
@@ -4819,28 +5546,40 @@ window.showTeacherTestCreationPanel = async function() {
 
             <!-- Question Editor Modal -->
             <div id="question-editor-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                <div class="bg-white rounded-xl shadow-2xl p-8 max-w-2xl w-full max-h-96 overflow-y-auto">
+                <div class="bg-white rounded-xl shadow-2xl p-8 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
                     <h2 class="text-2xl font-bold mb-6">Add/Edit Question</h2>
                     <div class="space-y-4">
                         <div>
-                            <label class="block font-semibold text-gray-700 mb-2">Question Text</label>
-                            <textarea id="question-text" placeholder="Enter question..." class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 h-24" oninput="window.previewKaTeX(this.value)"></textarea>
-                            <div id="katex-preview" class="mt-2 p-3 bg-gray-50 border rounded-lg text-sm text-gray-600 min-h-[40px]">Preview will appear here</div>
+                            <label class="block font-semibold text-gray-700 mb-2">Question Text (use $...$ or $$...$$ for LaTeX)</label>
+                            <textarea id="question-text" placeholder="Enter question... e.g. Solve $x^2 + 2x + 1 = 0$" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 h-24" oninput="window.previewKaTeX(this.value)"></textarea>
+                            <div id="katex-preview" class="mt-2 p-4 bg-gray-50 border rounded-lg text-base text-gray-800 min-h-[50px] border-dashed border-gray-300">Preview will appear here</div>
                         </div>
 
                         <div>
-                            <label class="block font-semibold text-gray-700 mb-2">Question Image (Optional)</label>
-                            <input type="file" id="question-image" accept="image/*" class="w-full p-2 border rounded-lg">
+                            <label class="block font-semibold text-gray-700 mb-2">Question Image / Graph (Optional)</label>
+                            <div class="flex gap-2">
+                                <input type="file" id="question-image" accept="image/*" class="flex-1 p-2 border rounded-lg" onchange="window.previewQuestionImage(this)">
+                                <button onclick="window.insertGraph()" class="px-3 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 font-semibold text-sm whitespace-nowrap" title="Insert coordinate graph">
+                                    + Graph
+                                </button>
+                            </div>
+                            <div id="image-preview-container" class="mt-2 hidden">
+                                <img id="image-preview" class="max-h-40 rounded-lg border border-gray-300">
+                                <button onclick="window.removeQuestionImage()" class="text-red-500 text-sm mt-1 hover:underline">Remove</button>
+                            </div>
                         </div>
 
                         <div id="choices-container" class="space-y-3">
-                            <label class="block font-semibold text-gray-700">Choices</label>
+                            <label class="block font-semibold text-gray-700">Choices (use $...$ for LaTeX)</label>
                             <div id="choices-list" class="space-y-2">
                                 ${['A', 'B', 'C', 'D'].map(letter => `
-                                    <div class="flex items-center gap-2">
-                                        <span class="font-bold text-gray-700 min-w-8">${letter})</span>
-                                        <input type="text" class="flex-1 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter choice ${letter}">
-                                        <label class="flex items-center">
+                                    <div class="flex items-start gap-2">
+                                        <span class="font-bold text-gray-700 min-w-8 mt-2">${letter})</span>
+                                        <div class="flex-1">
+                                            <input type="text" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter choice ${letter} (e.g. $\\\\frac{1}{2}$)" oninput="window.previewChoiceKaTeX('choice-preview-${letter}', this.value)">
+                                            <div id="choice-preview-${letter}" class="mt-1 p-2 bg-gray-50 border border-dashed border-gray-200 rounded text-sm text-gray-600 min-h-[30px]"></div>
+                                        </div>
+                                        <label class="flex items-center mt-2 whitespace-nowrap">
                                             <input type="radio" name="correct-answer" value="${letter}" class="mr-1">
                                             <span class="text-sm">Correct</span>
                                         </label>
@@ -4850,7 +5589,7 @@ window.showTeacherTestCreationPanel = async function() {
                         </div>
 
                         <div>
-                            <label class="block font-semibold text-gray-700 mb-2">Explanation</label>
+                            <label class="block font-semibold text-gray-700 mb-2">Explanation (use $...$ for LaTeX)</label>
                             <textarea id="question-explanation" placeholder="Explain the correct answer..." class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 h-20"></textarea>
                         </div>
 
@@ -4871,7 +5610,7 @@ window.showTeacherTestCreationPanel = async function() {
                 <button onclick="window.saveTest()" class="px-6 py-3 bg-green-500 text-white rounded-full hover:bg-green-600 font-bold shadow-lg hover:shadow-xl transition transform hover:scale-110">
                     💾 Save Test
                 </button>
-                <button onclick="window.backToTeacherDashboard()" class="px-6 py-3 bg-gray-500 text-white rounded-full hover:bg-gray-600 font-bold shadow-lg hover:shadow-xl transition transform hover:scale-110">
+                <button onclick="window.backToTeacherDashboard()" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-bold shadow-lg hover:shadow-xl transition transform hover:scale-110">
                     ← Back
                 </button>
             </div>
@@ -4883,14 +5622,33 @@ window.showTeacherTestCreationPanel = async function() {
     window.updateQuestionsList();
 };
 
+window.switchTestModule = function(module) {
+    window.currentTestModule = module;
+    document.querySelectorAll('[id^="tab-"]').forEach(t => {
+        t.classList.remove('bg-blue-600', 'text-white');
+        t.classList.add('bg-gray-200', 'text-gray-600');
+    });
+    const tab = document.getElementById('tab-' + module);
+    if (tab) {
+        tab.classList.remove('bg-gray-200', 'text-gray-600');
+        tab.classList.add('bg-blue-600', 'text-white');
+    }
+    const labels = { M1: 'Module 1', M2E: 'Module 2 (Easy)', M2H: 'Module 2 (Hard)' };
+    document.getElementById('current-module-label').textContent = labels[module];
+    document.getElementById('add-btn-module-label').textContent = labels[module];
+    window.updateQuestionsList();
+};
+
 window.addNewQuestion = function() {
     document.getElementById('question-editor-modal').classList.remove('hidden');
-    // Clear previous inputs
     document.getElementById('question-text').value = '';
     document.getElementById('question-image').value = '';
     document.getElementById('question-explanation').value = '';
     document.querySelectorAll('input[name="correct-answer"]').forEach(r => r.checked = false);
     document.querySelectorAll('#choices-list input[type="text"]').forEach(i => i.value = '');
+    document.querySelectorAll('[id^="choice-preview-"]').forEach(el => el.innerHTML = '');
+    document.getElementById('katex-preview').innerHTML = 'Preview will appear here';
+    document.getElementById('image-preview-container').classList.add('hidden');
     
     window.currentEditingQuestionIndex = -1;
 };
@@ -4925,12 +5683,13 @@ window.saveQuestion = function() {
         image: imageInput.files.length > 0 ? imageInput.files[0].name : null
     };
 
-    if (!window.currentTestQuestions) window.currentTestQuestions = [];
+    if (!window.currentTestQuestions) window.currentTestQuestions = { M1: [], M2E: [], M2H: [] };
+    const module = window.currentTestModule || 'M1';
 
     if (window.currentEditingQuestionIndex >= 0) {
-        window.currentTestQuestions[window.currentEditingQuestionIndex] = question;
+        window.currentTestQuestions[module][window.currentEditingQuestionIndex] = question;
     } else {
-        window.currentTestQuestions.push(question);
+        window.currentTestQuestions[module].push(question);
     }
 
     window.closeQuestionEditor();
@@ -4939,12 +5698,17 @@ window.saveQuestion = function() {
 
 window.updateQuestionsList = function() {
     const list = document.getElementById('questions-list');
-    if (!window.currentTestQuestions || window.currentTestQuestions.length === 0) {
-        list.innerHTML = '<p class="text-gray-500 italic text-center py-8">No questions added yet.</p>';
+    const module = window.currentTestModule || 'M1';
+    const questions = window.currentTestQuestions ? window.currentTestQuestions[module] || [] : [];
+    
+    document.getElementById('module-question-count').textContent = questions.length + ' questions';
+    
+    if (questions.length === 0) {
+        list.innerHTML = '<p class="text-gray-500 italic text-center py-8">No questions in this module yet.</p>';
         return;
     }
 
-    list.innerHTML = window.currentTestQuestions.map((q, idx) => `
+    list.innerHTML = questions.map((q, idx) => `
         <div class="p-4 bg-gray-50 rounded-lg border-l-4 border-blue-500">
             <div class="flex justify-between items-start mb-2">
                 <h3 class="font-bold text-gray-800">Q${idx + 1}: ${q.text.substring(0, 50)}...</h3>
@@ -4964,14 +5728,18 @@ window.updateQuestionsList = function() {
 
 window.editQuestion = function(index) {
     window.currentEditingQuestionIndex = index;
-    const q = window.currentTestQuestions[index];
+    const module = window.currentTestModule || 'M1';
+    const q = window.currentTestQuestions[module][index];
     
     document.getElementById('question-text').value = q.text;
     document.getElementById('question-explanation').value = q.explanation || '';
+    window.previewKaTeX(q.text);
     
     const choiceInputs = document.querySelectorAll('#choices-list input[type="text"]');
     q.choices.forEach((choice, i) => {
         if (choiceInputs[i]) choiceInputs[i].value = choice;
+        const previewId = 'choice-preview-' + ['A','B','C','D'][i];
+        window.previewChoiceKaTeX(previewId, choice);
     });
     
     const radios = document.querySelectorAll('input[name="correct-answer"]');
@@ -4983,7 +5751,8 @@ window.editQuestion = function(index) {
 
 window.deleteQuestion = function(index) {
     if (confirm('Delete this question?')) {
-        window.currentTestQuestions.splice(index, 1);
+        const module = window.currentTestModule || 'M1';
+        window.currentTestQuestions[module].splice(index, 1);
         window.updateQuestionsList();
     }
 };
@@ -4992,27 +5761,28 @@ window.closeQuestionEditor = function() {
     document.getElementById('question-editor-modal').classList.add('hidden');
 };
 
-window.saveTest = async function() {
+        window.saveTest = async function() {
     const testName = document.getElementById('test-name').value.trim();
-    const module = document.getElementById('test-module').value;
     const difficulty = document.getElementById('test-difficulty').value;
+    const timePerModule = parseInt(document.getElementById('test-time').value) || 33;
 
     if (!testName) {
         alert('Please enter test name');
         return;
     }
 
-    if (!window.currentTestQuestions || window.currentTestQuestions.length === 0) {
-        alert('Please add at least one question');
+    const modules = window.currentTestQuestions || { M1: [], M2E: [], M2H: [] };
+    if (!modules.M1 || modules.M1.length === 0) {
+        alert('Please add at least one question to Module 1');
         return;
     }
 
     try {
         const testData = {
             name: testName,
-            module: module,
             difficulty: difficulty,
-            questions: window.currentTestQuestions,
+            timePerModule: timePerModule,
+            modules: modules,
             createdBy: userId,
             createdAt: new Date(),
             updatedAt: new Date()
@@ -5028,7 +5798,7 @@ window.saveTest = async function() {
         });
 
         alert('Test saved successfully!');
-        window.currentTestQuestions = [];
+        window.currentTestQuestions = { M1: [], M2E: [], M2H: [] };
         window.renderTeacherDashboard();
     } catch (e) {
         alert('Error saving test: ' + e.message);
@@ -5036,7 +5806,7 @@ window.saveTest = async function() {
 };
 
 window.backToTeacherDashboard = function() {
-    window.currentTestQuestions = [];
+    window.currentTestQuestions = { M1: [], M2E: [], M2H: [] };
     window.renderTeacherDashboard();
 };
 
@@ -5076,10 +5846,11 @@ window.handleBulkUpload = function() {
                 alert('No valid questions found in CSV');
                 return;
             }
-            window.currentTestQuestions = window.currentTestQuestions || [];
-            window.currentTestQuestions.push(...questions);
+            if (!window.currentTestQuestions) window.currentTestQuestions = { M1: [], M2E: [], M2H: [] };
+            const module = window.currentTestModule || 'M1';
+            window.currentTestQuestions[module].push(...questions);
             window.updateQuestionsList();
-            alert(`${questions.length} questions imported successfully!`);
+            alert(`${questions.length} questions imported to ${module}!`);
             input.value = '';
         } catch (err) {
             alert('Error parsing CSV: ' + err.message);
@@ -5103,4 +5874,76 @@ window.previewKaTeX = function(value) {
     } catch (e) {
         preview.innerHTML = value;
     }
+};
+
+window.previewChoiceKaTeX = function(containerId, value) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    if (!value.trim()) {
+        container.innerHTML = '';
+        return;
+    }
+    try {
+        container.innerHTML = value;
+        if (typeof katex !== 'undefined') {
+            renderMath(containerId);
+        }
+    } catch (e) {
+        container.innerHTML = value;
+    }
+};
+
+window.previewQuestionImage = function(input) {
+    const container = document.getElementById('image-preview-container');
+    const preview = document.getElementById('image-preview');
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            preview.src = e.target.result;
+            container.classList.remove('hidden');
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+};
+
+window.removeQuestionImage = function() {
+    document.getElementById('image-preview-container').classList.add('hidden');
+    document.getElementById('question-image').value = '';
+};
+
+window.insertGraph = function() {
+    const graphSvg = `<svg viewBox="-10 -10 20 20" width="250" height="250" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#666"/>
+            </marker>
+        </defs>
+        <rect x="-10" y="-10" width="20" height="20" fill="none" stroke="#ccc" stroke-width="0.5"/>
+        <line x1="-9" y1="0" x2="9" y2="0" stroke="#666" stroke-width="0.8" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+        <line x1="0" y1="-9" x2="0" y2="9" stroke="#666" stroke-width="0.8" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+        <text x="9.5" y="1.5" font-size="1.5" fill="#666" font-family="serif" font-style="italic">x</text>
+        <text x="1.5" y="-8.5" font-size="1.5" fill="#666" font-family="serif" font-style="italic">y</text>
+        ${[1,2,3].map(i => `<text x="${i}" y="1.5" font-size="1" fill="#999">${i}</text><text x="-${i}" y="1.5" font-size="1" fill="#999">${-i}</text>`).join('')}
+        ${[1,2,3].map(i => `<text x="1" y="${-(i-0.3)}" font-size="1" fill="#999">${i}</text><text x="1" y="${i+0.3}" font-size="1" fill="#999">${-i}</text>`).join('')}
+    </svg>`;
+    const textarea = document.getElementById('question-text');
+    const cursorPos = textarea.selectionStart;
+    const textBefore = textarea.value.substring(0, cursorPos);
+    const textAfter = textarea.value.substring(cursorPos);
+    textarea.value = textBefore + graphSvg + textAfter;
+    window.previewKaTeX(textarea.value);
+};
+
+window.downloadCsvTemplate = function() {
+    const csv = 'question,choice_a,choice_b,choice_c,choice_d,answer,explanation\n' +
+        '"What is 2+2?","3","4","5","6","B","2+2 equals 4"\n' +
+        '"Solve for x: 2x+5=13","3","4","5","6","B","2x=8, x=4"';
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'csv-template.csv';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
 };
