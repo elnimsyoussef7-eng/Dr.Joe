@@ -5432,7 +5432,8 @@ Student: ${userMessage}${questionContext}`;
             document.getElementById('test-footer').classList.remove('hidden');
             document.getElementById('flag-button').classList.remove('hidden');
             document.getElementById('menu-button').classList.remove('hidden');
-            document.getElementById('student-name-header-display').classList.remove('hidden'); 
+            document.getElementById('student-name-header-display').classList.remove('hidden');
+            toggleGlobalNav(false);
 
             renderQuestion();
             renderQuestionMap();
