@@ -7639,16 +7639,22 @@ window.renderEbookManager = async function() {
     document.getElementById('header-test-info').textContent = 'E-Book Library';
     showLoading('Loading E-Books...');
     try {
-        const snap = await getDocs(collection(db, 'ebooks'));
+        const [snap, studentsSnap] = await Promise.all([
+            getDocs(collection(db, 'ebooks')),
+            getDocs(query(collection(db, "users"), where("role", "==", "student")))
+        ]);
         const books = [];
         snap.forEach(d => { const data = d.data(); data.id = d.id; books.push(data); });
+        const students = [];
+        studentsSnap.forEach(d => students.push({ id: d.id, ...d.data() }));
+
         const bookRows = books.length === 0
             ? `<tr><td colspan="5" class="text-center py-8 text-gray-500 dark:text-gray-400">No e-books uploaded yet.</td></tr>`
             : books.map(b => `
                 <tr class="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                     <td class="px-4 py-3 font-medium text-gray-800 dark:text-gray-100">${b.title || 'Untitled'}</td>
                     <td class="px-4 py-3 text-gray-500 dark:text-gray-400">${b.author || '—'}</td>
-                    <td class="px-4 py-3 text-xs text-gray-400">${(b.access || []).join(', ') || 'all'}</td>
+                    <td class="px-4 py-3 text-xs text-gray-400">${b.visibleStudents ? b.visibleStudents.length + ' student(s)' : 'All students'}</td>
                     <td class="px-4 py-3">
                         <a href="${b.fileUrl}" target="_blank" class="text-blue-600 hover:underline text-sm">View/Download</a>
                     </td>
@@ -7656,6 +7662,12 @@ window.renderEbookManager = async function() {
                         <button onclick="window.deleteEbook('${b.id}')" class="text-xs text-red-500 hover:text-red-700 font-semibold">Delete</button>
                     </td>
                 </tr>`).join('');
+
+        const studentCheckboxes = students.map(s => `
+            <label class="flex items-center gap-2 text-sm">
+                <input type="checkbox" class="ebook-student-cb" value="${s.id}">
+                <span>${s.displayName || s.email} (${s.email})</span>
+            </label>`).join('');
 
         const html = `
         <div class="max-w-5xl">
@@ -7679,14 +7691,15 @@ window.renderEbookManager = async function() {
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
                         <input id="ebook-desc" type="text" placeholder="Short description" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"/>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Access (who can see)</label>
-                        <select id="ebook-access" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <option value="student,teacher,admin">Everyone</option>
-                            <option value="student">Students Only</option>
-                            <option value="teacher,admin">Teachers &amp; Admins Only</option>
-                            <option value="admin">Admins Only</option>
-                        </select>
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Visible to Students</label>
+                        <div id="ebook-student-list" class="max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3 space-y-1 bg-gray-50 dark:bg-gray-900 dark:border-gray-600">
+                            ${studentCheckboxes || '<p class="text-gray-400 text-sm">No students found.</p>'}
+                        </div>
+                        <label class="flex items-center gap-2 text-sm mt-2 cursor-pointer">
+                            <input type="checkbox" id="ebook-all-students" checked onchange="document.querySelectorAll('.ebook-student-cb').forEach(cb => cb.checked = this.checked)">
+                            <span class="font-medium text-gray-600">All Students</span>
+                        </label>
                     </div>
                     <div class="md:col-span-2">
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">PDF File *</label>
@@ -7729,7 +7742,7 @@ window.uploadEbook = async function() {
     const title  = document.getElementById('ebook-title')?.value?.trim();
     const author = document.getElementById('ebook-author')?.value?.trim();
     const desc   = document.getElementById('ebook-desc')?.value?.trim();
-    const access = document.getElementById('ebook-access')?.value?.split(',') || ['student','teacher','admin'];
+    const allChecked = document.getElementById('ebook-all-students')?.checked;
     const fileInput = document.getElementById('ebook-file');
     const statusEl  = document.getElementById('ebook-upload-status');
     if (!title) { window.showWarning('Please enter a title.'); return; }
@@ -7741,10 +7754,15 @@ window.uploadEbook = async function() {
         const storageRef = ref(storage, `ebooks/${Date.now()}_${file.name}`);
         const snap = await uploadBytes(storageRef, file);
         const fileUrl = await getDownloadURL(snap.ref);
-        await addDoc(collection(db, 'ebooks'), {
-            title, author, description: desc, access, fileUrl,
+        const bookData = {
+            title, author, description: desc, fileUrl,
             uploadedBy: userId, uploadedAt: Date.now()
-        });
+        };
+        if (!allChecked) {
+            const cbs = document.querySelectorAll('.ebook-student-cb:checked');
+            bookData.visibleStudents = Array.from(cbs).map(cb => cb.value);
+        }
+        await addDoc(collection(db, 'ebooks'), bookData);
         if (statusEl) statusEl.textContent = '';
         window.showSuccess('E-Book uploaded successfully!');
         window.renderEbookManager();
@@ -7781,7 +7799,8 @@ window.renderStudentEbooks = async function() {
         const books = [];
         snap.forEach(d => {
             const data = d.data(); data.id = d.id;
-            if (!data.access || data.access.includes(role)) books.push(data);
+            const vs = data.visibleStudents;
+            if (!vs || vs.length === 0 || vs.includes(userId)) books.push(data);
         });
         const bookCards = books.length === 0
             ? `<div class="col-span-full text-center py-16 text-gray-400 dark:text-gray-500">
