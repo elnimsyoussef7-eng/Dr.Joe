@@ -4,7 +4,9 @@
             createUserWithEmailAndPassword, 
             onAuthStateChanged,
             signOut,
-            sendPasswordResetEmail
+            sendPasswordResetEmail,
+            GoogleAuthProvider,
+            signInWithPopup
         } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
         import { 
             collection, 
@@ -2660,53 +2662,56 @@
                      authStatus.textContent = user.email;
                      hiddenUserIdDisplay.textContent = userId;
                      
-                     try {
-                         const userDoc = await getDoc(doc(db, "users", userId));
-                         if (userDoc.exists()) {
-                             const userData = userDoc.data();
-                            window.state.role = userData.role;
-                            window.state.studentName = userData.displayName || name;
-                            window.state.parentEmail = userData.parentEmail;
-                            window.state.parentPhone = userData.parentPhone;
-                            window.state.studentPhone = userData.studentPhone;
-                            window.state.visibleTests = userData.visibleTests;
-                             
-                    // Block unapproved users — keep signed in, watch for status changes
-                    if (userData.status === "pending") {
-                        authStatus.textContent = user.email + ' (Pending)';
-                        document.getElementById('student-name-display-sidebar').textContent = window.state.studentName;
-                        document.getElementById('student-name-header-display').textContent = window.state.studentName;
-                        hideTestUIElements();
-                        toggleGlobalNav(true);
-                        renderPendingApprovalScreen(user.email);
-                        setupApprovalListener(userId);
-                        return;
-                    }
-                    if (userData.status === "rejected") {
-                        authStatus.textContent = user.email + ' (Rejected)';
-                        document.getElementById('student-name-display-sidebar').textContent = window.state.studentName;
-                        document.getElementById('student-name-header-display').textContent = window.state.studentName;
-                        hideTestUIElements();
-                        toggleGlobalNav(false);
-                        renderRejectedScreen();
-                        return;
-                    }
-                         }
-                      } catch (e) {
-                          console.warn("Init fetch profile failed", e);
-                      }
+                       try {
+                          const userDoc = await getDoc(doc(db, "users", userId));
+                          if (userDoc.exists()) {
+                              const userData = userDoc.data();
+                             window.state.role = userData.role;
+                             window.state.studentName = userData.displayName || name;
+                             window.state.parentEmail = userData.parentEmail;
+                             window.state.parentPhone = userData.parentPhone;
+                             window.state.studentPhone = userData.studentPhone;
+                             window.state.visibleTests = userData.visibleTests;
+                              
+                     // Block unapproved users — keep signed in, watch for status changes
+                     if (userData.status === "pending") {
+                         authStatus.textContent = user.email + ' (Pending)';
+                         document.getElementById('student-name-display-sidebar').textContent = window.state.studentName;
+                         document.getElementById('student-name-header-display').textContent = window.state.studentName;
+                         hideTestUIElements();
+                         toggleGlobalNav(true);
+                         renderPendingApprovalScreen(user.email);
+                         setupApprovalListener(userId);
+                         return;
+                     }
+                     if (userData.status === "rejected") {
+                         authStatus.textContent = user.email + ' (Rejected)';
+                         document.getElementById('student-name-display-sidebar').textContent = window.state.studentName;
+                         document.getElementById('student-name-header-display').textContent = window.state.studentName;
+                         hideTestUIElements();
+                         toggleGlobalNav(false);
+                         renderRejectedScreen();
+                         return;
+                     }
+                          }
 
-                      // Capture fresh Firestore values before loadState overwrites them
-                      const firestoreRole = window.state.role;
-                      const firestoreName = window.state.studentName;
+                          // Set up onSnapshot listener only for existing docs (avoids race
+                          // where a new Google user's doc hasn't been created yet)
+                          if (userDoc.exists()) {
+                              onSnapshot(doc(db, "users", userId), (snap) => {
+                                  if (!snap.exists()) {
+                                      signOut(auth);
+                                      renderLoginScreen("Your account has been deleted. You have been signed out.");
+                                  }
+                              });
+                          }
+                       } catch (e) {
+                           console.warn("Init fetch profile failed", e);
+                       }
 
-                      // Set up onSnapshot listener for current user doc – signs out if doc is deleted
-                     onSnapshot(doc(db, "users", userId), (snap) => {
-                         if (!snap.exists()) {
-                             signOut(auth);
-                             renderLoginScreen("Your account has been deleted. You have been signed out.");
-                         }
-                     });
+                       // Capture fresh Firestore values before loadState overwrites them
+                       const firestoreRole = window.state.role;
+                       const firestoreName = window.state.studentName;
 
                      document.getElementById('student-name-display-sidebar').textContent = window.state.studentName;
                      document.getElementById('student-name-header-display').textContent = window.state.studentName;
@@ -3003,6 +3008,16 @@
                             <p id="login-success-message" class="text-green-500 text-sm mt-3 hidden"></p>
                         </div>
 
+                        <div class="mt-4 mb-4 flex items-center gap-2">
+                            <hr class="flex-1 border-gray-300">
+                            <span class="text-sm text-gray-400 font-medium">or</span>
+                            <hr class="flex-1 border-gray-300">
+                        </div>
+                        <button onclick="handleGoogleSignIn()" class="w-full px-6 py-2.5 bg-white border border-gray-300 text-gray-700 text-base font-bold rounded-xl shadow-sm hover:shadow-md hover:bg-gray-50 transition duration-150 mb-3 flex items-center justify-center gap-2">
+                            <svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                            Sign ${isSignIn ? 'In' : 'Up'} with Google
+                        </button>
+
                         ${isSignIn ? `
                         <label class="flex items-center text-sm text-gray-600 mb-3 cursor-pointer">
                             <input type="checkbox" id="remember-me" class="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
@@ -3188,6 +3203,47 @@
                 windowAuthRoutingLock = true;
                 await setDoc(doc(db, "users", user.uid), userData);
             } catch (e) {
+                if (errorEl) { errorEl.textContent = e.message; errorEl.classList.remove('hidden'); }
+            }
+        };
+
+        window.handleGoogleSignIn = async function() {
+            const errorEl = document.getElementById('login-error-message');
+            if (errorEl) errorEl.classList.add('hidden');
+            try {
+                const provider = new GoogleAuthProvider();
+                const result = await signInWithPopup(auth, provider);
+                const user = result.user;
+                const userDoc = await getDoc(doc(db, "users", user.uid));
+                if (!userDoc.exists()) {
+                    const userData = {
+                        email: user.email,
+                        displayName: user.displayName || user.email.split('@')[0],
+                        role: 'student',
+                        status: 'pending',
+                        createdAt: new Date().toISOString(),
+                        studentPhone: '',
+                        parentPhone: ''
+                    };
+                    windowAuthRoutingLock = true;
+                    await setDoc(doc(db, "users", user.uid), userData);
+                    // Manually route to pending screen after doc creation
+                    windowAuthRoutingLock = false;
+                    window.state.studentName = userData.displayName;
+                    window.state.role = 'student';
+                    document.getElementById('student-name-display-sidebar').textContent = userData.displayName;
+                    document.getElementById('student-name-header-display').textContent = userData.displayName;
+                    hideTestUIElements();
+                    toggleGlobalNav(true);
+                    renderPendingApprovalScreen(user.email);
+                    setupApprovalListener(user.uid);
+                }
+            } catch (e) {
+                if (e.code === 'auth/popup-closed-by-user') return;
+                if (e.code === 'auth/operation-not-allowed') {
+                    if (errorEl) { errorEl.textContent = 'Google sign-in is not enabled. Ask the admin to enable it in Firebase Console → Authentication → Sign-in providers.'; errorEl.classList.remove('hidden'); }
+                    return;
+                }
                 if (errorEl) { errorEl.textContent = e.message; errorEl.classList.remove('hidden'); }
             }
         };
@@ -4632,11 +4688,13 @@ Student: ${userMessage}${questionContext}`;
                     id: testId + '_M' + moduleNum + '_Q' + (i + 1),
                     module: moduleNum,
                     text: q.text || '',
-                    type: 'MC',
-                    options: q.choices || ['', '', '', ''],
-                    correctAnswer: q.correctAnswer || 'A',
+                    type: q.type || 'MC',
+                    options: (q.type === 'SPR') ? [] : (q.choices || ['', '', '', '']),
+                    correctAnswer: q.correctAnswer || '',
                     difficulty: testData.difficulty || 'Medium',
-                    imageUrl: q.image || null
+                    imageUrl: q.image || null,
+                    explanation: q.explanation || '',
+                    category: q.category || ''
                 }));
 
                 // Support both new (modules) and old (flat questions) formats
@@ -5045,9 +5103,10 @@ Student: ${userMessage}${questionContext}`;
 
                 if (isReviewMode) {
                     inputDisabled = 'disabled';
-                    if (currentAnswer === correctAnswer) {
+                    const isCorrect = normalizeAnswer(currentAnswer) === normalizeAnswer(correctAnswer);
+                    if (isCorrect) {
                         borderColor = 'border-green-600 ring-2 ring-green-500';
-                        feedbackText = `<p class="text-green-600 mt-2 font-semibold">Correct Answer: ${correctAnswer}. Your answer was correct.</p>`;
+                        feedbackText = `<p class="text-green-600 mt-2 font-semibold">Correct! Answer: ${correctAnswer}</p>`;
                     } else {
                         borderColor = 'border-red-600 ring-2 ring-red-500';
                         feedbackText = `<p class="text-red-600 mt-2 font-semibold">Your Answer: ${currentAnswer || 'Not Answered'}</p>
@@ -7206,10 +7265,30 @@ window.showTeacherTestCreationPanel = async function() {
                                     + Graph
                                 </button>
                             </div>
+                            <input type="text" id="question-image-url" placeholder="Or paste an image URL (Google Drive, Imgur, etc.)" class="w-full p-2 border rounded-lg mt-2 focus:outline-none focus:ring-2 focus:ring-blue-500" oninput="window.previewImageUrl(this.value)">
+                            <div id="image-url-preview-container" class="mt-2 hidden">
+                                <img id="image-url-preview" class="max-h-40 rounded-lg border border-gray-300">
+                            </div>
                             <div id="image-preview-container" class="mt-2 hidden">
                                 <img id="image-preview" class="max-h-40 rounded-lg border border-gray-300">
                                 <button onclick="window.removeQuestionImage()" class="text-red-500 text-sm mt-1 hover:underline">Remove</button>
                             </div>
+                        </div>
+
+                        <div class="flex gap-6 mb-4 p-4 bg-gray-50 rounded-lg">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="question-type" value="MC" checked onchange="window.toggleQuestionType()">
+                                <span class="font-semibold text-gray-700">Multiple Choice</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="question-type" value="SPR" onchange="window.toggleQuestionType()">
+                                <span class="font-semibold text-gray-700">Written Answer</span>
+                            </label>
+                        </div>
+
+                        <div id="spr-answer-container" class="hidden space-y-3">
+                            <label class="block font-semibold text-gray-700">Correct Answer</label>
+                            <input type="text" id="spr-correct-answer" placeholder="e.g. 3.5 or 1/2 or x=4" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                         </div>
 
                         <div id="choices-container" class="space-y-3">
@@ -7287,6 +7366,12 @@ window.switchTestModule = function(module) {
     window.updateQuestionsList();
 };
 
+window.toggleQuestionType = function() {
+    const type = document.querySelector('input[name="question-type"]:checked')?.value;
+    document.getElementById('choices-container').classList.toggle('hidden', type !== 'MC');
+    document.getElementById('spr-answer-container').classList.toggle('hidden', type !== 'SPR');
+};
+
 window.addNewQuestion = function() {
     document.getElementById('question-editor-modal').classList.remove('hidden');
     document.getElementById('question-text').value = '';
@@ -7297,6 +7382,12 @@ window.addNewQuestion = function() {
     document.querySelectorAll('[id^="choice-preview-"]').forEach(el => el.innerHTML = '');
     document.getElementById('katex-preview').innerHTML = 'Preview will appear here';
     document.getElementById('image-preview-container').classList.add('hidden');
+    document.getElementById('image-url-preview-container').classList.add('hidden');
+    document.getElementById('question-image-url').value = '';
+    document.getElementById('image-url-preview').src = '';
+    document.getElementById('spr-correct-answer').value = '';
+    document.querySelector('input[name="question-type"][value="MC"]').checked = true;
+    window.toggleQuestionType();
     const catSelect = document.getElementById('question-category');
     if (catSelect) catSelect.value = '';
     
@@ -7314,8 +7405,10 @@ window.uploadQuestionImage = async function(file) {
 
 window.saveQuestion = async function() {
     const questionText = document.getElementById('question-text').value.trim();
+    const questionType = document.querySelector('input[name="question-type"]:checked')?.value || 'MC';
     const choices = Array.from(document.querySelectorAll('#choices-list input[type="text"]')).map(i => i.value.trim());
-    const correctAnswer = document.querySelector('input[name="correct-answer"]:checked')?.value;
+    const mcCorrectAnswer = document.querySelector('input[name="correct-answer"]:checked')?.value;
+    const sprCorrectAnswer = document.getElementById('spr-correct-answer').value.trim();
     const explanation = document.getElementById('question-explanation').value.trim();
     const imageInput = document.getElementById('question-image');
 
@@ -7324,16 +7417,23 @@ window.saveQuestion = async function() {
         return;
     }
 
-    if (choices.some(c => !c)) {
-        alert('Please fill all choices');
-        return;
+    if (questionType === 'MC') {
+        if (choices.some(c => !c)) {
+            alert('Please fill all choices');
+            return;
+        }
+        if (!mcCorrectAnswer) {
+            alert('Please select correct answer');
+            return;
+        }
+    } else {
+        if (!sprCorrectAnswer) {
+            alert('Please enter the correct answer');
+            return;
+        }
     }
 
-    if (!correctAnswer) {
-        alert('Please select correct answer');
-        return;
-    }
-
+    const imageUrlInput = document.getElementById('question-image-url').value.trim();
     let imageUrl = null;
     if (imageInput.files.length > 0) {
         try {
@@ -7342,14 +7442,17 @@ window.saveQuestion = async function() {
             console.error('Image upload failed:', e);
             alert('Failed to upload image, but question will be saved without it.');
         }
+    } else if (imageUrlInput) {
+        imageUrl = imageUrlInput;
     }
 
     const category = document.getElementById('question-category')?.value || '';
 
     const question = {
         text: questionText,
-        choices: choices,
-        correctAnswer: correctAnswer,
+        type: questionType,
+        choices: questionType === 'MC' ? choices : [],
+        correctAnswer: questionType === 'MC' ? mcCorrectAnswer : sprCorrectAnswer,
         explanation: explanation,
         image: imageUrl,
         category: category
@@ -7382,16 +7485,17 @@ window.updateQuestionsList = function() {
     }
 
     list.innerHTML = questions.map((q, idx) => `
-        <div class="p-4 bg-gray-50 rounded-lg border-l-4 border-blue-500">
+        <div class="p-4 bg-gray-50 rounded-lg border-l-4 ${(q.type || 'MC') === 'SPR' ? 'border-green-500' : 'border-blue-500'}">
             <div class="flex justify-between items-start mb-2">
                 <h3 class="font-bold text-gray-800">Q${idx + 1}: ${q.text.substring(0, 50)}...</h3>
-                <div class="flex gap-2">
+                <div class="flex gap-2 items-center">
+                    <span class="text-xs font-semibold px-2 py-0.5 rounded ${(q.type || 'MC') === 'SPR' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}">${(q.type || 'MC') === 'SPR' ? 'Written' : 'MC'}</span>
                     <button onclick="window.editQuestion(${idx})" class="text-blue-600 hover:text-blue-900 font-semibold text-sm">Edit</button>
                     <button onclick="window.deleteQuestion(${idx})" class="text-red-600 hover:text-red-900 font-semibold text-sm">Delete</button>
                 </div>
             </div>
             <div class="text-sm text-gray-600">
-                <p><strong>Choices:</strong> ${q.choices.join(', ')}</p>
+                ${(q.type || 'MC') === 'MC' ? `<p><strong>Choices:</strong> ${(q.choices || []).join(', ')}</p>` : ''}
                 <p><strong>Answer:</strong> ${q.correctAnswer}</p>
                 ${q.explanation ? `<p><strong>Explanation:</strong> ${q.explanation.substring(0, 60)}...</p>` : ''}
             </div>
@@ -7403,24 +7507,43 @@ window.editQuestion = function(index) {
     window.currentEditingQuestionIndex = index;
     const module = window.currentTestModule || 'M1';
     const q = window.currentTestQuestions[module][index];
+    const type = q.type || 'MC';
     
     document.getElementById('question-text').value = q.text;
     document.getElementById('question-explanation').value = q.explanation || '';
     window.previewKaTeX(q.text);
     
+    const typeRadio = document.querySelector('input[name="question-type"][value="' + type + '"]');
+    if (typeRadio) typeRadio.checked = true;
+    window.toggleQuestionType();
+    
     const choiceInputs = document.querySelectorAll('#choices-list input[type="text"]');
-    q.choices.forEach((choice, i) => {
+    (q.choices || []).forEach((choice, i) => {
         if (choiceInputs[i]) choiceInputs[i].value = choice;
         const previewId = 'choice-preview-' + ['A','B','C','D'][i];
         window.previewChoiceKaTeX(previewId, choice);
     });
     
-    const radios = document.querySelectorAll('input[name="correct-answer"]');
-    const correctIdx = ['A', 'B', 'C', 'D'].indexOf(q.correctAnswer);
-    if (radios[correctIdx]) radios[correctIdx].checked = true;
+    if (type === 'MC') {
+        const radios = document.querySelectorAll('input[name="correct-answer"]');
+        const correctIdx = ['A', 'B', 'C', 'D'].indexOf(q.correctAnswer);
+        if (radios[correctIdx]) radios[correctIdx].checked = true;
+    } else {
+        document.getElementById('spr-correct-answer').value = q.correctAnswer || '';
+    }
 
     const catSelect = document.getElementById('question-category');
     if (catSelect && q.category) catSelect.value = q.category;
+
+    const imageUrl = q.image || '';
+    const isFileUpload = imageUrl && !imageUrl.startsWith('http') && !imageUrl.startsWith('data:');
+    if (isFileUpload) {
+        document.getElementById('question-image-url').value = '';
+        document.getElementById('image-url-preview-container').classList.add('hidden');
+    } else if (imageUrl) {
+        document.getElementById('question-image-url').value = imageUrl;
+        window.previewImageUrl(imageUrl);
+    }
     
     document.getElementById('question-editor-modal').classList.remove('hidden');
 };
@@ -7493,6 +7616,24 @@ window.handleBulkUpload = function() {
         return;
     }
     const file = input.files[0];
+    function parseCSVRow(row) {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+        for (let k = 0; k < row.length; k++) {
+            const ch = row[k];
+            if (ch === '"') {
+                inQuotes = !inQuotes;
+            } else if (ch === ',' && !inQuotes) {
+                result.push(current.replace(/^"|"$/g, '').trim());
+                current = '';
+            } else {
+                current += ch;
+            }
+        }
+        result.push(current.replace(/^"|"$/g, '').trim());
+        return result;
+    }
     const reader = new FileReader();
     reader.onload = function(e) {
         try {
@@ -7502,13 +7643,15 @@ window.handleBulkUpload = function() {
                 window.showError('CSV must have a header row and at least one question');
                 return;
             }
-            const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+            const headers = parseCSVRow(lines[0]).map(h => h.toLowerCase());
             const questions = [];
             for (let i = 1; i < lines.length; i++) {
-                const cells = lines[i].split(',').map(c => c.trim());
-                const q = { text: '', choices: ['', '', '', ''], correctAnswer: '', explanation: '' };
+                const cells = parseCSVRow(lines[i]);
+                let qType = 'MC';
+                const q = { text: '', type: 'MC', choices: ['', '', '', ''], correctAnswer: '', explanation: '' };
                 headers.forEach((h, idx) => {
                     if (h === 'question' || h === 'text') q.text = cells[idx] || '';
+                    if (h === 'type') qType = (cells[idx] || '').toUpperCase() === 'SPR' ? 'SPR' : 'MC';
                     if (h === 'choice_a' || h === 'a') q.choices[0] = cells[idx] || '';
                     if (h === 'choice_b' || h === 'b') q.choices[1] = cells[idx] || '';
                     if (h === 'choice_c' || h === 'c') q.choices[2] = cells[idx] || '';
@@ -7516,6 +7659,8 @@ window.handleBulkUpload = function() {
                     if (h === 'answer' || h === 'correct') q.correctAnswer = cells[idx] || '';
                     if (h === 'explanation') q.explanation = cells[idx] || '';
                 });
+                q.type = qType;
+                if (qType === 'SPR') q.choices = [];
                 if (q.text) questions.push(q);
             }
             if (questions.length === 0) {
@@ -7587,6 +7732,24 @@ window.removeQuestionImage = function() {
     document.getElementById('question-image').value = '';
 };
 
+window.previewImageUrl = function(url) {
+    const container = document.getElementById('image-url-preview-container');
+    const preview = document.getElementById('image-url-preview');
+    if (url.trim()) {
+        preview.src = url.trim();
+        container.classList.remove('hidden');
+    } else {
+        container.classList.add('hidden');
+        preview.src = '';
+    }
+};
+
+window.removeQuestionImageUrl = function() {
+    document.getElementById('image-url-preview-container').classList.add('hidden');
+    document.getElementById('image-url-preview').src = '';
+    document.getElementById('question-image-url').value = '';
+};
+
 window.insertGraph = function() {
     const graphSvg = `<svg viewBox="-10 -10 20 20" width="250" height="250" xmlns="http://www.w3.org/2000/svg">
         <defs>
@@ -7611,9 +7774,10 @@ window.insertGraph = function() {
 };
 
 window.downloadCsvTemplate = function() {
-    const csv = 'question,choice_a,choice_b,choice_c,choice_d,answer,explanation\n' +
-        '"What is 2+2?","3","4","5","6","B","2+2 equals 4"\n' +
-        '"Solve for x: 2x+5=13","3","4","5","6","B","2x=8, x=4"';
+    const csv = 'type,question,choice_a,choice_b,choice_c,choice_d,answer,explanation\n' +
+        'MC,"What is 2+2?","3","4","5","6","B","2+2 equals 4"\n' +
+        'MC,"Solve for x: 2x+5=13","3","4","5","6","B","2x=8, x=4"\n' +
+        'SPR,"What is the value of x if x+5=12?","","","","","7","Subtract 5 from both sides"';
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

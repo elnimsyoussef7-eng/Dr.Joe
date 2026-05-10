@@ -1,6 +1,7 @@
 const { app, BrowserWindow, globalShortcut, clipboard, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const http = require('http');
 
 // ── Firebase Admin SDK for server-side user management ──
 let adminAuth = null;
@@ -23,33 +24,80 @@ try {
 }
 
 let mainWindow = null;
+let server = null;
 
-function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    minWidth: 900,
-    minHeight: 600,
-    title: 'Dr. Joe For SAT',
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      webSecurity: true,
-      sandbox: false
+const MIME_TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon'
+};
+
+function startServer() {
+  if (server) return Promise.resolve(server.address().port);
+  return new Promise((resolve, reject) => {
+    server = http.createServer((req, res) => {
+      let urlPath = req.url.split('?')[0];
+      if (urlPath === '/') urlPath = '/index.html';
+      const filePath = path.join(__dirname, urlPath);
+      fs.readFile(filePath, (err, data) => {
+        if (err) {
+          res.writeHead(404, { 'Content-Type': 'text/plain' });
+          res.end('Not Found');
+          return;
+        }
+        const ext = path.extname(filePath);
+        res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
+        res.end(data);
+      });
+    });
+    server.listen(0, 'localhost', () => {
+      const port = server.address().port;
+      console.log('[Main] Dev server running on http://localhost:' + port);
+      resolve(port);
+    });
+    server.on('error', reject);
+  });
+}
+
+async function createWindow() {
+  try {
+    const port = await startServer();
+    mainWindow = new BrowserWindow({
+      width: 1200,
+      height: 800,
+      minWidth: 900,
+      minHeight: 600,
+      title: 'Dr. Joe For SAT',
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        webSecurity: true,
+        sandbox: false
+      }
+    });
+
+    mainWindow.loadURL('http://localhost:' + port + '/index.html');
+
+    // Open DevTools only in development
+    if (process.env.NODE_ENV === 'development') {
+      mainWindow.webContents.openDevTools();
     }
-  });
 
-  mainWindow.loadFile(path.join(__dirname, 'index.html'));
-
-  // Open DevTools only in development
-  if (process.env.NODE_ENV === 'development') {
-    mainWindow.webContents.openDevTools();
+    mainWindow.on('closed', () => {
+      mainWindow = null;
+    });
+  } catch (err) {
+    console.error('[Main] Failed to start server:', err.message);
+    app.quit();
   }
-
-  mainWindow.on('closed', () => {
-    mainWindow = null;
-  });
 }
 
 app.whenReady().then(createWindow);
@@ -60,6 +108,7 @@ app.on('window-all-closed', () => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
+  if (server) server.close();
 });
 
 app.on('activate', () => {
