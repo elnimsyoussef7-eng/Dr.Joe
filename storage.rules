@@ -10,6 +10,15 @@ service firebase.storage {
       allow read: if request.auth != null;
     }
 
+    match /ebooks/{fileName} {
+      // Authenticated teachers and admins can upload e-books
+      allow write: if request.auth != null
+        && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role in ['teacher', 'admin'];
+      // Any authenticated user can read/download e-books
+      allow read: if request.auth != null;
+    }
+
     // Deny all other storage access
     match /{allPaths=**} {
       allow read, write: if false;

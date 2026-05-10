@@ -1,13 +1,20 @@
 {
-  "name": "mock-exam-app",
+  "name": "dr-joe-sat",
   "version": "1.0.0",
-  "description": "Mock exams platform wrapped in Electron. Loads Total-Exams.html and allows online resources.",
+  "description": "Dr. Joe For SAT — Digital SAT Mock Exam Platform with adaptive testing, Firebase backend, and kiosk mode security.",
+  "author": "Dr. Joe For SAT",
+  "homepage": "https://dr-joe-for-sat.firebaseapp.com",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "package-win": "electron-packager . MockExamApp --platform=win32 --arch=x64 --out=dist --overwrite"
+    "package-win": "electron-packager . DrJoeForSAT --platform=win32 --arch=x64 --out=dist --overwrite --icon=assets/icon.ico --app-version=1.0.0"
   },
   "devDependencies": {
-    "electron": "^26.0.0"
+    "electron": "^26.0.0",
+    "electron-packager": "^17.1.2"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.9.0",
+    "katex": "^0.16.45"
   }
 }

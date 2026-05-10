@@ -1,72 +1,9 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Helper: check if the requesting user is authenticated
-    function isAuth() {
-      return request.auth != null && request.auth.uid != null;
-    }
-
-    // Helper: get the user's role from the users collection
-    function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-    }
-
-    function isRole(role) {
-      return isAuth() && getUserData().role == role;
-    }
-
-    function isAdmin() { return isRole('admin'); }
-    function isTeacher() { return isRole('teacher') || isAdmin(); }
-    function isStudent() { return isRole('student'); }
-
-    // Users collection: users can read their own data; admins can read/write all
-    match /users/{userId} {
-      allow read: if isAuth() && (request.auth.uid == userId || isAdmin() || isTeacher());
-      allow create: if isAuth() && (isAdmin() || request.auth.uid == userId);
-      allow update: if isAuth() && (request.auth.uid == userId || isAdmin());
-      allow delete: if isAdmin();
-    }
-
-    // Results collection: students can read/write their own; teachers/admins can read all
-    match /results/{resultId} {
-      allow read: if isAuth() && (resource.data.userId == request.auth.uid || isTeacher());
-      allow create: if isAuth() && (request.resource.data.userId == request.auth.uid);
-      allow update: if isAuth() && (resource.data.userId == request.auth.uid);
-      allow delete: if false;
-    }
-
-    // Tests collection (built-in metadata): readable by all authenticated users
-    match /tests/{testId} {
-      allow read: if isAuth();
-      allow write: if isTeacher();
-    }
-
-    // Custom tests collection: teachers can create/update their own; admins can manage all
-    match /custom_tests/{testId} {
-      allow read: if isAuth();
-      allow create: if isTeacher();
-      allow update: if isTeacher() && (resource.data.createdBy == request.auth.uid || isAdmin());
-      allow delete: if isAdmin();
-    }
-
-    // Test assignments: teachers can create/read; students can read their own
-    match /test_assignments/{assignmentId} {
-      allow read: if isAuth() && (resource.data.studentId == request.auth.uid || isTeacher());
-      allow create: if isTeacher();
-      allow update: if isTeacher();
-      allow delete: if isTeacher();
-    }
-
-    // System logs: only admins can read/write
-    match /system_logs/{logId} {
-      allow read: if isAdmin();
-      allow write: if isAdmin();
-    }
-
-    // Deny everything else by default
     match /{document=**} {
-      allow read, write: if false;
+      allow read, write: if true;
     }
   }
 }

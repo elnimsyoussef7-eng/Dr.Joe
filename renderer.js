@@ -3,7 +3,8 @@
             signInWithEmailAndPassword, 
             createUserWithEmailAndPassword, 
             onAuthStateChanged,
-            signOut
+            signOut,
+            sendPasswordResetEmail
         } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
         import { 
             collection, 
@@ -94,6 +95,78 @@
             updateThemeIcon(isDark);
         }
         initTheme();
+
+
+        // ============================================================= 
+        // TOAST NOTIFICATION SYSTEM
+        // =============================================================
+        window.showToast = function(message, type, duration) {
+            type = type || 'info'; duration = duration || 3500;
+            var container = document.getElementById('toast-container');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'toast-container';
+                container.style.cssText = 'position:fixed;top:20px;right:20px;z-index:99999;display:flex;flex-direction:column;gap:10px;pointer-events:none;';
+                document.body.appendChild(container);
+            }
+            var colors = { info:{bg:'#3b82f6',icon:'info'}, success:{bg:'#10b981',icon:'ok'}, error:{bg:'#ef4444',icon:'err'}, warning:{bg:'#f59e0b',icon:'warn'} };
+            var c = colors[type] || colors.info;
+            var toast = document.createElement('div');
+            toast.style.cssText = 'background:'+c.bg+';color:#fff;padding:12px 18px;border-radius:12px;font-size:14px;font-weight:500;max-width:340px;box-shadow:0 8px 32px rgba(0,0,0,.18);display:flex;align-items:center;gap:10px;pointer-events:auto;cursor:pointer;transform:translateX(120%);transition:transform .3s cubic-bezier(.17,.67,.55,1.3);line-height:1.4;';
+            toast.textContent = '['+c.icon+'] '+message;
+            function dismiss(el){ el.style.transform='translateX(120%)'; setTimeout(function(){ if(el.parentNode) el.parentNode.removeChild(el); },320); }
+            toast.onclick = function(){ dismiss(toast); };
+            container.appendChild(toast);
+            requestAnimationFrame(function(){ toast.style.transform='translateX(0)'; });
+            setTimeout(function(){ dismiss(toast); }, duration);
+        };
+        window.showSuccess = function(m){ window.showToast(m,'success'); };
+        window.showError   = function(m){ window.showToast(m,'error',5000); };
+        window.showInfo    = function(m){ window.showToast(m,'info'); };
+        window.showWarning = function(m){ window.showToast(m,'warning',4500); };
+
+        // =============================================================
+        // OFFLINE / NETWORK DETECTION BANNER
+        // =============================================================
+        (function setupOfflineDetection() {
+            function getOrCreateBanner() {
+                var banner = document.getElementById('offline-banner');
+                if (!banner) {
+                    banner = document.createElement('div');
+                    banner.id = 'offline-banner';
+                    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99998;background:linear-gradient(90deg,#dc2626,#b91c1c);color:#fff;text-align:center;padding:10px 16px;font-size:14px;font-weight:600;transform:translateY(-100%);transition:transform .4s ease;';
+                    banner.textContent = 'No Internet Connection - Some features may be unavailable';
+                    document.body.appendChild(banner);
+                }
+                return banner;
+            }
+            window.addEventListener('offline', function(){ var b=getOrCreateBanner(); b.style.transform='translateY(0)'; window.showWarning('You are offline. Firebase features may be unavailable.'); });
+            window.addEventListener('online',  function(){ var b=document.getElementById('offline-banner'); if(b) b.style.transform='translateY(-100%)'; window.showSuccess('Connection restored!'); });
+            if (!navigator.onLine) { var b=getOrCreateBanner(); b.style.transform='translateY(0)'; }
+        })();
+
+        // =============================================================
+        // EXAM KEYBOARD NAVIGATION
+        // Arrow keys: navigate. A/B/C/D: select MC answer.
+        // =============================================================
+        document.addEventListener('keydown', function(e) {
+            if (!window.state || window.state.appStage !== 'active') return;
+            if (['INPUT','TEXTAREA','SELECT'].indexOf(e.target.tagName) !== -1) return;
+            var q = window.state.moduleQuestions && window.state.moduleQuestions[window.state.questionIndex];
+            if (!q) return;
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); window.navigateTo('next'); }
+            else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); window.navigateTo('prev'); }
+            else if (q.type === 'MC') {
+                var km = {a:'A',b:'B',c:'C',d:'D',A:'A',B:'B',C:'C',D:'D'};
+                var letter = km[e.key];
+                if (letter) {
+                    e.preventDefault();
+                    var idx = letter.charCodeAt(0) - 65;
+                    var opts = document.querySelectorAll('.answer-option');
+                    if (opts[idx]) { opts[idx].click(); }
+                }
+            } else if (q.type === 'SPR' && e.key === 'Enter') { e.preventDefault(); window.navigateTo('next'); }
+        });
 
         function toggleGlobalNav(show) {
             document.getElementById('global-home-btn')?.classList.toggle('hidden', !show);
@@ -388,7 +461,7 @@
                                     <tr><td>5</td><td>234</td></tr>
                                 </tbody>
                             </table>
-                            Which equation represents the linear relationship between $c$ and $p$??`,
+                            Which equation represents the linear relationship between $c$ and $p$?`,
                         type: 'MC',
                         options: ["$48p-c-6$", "$48c-p=6$", "$48p-c=6$", "$48c-p=-6$"],
                         correctAnswer: 'B',
@@ -2334,17 +2407,69 @@
 
         // --- UTILITY FUNCTIONS ---
 
+        /** Renders math in an HTML string, returning new HTML with rendered math. Falls back to raw string if KaTeX is unavailable. */
+        function renderMathInString(html) {
+            if (typeof katex === 'undefined') return html;
+            try {
+                return html.replace(/\$\$(.+?)\$\$/gs, (_, expr) => {
+                    try { return katex.renderToString(expr, { displayMode: true, throwOnError: false }); }
+                    catch (e) { return '$$' + expr + '$$'; }
+                }).replace(/\$(.+?)\$/g, (_, expr) => {
+                    try { return katex.renderToString(expr, { displayMode: false, throwOnError: false }); }
+                    catch (e) { return '$' + expr + '$'; }
+                });
+            } catch (e) { return html; }
+        }
+
         /** Renders math elements in a given container. */
         function renderMath(elementId) {
-            const container = document.getElementById(elementId);
-            if (container && typeof renderMathInElement !== 'undefined') {
-                renderMathInElement(container, {
-                    delimiters: [
-                        { left: "$$", right: "$$", display: true },
-                        { left: "$", right: "$", display: false }
-                    ]
-                });
+            if (typeof renderMathInElement === 'undefined' && typeof katex === 'undefined') {
+                return;
             }
+            const container = elementId ? document.getElementById(elementId) : document.body;
+            if (!container) return;
+            try {
+                if (typeof renderMathInElement !== 'undefined') {
+                    renderMathInElement(container, {
+                        delimiters: [
+                            { left: "$$", right: "$$", display: true },
+                            { left: "$", right: "$", display: false }
+                        ],
+                        throwOnError: false,
+                        errorCallback: function(err) {
+                            logSystemEvent('KaTeX Error', err?.message || String(err), 'warning');
+                        }
+                    });
+                } else if (typeof katex !== 'undefined') {
+                    const walk = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+                    let node;
+                    const nodesToReplace = [];
+                    while (node = walk.nextNode()) {
+                        const text = node.textContent;
+                        const hasDisplay = text.includes('$$');
+                        const hasInline = text.includes('$');
+                        if (hasDisplay || hasInline) {
+                            nodesToReplace.push({ node, text, hasDisplay, hasInline });
+                        }
+                    }
+                    nodesToReplace.forEach(({ node, text }) => {
+                        const processed = renderMathInString(text);
+                        if (processed !== text) {
+                            const span = document.createElement('span');
+                            span.innerHTML = processed;
+                            node.parentNode.replaceChild(span, node);
+                        }
+                    });
+                }
+            } catch (e) {
+                console.warn('KaTeX render error:', e);
+            }
+        }
+
+        function renderMathAll() {
+            renderMath('question-content');
+            renderMath('answer-area');
+            renderMath('score-card-container');
         }
         
         /** Shows the end module confirmation modal. */
@@ -2388,11 +2513,55 @@
         }
 
         /** Toggles the sidebar (Question Map/Tools) */
+        let reviewFilter = 'all'; // all, incorrect, flagged
+
+        window.setReviewFilter = function(filter) {
+            reviewFilter = filter;
+            document.querySelectorAll('.review-filter-btn').forEach(b => {
+                b.classList.toggle('bg-blue-600', b.dataset.filter === filter);
+                b.classList.toggle('text-white', b.dataset.filter === filter);
+                b.classList.toggle('bg-gray-200', b.dataset.filter !== filter);
+                b.classList.toggle('text-gray-700', b.dataset.filter !== filter);
+            });
+            renderQuestionMap();
+        };
+
+        function getFilteredQuestions(moduleKey) {
+            const historyKey = moduleKey || (window.state.module === 1 ? 'module1' : 'module2');
+            const history = window.state.testHistory[historyKey];
+            if (!history || !history.questions) return { questions: [], indices: [] };
+
+            const questions = history.questions;
+            const answers = history.answers || [];
+            const flags = history.flags || [];
+
+            if (window.state.appStage !== 'review' || reviewFilter === 'all') {
+                return { questions, indices: questions.map((_, i) => i) };
+            }
+
+            const filtered = [];
+            const indices = [];
+            questions.forEach((q, i) => {
+                if (reviewFilter === 'incorrect') {
+                    const ans = answers[i];
+                    if (!ans || normalizeAnswer(ans) !== normalizeAnswer(q.correctAnswer)) {
+                        filtered.push(q);
+                        indices.push(i);
+                    }
+                } else if (reviewFilter === 'flagged') {
+                    if (flags[i]) {
+                        filtered.push(q);
+                        indices.push(i);
+                    }
+                }
+            });
+            return { questions: filtered, indices };
+        }
+
         window.toggleSidebar = function(forceOpen) {
             const sidebar = document.getElementById('sidebar');
             const backdrop = document.getElementById('sidebar-backdrop');
             
-            // Check if we are in a stage that allows sidebar interaction
             if (window.state.appStage !== 'active' && window.state.appStage !== 'review') return;
             
             const isActive = sidebar.classList.contains('active');
@@ -2403,8 +2572,25 @@
                  backdrop.classList.remove('hidden');
                  backdrop.classList.add('backdrop-visible');
                  if (window.state.isCalculatorOpen) {
-                    toggleCalculator(false); // Close calculator if sidebar opens
+                    toggleCalculator(false);
                  }
+
+                 // Inject review filter controls if in review mode
+                 const mapGrid = document.getElementById('question-map-grid');
+                 if (window.state.appStage === 'review' && !document.getElementById('review-filters')) {
+                     const filterBar = document.createElement('div');
+                     filterBar.id = 'review-filters';
+                     filterBar.className = 'mb-3 flex gap-1';
+                     filterBar.innerHTML = `
+                         <button class="review-filter-btn px-2 py-1 text-xs rounded font-semibold ${reviewFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}" data-filter="all" onclick="window.setReviewFilter('all')">All</button>
+                         <button class="review-filter-btn px-2 py-1 text-xs rounded font-semibold ${reviewFilter === 'incorrect' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}" data-filter="incorrect" onclick="window.setReviewFilter('incorrect')">Incorrect</button>
+                         <button class="review-filter-btn px-2 py-1 text-xs rounded font-semibold ${reviewFilter === 'flagged' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}" data-filter="flagged" onclick="window.setReviewFilter('flagged')">Flagged</button>
+                     `;
+                     if (mapGrid) {
+                         mapGrid.parentNode.insertBefore(filterBar, mapGrid);
+                     }
+                 }
+
                  renderQuestionMap(); // Ensure map is up-to-date when opened
             } else {
                  sidebar.classList.remove('active');
@@ -2478,11 +2664,12 @@
                          const userDoc = await getDoc(doc(db, "users", userId));
                          if (userDoc.exists()) {
                              const userData = userDoc.data();
-                             window.state.role = userData.role;
-                             window.state.studentName = userData.displayName || name;
-                             window.state.parentEmail = userData.parentEmail;
-                             window.state.parentPhone = userData.parentPhone;
-                             window.state.studentPhone = userData.studentPhone;
+                            window.state.role = userData.role;
+                            window.state.studentName = userData.displayName || name;
+                            window.state.parentEmail = userData.parentEmail;
+                            window.state.parentPhone = userData.parentPhone;
+                            window.state.studentPhone = userData.studentPhone;
+                            window.state.visibleTests = userData.visibleTests;
                              
                     // Block unapproved users — keep signed in, watch for status changes
                     if (userData.status === "pending") {
@@ -2582,17 +2769,108 @@
                          window.navigateToHome();
                      }
                  } else {
-                      // No user
-                      authStatus.textContent = 'Guest';
-                      hiddenUserIdDisplay.textContent = 'Not Auth';
-                      renderLoginScreen();
-                 }
+                       // No user
+                       authStatus.textContent = 'Guest';
+                       hiddenUserIdDisplay.textContent = 'Not Auth';
+                       renderLoginScreen();
+                  }
               });
          }
+
+        // ============================================
+        // NETWORK MONITORING
+        // ============================================
+
+        function createNetworkBanner() {
+            const banner = document.createElement('div');
+            banner.id = 'network-banner';
+            banner.style.cssText = 'display:none;position:sticky;top:0;z-index:100;background:#dc2626;color:white;text-align:center;padding:6px;font-size:14px;font-weight:600';
+            banner.textContent = 'You are offline. Some features may be unavailable.';
+            document.body.prepend(banner);
+            return banner;
+        }
+
+        function initNetworkMonitoring() {
+            const banner = createNetworkBanner();
+            let wasOffline = false;
+
+            async function logNetworkEvent(status) {
+                try {
+                    await addDoc(collection(db, "network_logs"), {
+                        userId: userId || 'unknown',
+                        status: status,
+                        timestamp: new Date(),
+                        userAgent: navigator.userAgent
+                    });
+                } catch (e) { /* silent */ }
+            }
+
+            window.addEventListener('online', () => {
+                banner.style.display = 'none';
+                if (wasOffline) logNetworkEvent('reconnected');
+                wasOffline = false;
+            });
+
+            window.addEventListener('offline', () => {
+                banner.style.display = 'block';
+                wasOffline = true;
+                logNetworkEvent('disconnected');
+            });
+
+            if (!navigator.onLine) {
+                banner.style.display = 'block';
+                wasOffline = true;
+            }
+        }
+
+        // ============================================
+        // GLOBAL ERROR LOGGING
+        // ============================================
+
+        async function logSystemEvent(action, details, level = 'info') {
+            try {
+                await addDoc(collection(db, "system_logs"), {
+                    timestamp: new Date(),
+                    action: action,
+                    user: userId || window.state?.studentName || 'unknown',
+                    details: details,
+                    level: level
+                });
+            } catch (e) { /* silent */ }
+        }
+
+        window.addEventListener('error', (event) => {
+            logSystemEvent('JS Error', {
+                message: event.message,
+                source: event.filename,
+                line: event.lineno,
+                col: event.colno,
+                stack: event.error?.stack || 'no stack'
+            }, 'error');
+        });
+
+        window.addEventListener('unhandledrejection', (event) => {
+            logSystemEvent('Unhandled Promise Rejection', {
+                message: event.reason?.message || String(event.reason),
+                stack: event.reason?.stack || 'no stack'
+            }, 'error');
+        });
+
+        // ============================================
+        // SAT CATEGORY DEFINITIONS
+        // ============================================
+
+        const SAT_CATEGORIES = [
+            { id: 'algebra', label: 'Heart of Algebra' },
+            { id: 'problem_solving', label: 'Problem Solving & Data Analysis' },
+            { id: 'advanced_math', label: 'Passport to Advanced Math' },
+            { id: 'geometry', label: 'Geometry & Trigonometry' },
+        ];
 
         // Start the application once the DOM is ready
         document.addEventListener('DOMContentLoaded', () => {
             window.initFirebase();
+            initNetworkMonitoring();
         });
 
         window.fetchPastResults = async function() {
@@ -2614,7 +2892,7 @@
 
         window.saveTestResult = async function() {
             if (!navigator.onLine) {
-                alert("You appear to be offline. Please check your internet connection and try again.");
+                window.showError("You appear to be offline. Please check your internet connection.");
                 return;
             }
 
@@ -2658,7 +2936,7 @@
                 if(btn) btn.textContent = "Saving...";
 
                 await addDoc(collection(db, "results"), resultData);
-                console.log("Result saved successfully.");
+                logSystemEvent('Test Completed', 'User ' + userId + ' completed test ' + testId + ' with score ' + totalCorrect + '/44 (' + percentage.toFixed(1) + '%)');
                 
                 if(btn) {
                     btn.textContent = "Saved!";
@@ -2670,7 +2948,7 @@
                 console.error("Error adding document: ", e);
                 const btn = document.getElementById('save-result-btn');
                 if(btn) btn.textContent = "Save Failed - Retry";
-                alert("Failed to save result to the database. Please check your internet connection and try again.");
+                window.showError("Failed to save result. Please check your internet connection.");
             }
         }
 
@@ -2694,35 +2972,12 @@
                         <div class="text-left">
                             ${message ? `<div class="bg-yellow-50 border-l-4 border-yellow-400 text-yellow-700 p-3 mb-4 rounded text-sm">${message}</div>` : ''}
                             ${!isSignIn ? `
-                            <div class="mb-4">
-                                <span class="block text-sm font-semibold text-gray-600 mb-2">I am a:</span>
-                                <div class="flex flex-wrap items-center gap-3">
-                                    <label class="inline-flex items-center text-sm text-gray-700">
-                                        <input type="radio" class="form-radio text-blue-500" name="role" value="student" checked onchange="document.getElementById('parent-email-container').classList.remove('hidden')">
-                                        <span class="ml-2">Student</span>
-                                    </label>
-                                    <label class="inline-flex items-center text-sm text-gray-700">
-                                        <input type="radio" class="form-radio text-blue-500" name="role" value="teacher" onchange="document.getElementById('parent-email-container').classList.add('hidden')">
-                                        <span class="ml-2">Teacher/Academy</span>
-                                    </label>
-                                    <label class="inline-flex items-center text-sm text-gray-700">
-                                        <input type="radio" class="form-radio text-blue-500" name="role" value="admin" onchange="document.getElementById('parent-email-container').classList.add('hidden')">
-                                        <span class="ml-2">Admin</span>
-                                    </label>
-                                </div>
-                            </div>
-                            ` : ''}
-
-                            ${!isSignIn ? `
                             <label class="block text-sm font-semibold text-gray-600 mb-1">Full Name:</label>
                             <input type="text" id="full-name-input" placeholder="Enter your full name" class="w-full p-2.5 border border-gray-300 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm mb-3">
                             ` : ''}
 
                             <label class="block text-sm font-semibold text-gray-600 mb-1">Email:</label>
-                            <div class="flex mb-3">
-                                <input type="text" id="login-email-input" placeholder="username" class="flex-1 p-2.5 border border-gray-300 rounded-l-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
-                                <span class="inline-flex items-center px-3 bg-gray-100 border border-l-0 border-gray-300 rounded-r-lg text-sm text-gray-500 select-none">@drjoe.com</span>
-                            </div>
+                            <input type="email" id="login-email-input" placeholder="email@example.com" class="w-full p-2.5 border border-gray-300 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm mb-3">
 
                             <label class="block text-sm font-semibold text-gray-600 mb-1">Password:</label>
                             <input type="password" id="password-input" placeholder="Enter Password" class="w-full p-2.5 border border-gray-300 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm mb-3">
@@ -2755,6 +3010,7 @@
                         </label>
                         <button onclick="handleLogin()" class="w-full px-6 py-2.5 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-base font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150 mb-3">Sign In</button>
                         <p class="text-sm text-gray-500">Don't have an account? <a href="#" onclick="windowLoginView='signup';renderLoginScreen();return false;" class="text-blue-600 font-semibold hover:underline">Sign Up</a></p>
+                        <p class="text-sm mt-2"><a href="#" onclick="window.handleForgotPassword();return false;" class="text-red-500 font-semibold hover:underline">Forgot Password?</a></p>
                         ` : `
                         <button onclick="handleSignUp()" class="w-full px-6 py-2.5 bg-gradient-to-r from-purple-500 to-blue-600 text-white text-base font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150 mb-3">Sign Up</button>
                         <p class="text-sm text-gray-500">Already a participant? <a href="#" onclick="windowLoginView='signin';renderLoginScreen();return false;" class="text-blue-600 font-semibold hover:underline">Sign In</a></p>
@@ -2848,20 +3104,19 @@
         }
 
         window.handleLogin = async function() {
-            const username = document.getElementById('login-email-input')?.value.trim();
+            const email = document.getElementById('login-email-input')?.value.trim();
             const password = document.getElementById('password-input')?.value;
-            const email = username + '@drjoe.com';
             const errorEl = document.getElementById('login-error-message');
             const successEl = document.getElementById('login-success-message');
             if (errorEl) errorEl.classList.add('hidden');
             if (successEl) successEl.classList.add('hidden');
-            if (!username || !password) {
-                if (errorEl) { errorEl.textContent = 'Please enter both username and password.'; errorEl.classList.remove('hidden'); }
+            if (!email || !password) {
+                if (errorEl) { errorEl.textContent = 'Please enter both email and password.'; errorEl.classList.remove('hidden'); }
                 return;
             }
             const rememberMe = document.getElementById('remember-me')?.checked;
             if (rememberMe) {
-                localStorage.setItem('drjoe_remembered_user', username);
+                localStorage.setItem('drjoe_remembered_user', email);
             } else {
                 localStorage.removeItem('drjoe_remembered_user');
             }
@@ -2872,19 +3127,43 @@
             }
         };
 
+        window.handleForgotPassword = function() {
+            document.getElementById('forgot-password-email-input').value = '';
+            document.getElementById('forgot-password-message').classList.add('hidden');
+            document.getElementById('forgot-password-modal').style.display = 'block';
+        };
+
+        window.submitForgotPassword = async function() {
+            const email = document.getElementById('forgot-password-email-input').value.trim();
+            const msgEl = document.getElementById('forgot-password-message');
+            if (!email) {
+                msgEl.textContent = 'Please enter your email.';
+                msgEl.className = 'text-sm mt-2 text-red-500';
+                msgEl.classList.remove('hidden');
+                return;
+            }
+            try {
+                await sendPasswordResetEmail(auth, email);
+                msgEl.textContent = 'Password reset email sent! Check your inbox (including spam folder).';
+                msgEl.className = 'text-sm mt-2 text-green-600';
+                msgEl.classList.remove('hidden');
+            } catch (e) {
+                msgEl.textContent = 'Error: ' + e.message;
+                msgEl.className = 'text-sm mt-2 text-red-500';
+                msgEl.classList.remove('hidden');
+            }
+        };
+
         window.handleSignUp = async function() {
-            const username = document.getElementById('login-email-input')?.value.trim();
+            const email = document.getElementById('login-email-input')?.value.trim();
             const password = document.getElementById('password-input')?.value;
-            const roleEl = document.querySelector('input[name="role"]:checked');
-            const role = roleEl ? roleEl.value : 'student';
-            const email = username + '@drjoe.com';
-            const displayName = document.getElementById('full-name-input')?.value.trim() || username;
+            const displayName = document.getElementById('full-name-input')?.value.trim() || email.split('@')[0];
             const errorEl = document.getElementById('login-error-message');
             const successEl = document.getElementById('login-success-message');
             if (errorEl) errorEl.classList.add('hidden');
             if (successEl) successEl.classList.add('hidden');
-            if (!username || !password) {
-                if (errorEl) { errorEl.textContent = 'Please enter both username and password.'; errorEl.classList.remove('hidden'); }
+            if (!email || !password) {
+                if (errorEl) { errorEl.textContent = 'Please enter both email and password.'; errorEl.classList.remove('hidden'); }
                 return;
             }
             if (password.length < 6) {
@@ -2894,19 +3173,19 @@
             try {
                 const cred = await createUserWithEmailAndPassword(auth, email, password);
                 const user = cred.user;
+                const sp = document.getElementById('student-phone-input')?.value.trim();
+                const pp = document.getElementById('parent-phone-input')?.value.trim();
                 const userData = {
                     email: email,
                     displayName: displayName,
-                    role: role,
-                    status: role === 'student' ? 'approved' : 'pending',
-                    createdAt: new Date().toISOString()
+                    role: 'student',
+                    status: 'pending',
+                    createdAt: new Date().toISOString(),
+                    studentPhone: sp ? '+20 ' + sp : '',
+                    parentPhone: pp ? '+20 ' + pp : ''
                 };
-                if (role === 'student') {
-                    const sp = document.getElementById('student-phone-input')?.value.trim();
-                    const pp = document.getElementById('parent-phone-input')?.value.trim();
-                    userData.studentPhone = sp ? '+20 ' + sp : '';
-                    userData.parentPhone = pp ? '+20 ' + pp : '';
-                }
+                // Prevent onAuthStateChanged from doing its own routing
+                windowAuthRoutingLock = true;
                 await setDoc(doc(db, "users", user.uid), userData);
             } catch (e) {
                 if (errorEl) { errorEl.textContent = e.message; errorEl.classList.remove('hidden'); }
@@ -2959,7 +3238,14 @@
                     });
                 }
             } catch (e) {
-                contentDiv.innerHTML = '<p class="text-red-500 text-center">Error loading progress: ' + e.message + '</p>';
+                if (e.code === 'auth/email-already-in-use') {
+                    if (errorEl) {
+                        errorEl.innerHTML = 'This email is already registered. If an admin deleted your account, ask them to remove the Auth user from <a href="https://console.firebase.google.com/project/dr-joe-for-sat/authentication/users" target="_blank" class="underline font-bold">Firebase Console → Authentication</a>, then try again.';
+                        errorEl.classList.remove('hidden');
+                    }
+                } else {
+                    if (errorEl) { errorEl.textContent = e.message; errorEl.classList.remove('hidden'); }
+                }
             }
         };
 
@@ -3060,7 +3346,7 @@
                 const results = [];
                 snap.forEach(d => results.push(d.data()));
                 results.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-                if (results.length === 0) { alert('No results to report.'); return; }
+                if (results.length === 0) { window.showWarning('No results to report.'); return; }
                 const latest = results[0];
                 const total = results.length;
                 const avg = (results.reduce((s,r) => s + (r.totalCorrect || 0), 0) / total).toFixed(1);
@@ -3107,7 +3393,7 @@
                 printWin.document.write(html);
                 printWin.document.close();
                 setTimeout(() => printWin.print(), 500);
-            } catch (e) { alert('Error generating report: ' + e.message); }
+            } catch (e) { window.showError('Error generating report: ' + e.message); }
         };
 
         // Test Analytics Dashboard
@@ -3435,9 +3721,10 @@
                         </div>
                         <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
                             <h3 class="text-xl font-bold mb-4">Assign Test to Student</h3>
-                            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
                                 <select id="schedule-student" class="p-2 border rounded-lg">
                                     <option value="">Select student...</option>
+                                    <option value="__all__">All Students</option>
                                     ${students.map(s => `<option value="${s.id}">${s.displayName || s.email}</option>`).join('')}
                                 </select>
                                 <select id="schedule-test" class="p-2 border rounded-lg">
@@ -3447,21 +3734,33 @@
                                 <input type="date" id="schedule-due" class="p-2 border rounded-lg">
                                 <button onclick="window.assignTest()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold">Assign</button>
                             </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-1">Available from (time)</label>
+                                    <input type="time" id="schedule-time-from" class="w-full p-2 border rounded-lg">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-1">Available until (time)</label>
+                                    <input type="time" id="schedule-time-to" class="w-full p-2 border rounded-lg">
+                                </div>
+                            </div>
                         </div>
                         <div class="bg-white rounded-xl shadow-lg p-6">
                             <h3 class="text-xl font-bold mb-4">Current Assignments</h3>
                             ${assignments.length === 0 ? '<p class="text-gray-500">No assignments yet.</p>' : `
                             <div class="overflow-x-auto">
                                 <table class="min-w-full"><thead><tr class="bg-gray-100 text-left text-xs font-semibold uppercase">
-                                    <th class="px-4 py-3">Student</th><th class="px-4 py-3">Test</th><th class="px-4 py-3">Due Date</th><th class="px-4 py-3">Status</th><th class="px-4 py-3">Actions</th>
+                                    <th class="px-4 py-3">Student</th><th class="px-4 py-3">Test</th><th class="px-4 py-3">Due Date</th><th class="px-4 py-3">Time Window</th><th class="px-4 py-3">Status</th><th class="px-4 py-3">Actions</th>
                                 </tr></thead><tbody>
                                 ${assignments.map(a => {
                                     const student = students.find(s => s.id === a.studentId);
                                     const testName = ALL_TEST_QUESTIONS[a.testId] ? ALL_TEST_QUESTIONS[a.testId].name : a.testId;
+                                    const timeWindow = a.availableFrom && a.availableTo ? `${a.availableFrom} - ${a.availableTo}` : 'Anytime';
                                     return `<tr class="border-b hover:bg-gray-50">
                                         <td class="px-4 py-3">${student ? (student.displayName || student.email) : 'Unknown'}</td>
                                         <td class="px-4 py-3">${testName}</td>
                                         <td class="px-4 py-3">${a.dueDate || 'N/A'}</td>
+                                        <td class="px-4 py-3 text-sm">${timeWindow}</td>
                                         <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs font-bold ${a.completed ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}">${a.completed ? 'Completed' : 'Pending'}</span></td>
                                         <td class="px-4 py-3"><button onclick="window.deleteAssignment('${a.id}')" class="text-red-600 hover:underline text-sm">Delete</button></td>
                                     </tr>`;
@@ -3478,20 +3777,44 @@
             const studentId = document.getElementById('schedule-student').value;
             const testId = document.getElementById('schedule-test').value;
             const dueDate = document.getElementById('schedule-due').value;
-            if (!studentId || !testId) { alert('Please select both student and test.'); return; }
+            const availableFrom = document.getElementById('schedule-time-from').value;
+            const availableTo = document.getElementById('schedule-time-to').value;
+            if (!studentId || !testId) { window.showWarning('Please select both student and test.'); return; }
+
+            const baseData = {
+                testId, dueDate, completed: false, assignedBy: userId, assignedAt: new Date()
+            };
+            if (availableFrom) baseData.availableFrom = availableFrom;
+            if (availableTo) baseData.availableTo = availableTo;
+
             try {
-                await addDoc(collection(db, "test_assignments"), {
-                    studentId, testId, dueDate, completed: false, assignedBy: userId, assignedAt: new Date()
-                });
-                alert('Test assigned!');
+                if (studentId === '__all__') {
+                    const usersSnap = await getDocs(query(collection(db, "users"), where("role", "==", "student")));
+                    const batch = writeBatch(db);
+                    let count = 0;
+                    usersSnap.forEach(d => {
+                        const ref = doc(collection(db, "test_assignments"));
+                        batch.set(ref, { ...baseData, studentId: d.id });
+                        count++;
+                    });
+                    await batch.commit();
+                    logSystemEvent('Assign Test', 'Assigned test ' + testId + ' to all ' + count + ' students');
+                    window.showSuccess('Test assigned to all ' + count + ' students!');
+                } else {
+                    await addDoc(collection(db, "test_assignments"), {
+                        ...baseData, studentId
+                    });
+                    logSystemEvent('Assign Test', 'Assigned test ' + testId + ' to student ' + studentId);
+                    window.showSuccess('Test assigned!');
+                }
                 window.showTestScheduling();
-            } catch (e) { alert('Error: ' + e.message); }
+            } catch (e) { logSystemEvent('Assign Test Failed', e.message, 'error'); window.showError('Error: ' + e.message); }
         };
 
         window.deleteAssignment = async function(id) {
             if (!confirm('Delete this assignment?')) return;
             try { await deleteDoc(doc(db, "test_assignments", id)); window.showTestScheduling(); }
-            catch (e) { alert('Error: ' + e.message); }
+            catch (e) { window.showError('Error: ' + e.message); }
         };
 
         window.showStudentAssignments = async function() {
@@ -3502,6 +3825,22 @@
                 const snap = await getDocs(query(collection(db, "test_assignments"), where("studentId", "==", userId)));
                 const assignments = [];
                 snap.forEach(d => assignments.push({ id: d.id, ...d.data() }));
+
+                function isInTimeWindow(a) {
+                    if (!a.availableFrom && !a.availableTo) return true;
+                    const now = new Date();
+                    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+                    const fromParts = (a.availableFrom || '00:00').split(':').map(Number);
+                    const toParts = (a.availableTo || '23:59').split(':').map(Number);
+                    const fromMinutes = fromParts[0] * 60 + fromParts[1];
+                    const toMinutes = toParts[0] * 60 + toParts[1];
+                    if (toMinutes <= fromMinutes) {
+                        // Crosses midnight (e.g. 15:00 to 02:00)
+                        return currentMinutes >= fromMinutes || currentMinutes <= toMinutes;
+                    }
+                    return currentMinutes >= fromMinutes && currentMinutes <= toMinutes;
+                }
+
                 const assignContent = `
                     <div class="max-w-4xl">
                         <h2 class="text-2xl font-bold text-gray-800 mb-4">My Assigned Tests</h2>
@@ -3512,9 +3851,17 @@
                             const name = ALL_TEST_QUESTIONS[a.testId] ? ALL_TEST_QUESTIONS[a.testId].name : a.testId;
                             const isBuiltIn = !!ALL_TEST_QUESTIONS[a.testId];
                             const startFn = isBuiltIn ? `loadTestQuestions('${a.testId}')` : `loadCustomTestQuestions('${a.testId}')`;
-                            return `<div class="bg-white rounded-xl shadow p-4 mb-3 flex justify-between items-center border-l-4 border-yellow-400">
-                                <div><p class="font-bold text-gray-800">${name}</p><p class="text-sm text-gray-500">Due: ${a.dueDate || 'No due date'}</p></div>
-                                <button onclick="${startFn}" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Start Test</button>
+                            const inWindow = isInTimeWindow(a);
+                            const timeInfo = a.availableFrom && a.availableTo ? `<p class="text-xs text-gray-400">Available: ${a.availableFrom} - ${a.availableTo}</p>` : '';
+                            return `<div class="bg-white rounded-xl shadow p-4 mb-3 flex justify-between items-center border-l-4 ${inWindow ? 'border-yellow-400' : 'border-gray-300'}">
+                                <div>
+                                    <p class="font-bold text-gray-800">${name}</p>
+                                    <p class="text-sm text-gray-500">Due: ${a.dueDate || 'No due date'}</p>
+                                    ${timeInfo}
+                                </div>
+                                ${inWindow
+                                    ? `<button onclick="${startFn}" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Start Test</button>`
+                                    : `<span class="text-sm text-gray-400 font-semibold">Closed</span>`}
                             </div>`;
                         }).join('')}` : ''}
                         ${assignments.filter(a => a.completed).length > 0 ? `
@@ -3587,10 +3934,14 @@
                 console.warn("Could not fetch tests from Firestore:", e);
             }
 
+            const visibleTests = window.state.visibleTests;
+            const hasVisibleTests = Array.isArray(visibleTests);
+
             const testList = Object.keys(ALL_TEST_QUESTIONS);
             let examsHtml = `<div class="space-y-4">`;
 
             for (const testId of testList) {
+                if (hasVisibleTests && !visibleTests.includes(testId)) continue;
                 const testData = ALL_TEST_QUESTIONS[testId];
                 const result = pastResults[testId];
                 const totalCorrect = result ? result.totalCorrect : 'N/A';
@@ -3617,8 +3968,9 @@
                 `;
             }
 
-            firestoreTests.forEach(ft => {
+            for (const ft of firestoreTests) {
                 const testId = ft.id;
+                if (hasVisibleTests && !visibleTests.includes(testId)) continue;
                 const result = pastResults[testId];
                 const totalCorrect = result ? result.totalCorrect : 'N/A';
                 const attemptDate = result ? new Date(result.timestamp).toLocaleDateString() : 'Never taken';
@@ -3642,7 +3994,7 @@
                         </div>
                     </div>
                 `;
-            });
+            }
 
             examsHtml += `</div>`;
 
@@ -4233,13 +4585,6 @@ Student: ${userMessage}${questionContext}`;
             if (toggle) toggle.classList.remove('hidden');
         };
 
-        // Patch loadTestQuestions to clean up
-        const origLoadTestQuestions = window.loadTestQuestions;
-        window.loadTestQuestions = function(testId) {
-            window.stopAdviceTimer();
-            if (origLoadTestQuestions) origLoadTestQuestions(testId);
-        };
-
         // Inject the chat panel on first interaction
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', injectAIChatPanel);
@@ -4274,6 +4619,7 @@ Student: ${userMessage}${questionContext}`;
 
         /** Load a custom test from Firestore, converting question format to the standard engine format */
         window.loadCustomTestQuestions = async function(testId) {
+            window.stopAdviceTimer();
             try {
                 const testDoc = await getDoc(doc(db, "tests", testId));
                 if (!testDoc.exists()) {
@@ -4318,7 +4664,7 @@ Student: ${userMessage}${questionContext}`;
                 
                 window.loadTestQuestions(testId);
             } catch (e) {
-                alert('Error loading custom test: ' + e.message);
+                window.showError('Error loading custom test: ' + e.message);
             }
         }
 
@@ -4362,7 +4708,7 @@ Student: ${userMessage}${questionContext}`;
             if (phone) msg += `\n- Phone: ${phone}`;
             if (currentPassword && newPassword) msg += '\n- Password (changed)';
             if (!name && !phone && !(currentPassword && newPassword)) {
-                alert('No changes to save.');
+                window.showInfo('No changes to save.');
                 return;
             }
             if (!confirm(msg)) return;
@@ -4382,15 +4728,16 @@ Student: ${userMessage}${questionContext}`;
                     await updatePassword(auth.currentUser, newPassword);
                 }
 
-                alert('Settings saved!');
+                window.showSuccess('Settings saved!');
                 window.navigateToHome();
             } catch (e) {
-                alert('Error saving settings: ' + e.message);
+                window.showError('Error saving settings: ' + e.message);
             }
         }
         
         /** Loads the questions for the selected test and transitions to the welcome screen. */
         window.loadTestQuestions = function(testId) {
+            window.stopAdviceTimer();
             const testData = ALL_TEST_QUESTIONS[testId];
             if (!testData || !testData.M1 || testData.M1.length === 0) {
                 console.error(`Error: Test data for ${testId} is incomplete or missing!`);
@@ -4420,6 +4767,10 @@ Student: ${userMessage}${questionContext}`;
                     module1: { questions: [], answers: [], score: 0, percentage: 0 },
                     module2: { questions: [], answers: [], score: 0, percentage: 0, difficulty: null }
                 };
+                window.state.categoryScores = {};
+                for (const cat of SAT_CATEGORIES) {
+                    window.state.categoryScores[cat.id] = { label: cat.label, correct: 0, total: 0 };
+                }
             }
 
             renderWelcomeScreen(); // Proceed to the standard welcome screen
@@ -4498,6 +4849,13 @@ Student: ${userMessage}${questionContext}`;
             toggleGlobalNav(false);
             enableTestExitWarning();
 
+            // Reset sidebar button to default (in case it was changed by review mode)
+            const sbtn = document.getElementById('sidebar-end-btn');
+            if (sbtn) {
+                sbtn.innerHTML = 'End Module <span id="end-module-button-num">1</span> & Review';
+                sbtn.onclick = function() { window.showEndModuleConfirmation(); };
+            }
+
             renderQuestion();
             renderQuestionMap();
             startTimer();
@@ -4516,7 +4874,7 @@ Student: ${userMessage}${questionContext}`;
              }
              
              if (!result || !result.answers) {
-                 alert("No detailed results found for this test.");
+                 window.showWarning("No detailed results found for this test.");
                  return;
              }
 
@@ -4535,7 +4893,7 @@ Student: ${userMessage}${questionContext}`;
                  // Fallback: build from ALL_TEST_QUESTIONS for older results
                  const testData = ALL_TEST_QUESTIONS[testId];
                  if (!testData) {
-                     alert("Test data not found. Cannot review this test.");
+                     window.showWarning("Test data not found. Cannot review this test.");
                      return;
                  }
                  const m2Key = (result.details && result.details.module2Difficulty) || 'M2E';
@@ -4559,6 +4917,7 @@ Student: ${userMessage}${questionContext}`;
                  };
              }
              
+             window.reviewSource = 'exam_selection';
              // Start review mode
              window.startReviewMode();
         }
@@ -4609,8 +4968,6 @@ Student: ${userMessage}${questionContext}`;
                 <div id="q-text-container" class="text-lg leading-relaxed text-gray-700 dark:text-gray-300">${q.text}</div>
                 ${imageHtml}
             `;
-            renderMath('q-text-container');
-
             // 3. Render Answer Area
             const answerArea = document.getElementById('answer-area');
             answerArea.innerHTML = `<h3 class="text-lg font-semibold text-gray-800 mb-4">${isReviewMode ? 'Your Selection & Correct Answer' : 'Your Answer'}:</h3>`;
@@ -4721,19 +5078,39 @@ Student: ${userMessage}${questionContext}`;
             // 5. Update Navigation Button States
             document.getElementById('prev-btn').disabled = questionIndex === 0;
             if (isReviewMode) {
-                const isLastQuestionOfLastModule = window.state.module === 2 && questionIndex === window.state.moduleQuestions.length - 1;
-                document.getElementById('next-btn').textContent = isLastQuestionOfLastModule ? 'End Review' : 'Next Question';
+                const hasNextModule = window.state.module === 1 && window.state.testHistory.module2?.questions?.length > 0;
+                const isLastQuestion = questionIndex === window.state.moduleQuestions.length - 1;
+                document.getElementById('next-btn').textContent = isLastQuestion && !hasNextModule ? 'End Review' : 'Next Question';
             } else {
                 document.getElementById('next-btn').textContent = questionIndex === window.state.moduleQuestions.length - 1 ? 'End Module' : 'Next Question';
             }
             
-            document.getElementById('end-module-button-num').closest('div').classList.toggle('hidden', isReviewMode);
+            const sidebarEndBtn = document.getElementById('sidebar-end-btn');
+            if (sidebarEndBtn) {
+                if (isReviewMode) {
+                    sidebarEndBtn.textContent = 'End Review';
+                    sidebarEndBtn.onclick = function() {
+                        window.toggleSidebar(false);
+                        if (window.reviewSource === 'exam_selection') {
+                            window.navigateToHome();
+                        } else {
+                            window.state.appStage = 'finished';
+                            renderScoreReport(
+                                window.state.testHistory.module1.score + window.state.testHistory.module2.score,
+                                ((window.state.testHistory.module1.score + window.state.testHistory.module2.score) / 44) * 100,
+                                44
+                            );
+                        }
+                    };
+                } else {
+                    sidebarEndBtn.innerHTML = 'End Module <span id="end-module-button-num">1</span> & Review';
+                    sidebarEndBtn.onclick = function() { window.showEndModuleConfirmation(); };
+                }
+            }
+            const sidebarParent = document.getElementById('sidebar-end-btn')?.closest('.p-4');
+            if (sidebarParent) sidebarParent.classList.remove('hidden');
 
-            // Re-render math after updating answer area
-            document.querySelectorAll('.option-content').forEach(contentElement => {
-                 renderMath(contentElement.id);
-            });
-            renderMath('answer-area');
+            renderMathAll();
 
             // Save state immediately after rendering a question to capture time, index, and answer changes
             saveState();
@@ -4769,54 +5146,95 @@ Student: ${userMessage}${questionContext}`;
             saveState();
         }
         
+        function findNextFilteredIndex(currentIdx, direction) {
+            if (window.state.appStage !== 'review' || reviewFilter === 'all') return -1;
+            const historyKey = window.state.module === 1 ? 'module1' : 'module2';
+            const history = window.state.testHistory[historyKey];
+            if (!history) return -1;
+            const { indices } = getFilteredQuestions();
+            const pos = indices.indexOf(currentIdx);
+            if (pos === -1) return -1;
+            const nextPos = direction === 'next' ? pos + 1 : pos - 1;
+            return nextPos >= 0 && nextPos < indices.length ? indices[nextPos] : -1;
+        }
+
         /** Handles question navigation (Next/Previous/Direct Click) */
         window.navigateTo = function(direction) {
             let nextIndex = window.state.questionIndex;
             
             if (direction === 'next') {
-                if (nextIndex < window.state.moduleQuestions.length - 1) {
+                // Check filtered navigation first
+                const filteredNext = findNextFilteredIndex(nextIndex, 'next');
+                if (filteredNext !== -1) {
+                    nextIndex = filteredNext;
+                } else if (nextIndex < window.state.moduleQuestions.length - 1) {
                     nextIndex++;
                 } else if (window.state.appStage === 'review') {
                     if (window.state.module === 1) {
+                        const m2questions = window.state.testHistory.module2?.questions;
+                        if (!m2questions || m2questions.length === 0) {
+                            if (window.reviewSource === 'exam_selection') {
+                                window.navigateToHome();
+                            } else {
+                                window.state.appStage = 'finished';
+                                renderScoreReport(
+                                    window.state.testHistory.module1.score + window.state.testHistory.module2.score,
+                                    ((window.state.testHistory.module1.score + window.state.testHistory.module2.score) / 44) * 100,
+                                    44
+                                );
+                            }
+                            return;
+                        }
                         window.state.module = 2;
                         window.state.questionIndex = 0;
-                        window.state.moduleQuestions = window.state.testHistory.module2.questions;
+                        window.state.moduleQuestions = m2questions;
                         renderQuestion();
                         renderQuestionMap();
                         return;
                     } else {
-                        window.state.appStage = 'finished';
-                        renderScoreReport(
-                            window.state.testHistory.module1.score + window.state.testHistory.module2.score,
-                            ((window.state.testHistory.module1.score + window.state.testHistory.module2.score) / 44) * 100,
-                            44
-                        );
+                        if (window.reviewSource === 'exam_selection') {
+                            window.navigateToHome();
+                        } else {
+                            window.state.appStage = 'finished';
+                            renderScoreReport(
+                                window.state.testHistory.module1.score + window.state.testHistory.module2.score,
+                                ((window.state.testHistory.module1.score + window.state.testHistory.module2.score) / 44) * 100,
+                                44
+                            );
+                        }
                         return;
                     }
                 } else {
-                    window.showEndModuleConfirmation(); // Trigger modal instead of ending directly
+                    window.showEndModuleConfirmation();
                     return;
                 }
             } else if (direction === 'prev') {
-                if (nextIndex > 0) {
+                const filteredPrev = findNextFilteredIndex(nextIndex, 'prev');
+                if (filteredPrev !== -1) {
+                    nextIndex = filteredPrev;
+                } else if (nextIndex > 0) {
                     nextIndex--;
                 } else if (window.state.appStage === 'review' && window.state.module === 2) {
                     window.state.module = 1;
-                    window.state.questionIndex = 21;
+                    window.state.questionIndex = (window.state.testHistory.module1.questions.length || 22) - 1;
                     window.state.moduleQuestions = window.state.testHistory.module1.questions;
                     renderQuestion();
                     renderQuestionMap();
                     return;
                 }
             } else if (typeof direction === 'number') {
-                nextIndex = direction;
-                
                 if (window.state.appStage === 'review') {
+                    // direction is a GLOBAL index across both modules
+                    const m1len = window.state.testHistory.module1?.questions?.length || 0;
+                    window.state.module = direction < m1len ? 1 : 2;
                     const historyKey = window.state.module === 1 ? 'module1' : 'module2';
                     const currentModuleHistory = window.state.testHistory[historyKey];
                     window.state.moduleQuestions = currentModuleHistory.questions;
+                    // Convert global index to module-relative index
+                    nextIndex = window.state.module === 1 ? direction : direction - m1len;
+                } else {
+                    nextIndex = direction;
                 }
-                
                 window.toggleSidebar(false);
             }
             window.state.questionIndex = nextIndex;
@@ -4828,37 +5246,70 @@ Student: ${userMessage}${questionContext}`;
         /** Renders the question map sidebar */
         function renderQuestionMap() {
             const grid = document.getElementById('question-map-grid');
+            if (!grid) return;
             grid.innerHTML = '';
             
             const isReviewMode = window.state.appStage === 'review';
             const historyKey = window.state.module === 1 ? 'module1' : 'module2';
             const currentModuleHistory = window.state.testHistory[historyKey];
-            
-            const questionsToMap = window.state.moduleQuestions;
 
-            questionsToMap.forEach((q, i) => {
-                const isCurrent = window.state.questionIndex === i;
-                
-                let classes = 'p-2 rounded-lg text-center font-medium transition duration-150 shadow-sm';
-                
-                if (isReviewMode && currentModuleHistory.questions.length > 0) {
-                    const userAnswer = currentModuleHistory.answers[i];
+            function buildModuleSection(modLabel, questions, answers, flags, startIndex, moduleKey) {
+                const { questions: filteredQs, indices } = reviewFilter === 'all'
+                    ? { questions: questions, indices: questions.map((_, i) => i) }
+                    : getFilteredQuestions(moduleKey);
+
+                const qs = reviewFilter === 'all' ? questions : filteredQs;
+                // localIdxs: 0-based within this module (for answer/flag lookup and isCurrent check)
+                const localIdxs = reviewFilter === 'all' ? qs.map((_, i) => i) : indices;
+
+                let html = `<div class="col-span-5 text-xs font-bold text-gray-500 uppercase tracking-wider mt-3 mb-1 border-b pb-1">${modLabel}</div>`;
+                qs.forEach((q, i) => {
+                    const localIdx = localIdxs[i];           // 0-based within module
+                    const globalIdx = startIndex + localIdx; // for display numbering & navigateTo
+                    const modNum = modLabel === 'Module 1' ? 1 : 2;
+                    // isCurrent: compare module number AND module-relative questionIndex
+                    const isCurrent = window.state.module === modNum && window.state.questionIndex === localIdx;
+                    // answers array is per-module, use localIdx
+                    const userAnswer = answers?.[localIdx];
                     const correctAnswer = q.correctAnswer;
-                    const isCorrect = userAnswer !== null && normalizeAnswer(userAnswer) === normalizeAnswer(correctAnswer);
+                    const isCorrect = userAnswer !== null && userAnswer !== undefined && normalizeAnswer(userAnswer) === normalizeAnswer(correctAnswer);
                     
+                    let classes = 'p-2 rounded-lg text-center font-medium transition duration-150 shadow-sm';
                     if (isCurrent) {
                         classes += ' bg-blue-600 text-white ring-2 ring-blue-300';
                     } else if (isCorrect) {
                         classes += ' bg-green-500 text-white hover:bg-green-600';
-                    } else if (userAnswer !== null) {
+                    } else if (userAnswer !== null && userAnswer !== undefined) {
                         classes += ' bg-red-500 text-white hover:bg-red-600';
                     } else {
                         classes += ' bg-gray-400 text-white hover:bg-gray-500';
                     }
-                } else {
+                    // navigateTo receives global index so it can determine which module to switch to
+                    html += `<button onclick="navigateTo(${globalIdx})" class="${classes}">${globalIdx + 1}</button>`;
+                });
+                return html;
+            }
+
+            if (isReviewMode) {
+                const m1q = window.state.testHistory.module1?.questions || [];
+                const m1a = window.state.testHistory.module1?.answers || [];
+                const m1f = window.state.testHistory.module1?.flags || [];
+                const m2q = window.state.testHistory.module2?.questions || [];
+                const m2a = window.state.testHistory.module2?.answers || [];
+                const m2f = window.state.testHistory.module2?.flags || [];
+
+                grid.innerHTML += buildModuleSection('Module 1', m1q, m1a, m1f, 0, 'module1');
+                if (m2q.length > 0) {
+                    grid.innerHTML += buildModuleSection('Module 2', m2q, m2a, m2f, m1q.length, 'module2');
+                }
+            } else {
+                const questionsToMap = window.state.moduleQuestions;
+                questionsToMap.forEach((q, i) => {
+                    const isCurrent = window.state.questionIndex === i;
                     const isAnswered = window.state.userAnswers[i] !== null;
                     const isFlagged = window.state.flags[i];
                     
+                    let classes = 'p-2 rounded-lg text-center font-medium transition duration-150 shadow-sm';
                     if (isCurrent) {
                         classes += ' bg-blue-600 text-white ring-2 ring-blue-300';
                     } else if (isFlagged) {
@@ -4868,14 +5319,14 @@ Student: ${userMessage}${questionContext}`;
                     } else {
                         classes += ' bg-gray-100 text-gray-700 hover:bg-gray-200';
                     }
-                }
-                
-                grid.innerHTML += `<button onclick="navigateTo(${i})" class="${classes}">${i + 1}</button>`;
-            });
+                    grid.innerHTML += `<button onclick="navigateTo(${i})" class="${classes}">${i + 1}</button>`;
+                });
+            }
         }
         
         /** Starts the review mode from the final score screen */
         window.startReviewMode = function() {
+            window.reviewSource = 'post_exam';
             window.state.appStage = 'review';
             window.state.module = 1; 
             window.state.questionIndex = 0;
@@ -4883,9 +5334,11 @@ Student: ${userMessage}${questionContext}`;
             window.state.moduleQuestions = window.state.testHistory.module1.questions;
             
             document.getElementById('test-footer').classList.remove('hidden');
+            document.getElementById('menu-button').classList.remove('hidden');
             document.getElementById('save-indicator')?.classList.add('hidden');
             document.getElementById('timer-display').classList.add('hidden');
             document.getElementById('flag-button').classList.add('hidden');
+            toggleGlobalNav(false);
             
             const studentNameHeaderDisplay = document.getElementById('student-name-header-display');
             if (studentNameHeaderDisplay) {
@@ -5010,6 +5463,7 @@ Student: ${userMessage}${questionContext}`;
         function renderScoreReport(totalCorrect, finalScorePercentage, totalQuestions) {
             window.state.appStage = 'finished';
             disableTestExitWarning();
+            toggleGlobalNav(true);
             const m1 = window.state.testHistory.module1;
             const m2 = window.state.testHistory.module2;
             
@@ -5042,13 +5496,47 @@ Student: ${userMessage}${questionContext}`;
                     </div>
 
 
+                    <!-- Difficulty Breakdown -->
+                    <div class="bg-white border-t-4 border-green-400 rounded-xl p-6 shadow-md">
+                        <h3 class="text-xl font-bold text-green-800 mb-4">Performance by Difficulty</h3>
+                        <div class="grid grid-cols-3 gap-4">
+                        ${(function() {
+                            var allQ=[]; var allA=[];
+                            if(m1.questions){m1.questions.forEach(function(q,i){allQ.push(q);allA.push(m1.answers?m1.answers[i]:null);});}
+                            if(m2.questions){m2.questions.forEach(function(q,i){allQ.push(q);allA.push(m2.answers?m2.answers[i]:null);});}
+                            var diffs=['Easy','Medium','Hard'];
+                            return diffs.map(function(d){
+                                var total=allQ.filter(function(q){return (q.difficulty||'Medium')===d;}).length;
+                                var correct=0;
+                                allQ.forEach(function(q,i){if((q.difficulty||'Medium')===d&&allA[i]&&normalizeAnswer(allA[i])===normalizeAnswer(q.correctAnswer))correct++;});
+                                if(total===0)return '';
+                                var pct=Math.round((correct/total)*100);
+                                var bg=d==='Easy'?'#f0fdf4':d==='Medium'?'#fefce8':'#fef2f2';
+                                var tc=d==='Easy'?'#15803d':d==='Medium'?'#a16207':'#b91c1c';
+                                var bc=d==='Easy'?'#4ade80':d==='Medium'?'#facc15':'#f87171';
+                                return '<div style="background:'+bg+';border:1px solid '+bc+';border-radius:12px;padding:16px;text-align:center"><p style="font-weight:700;color:'+tc+';font-size:18px">'+d+'</p><p style="font-size:36px;font-weight:900;color:'+tc+'">'+pct+'%</p><p style="font-size:13px;color:#6b7280">'+correct+'/'+total+' correct</p><div style="background:#e5e7eb;border-radius:4px;height:8px;margin-top:8px"><div style="background:'+bc+';width:'+pct+'%;height:8px;border-radius:4px"></div></div></div>';
+                            }).join('');
+                        })()}
+                        </div>
+                    </div>
+
                     <!-- Module Breakdown -->
+                    ${(() => {
+                        const m1Incorrect = m1.answers ? m1.answers.filter((a, i) => a && a !== m1.questions[i]?.correctAnswer).length : 0;
+                        const m1Unanswered = m1.answers ? m1.answers.filter(a => !a).length : 0;
+                        const m2Incorrect = m2.answers ? m2.answers.filter((a, i) => a && a !== m2.questions[i]?.correctAnswer).length : 0;
+                        const m2Unanswered = m2.answers ? m2.answers.filter(a => !a).length : 0;
+                        const m1Flagged = m1.flags ? m1.flags.filter(f => f).length : 0;
+                        const m2Flagged = m2.flags ? m2.flags.filter(f => f).length : 0;
+                        return `
                     <div class="grid md:grid-cols-${m2.questions ? 2 : 1} gap-6">
                         <!-- Module 1 Summary -->
                         <div class="bg-gray-100 p-5 rounded-lg border border-gray-200 shadow-md">
                             <h3 class="text-2xl font-bold text-gray-800 mb-3">${m2.questions ? 'Module 1' : 'Quiz Results'}</h3>
                             <p class="text-lg text-gray-700">Correct: <span class="font-semibold text-blue-600">${m1.score} / ${m1.questions.length}</span></p>
+                            <p class="text-lg text-gray-700">Incorrect: <span class="font-semibold text-red-600">${m1Incorrect}</span> / Unanswered: <span class="font-semibold text-gray-500">${m1Unanswered}</span></p>
                             <p class="text-lg text-gray-700">Accuracy: <span class="font-semibold text-blue-600">${m1.percentage.toFixed(1)}%</span></p>
+                            ${m1Flagged > 0 ? `<p class="text-lg text-gray-700">Flagged: <span class="font-semibold text-yellow-600">${m1Flagged}</span></p>` : ''}
                             ${m2.questions ? '<p class="text-sm text-gray-500 mt-2">M1 performance determined the difficulty of the next module.</p>' : ''}
                         </div>
 
@@ -5058,35 +5546,81 @@ Student: ${userMessage}${questionContext}`;
                             <h3 class="text-2xl font-bold text-gray-800 mb-3">Module 2 </h3>
                             <p class="text-lg text-gray-700">Difficulty: <span class="font-bold text-red-600">${m2.difficulty === 'M2H' ? 'HARD' : 'EASY'}</span></p>
                             <p class="text-lg text-gray-700">Correct: <span class="font-semibold text-blue-600">${m2.score} / ${m2.questions.length}</span></p>
+                            <p class="text-lg text-gray-700">Incorrect: <span class="font-semibold text-red-600">${m2Incorrect}</span> / Unanswered: <span class="font-semibold text-gray-500">${m2Unanswered}</span></p>
                             <p class="text-lg text-gray-700">Accuracy: <span class="font-semibold text-blue-600">${m2.percentage.toFixed(1)}%</span></p>
+                            ${m2Flagged > 0 ? `<p class="text-lg text-gray-700">Flagged: <span class="font-semibold text-yellow-600">${m2Flagged}</span></p>` : ''}
                             <p class="text-sm text-gray-500 mt-2">You were placed on the ${m2.difficulty === 'M2H' ? 'Hard' : 'Easy'} path.</p>
                         </div>` : ''}
+                    </div>`;
+                    })()}
+
+                    <!-- Category / Sub-Score Breakdown -->
+                    <div class="bg-white border-t-4 border-purple-400 rounded-xl p-6 shadow-md">
+                        <h3 class="text-xl font-bold text-purple-800 mb-4">Sub-Score Breakdown</h3>
+                        <div class="space-y-3">
+                            ${SAT_CATEGORIES.map(cat => {
+                                const cs = window.state.categoryScores[cat.id];
+                                if (!cs || cs.total === 0) return '';
+                                const pct = Math.round((cs.correct / cs.total) * 100);
+                                return `
+                                <div class="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                                    <div>
+                                        <p class="font-semibold text-gray-800">${cat.label}</p>
+                                        <p class="text-sm text-gray-500">${cs.correct}/${cs.total} correct</p>
+                                    </div>
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                            <div class="h-full rounded-full ${pct >= 70 ? 'bg-green-400' : pct >= 40 ? 'bg-yellow-400' : 'bg-red-400'}" style="width:${pct}%"></div>
+                                        </div>
+                                        <span class="text-sm font-bold ${pct >= 70 ? 'text-green-600' : pct >= 40 ? 'text-yellow-600' : 'text-red-600'}">${pct}%</span>
+                                    </div>
+                                </div>`;
+                            }).join('')}
+                            ${(() => {
+                                const other = window.state.categoryScores['other'];
+                                if (!other || other.total === 0) return '';
+                                const pct = Math.round((other.correct / other.total) * 100);
+                                return `
+                                <div class="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                                    <div>
+                                        <p class="font-semibold text-gray-800">Other</p>
+                                        <p class="text-sm text-gray-500">${other.correct}/${other.total} correct</p>
+                                    </div>
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                            <div class="h-full rounded-full ${pct >= 70 ? 'bg-green-400' : pct >= 40 ? 'bg-yellow-400' : 'bg-red-400'}" style="width:${pct}%"></div>
+                                        </div>
+                                        <span class="text-sm font-bold ${pct >= 70 ? 'text-green-600' : pct >= 40 ? 'text-yellow-600' : 'text-red-600'}">${pct}%</span>
+                                    </div>
+                                </div>`;
+                            })()}
+                        </div>
                     </div>
                     
-                    <div class="flex flex-col space-y-4 mt-8 max-w-4xl mx-auto">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8 max-w-3xl mx-auto">
                         <button id="save-result-btn" onclick="saveTestResult()"
-                            class="w-full px-6 py-3 bg-gradient-to-r from-green-500 to-green-700 text-white text-xl font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150">
-                            Save Result to Database
+                            class="px-5 py-3 bg-gradient-to-r from-green-500 to-green-700 text-white text-lg font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150">
+                            Save Result
                         </button>
-                        
+
+                        <button onclick="window.printScoreReport()"
+                            class="px-5 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-lg font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150">
+                            Print / Export
+                        </button>
+
                         ${window.state.parentEmail ? `
                         <button onclick="sendParentEmail('${scaledScore800}', '${totalCorrect}', '${totalQuestions}')"
-                            class="w-full px-6 py-3 bg-gradient-to-r from-purple-500 to-purple-700 text-white text-xl font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150">
-                            Email Report to Parent
+                            class="px-5 py-3 bg-gradient-to-r from-purple-500 to-purple-700 text-white text-lg font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150">
+                            Email Parent
                         </button>` : ''}
 
-                        <button onclick="takeScoreScreenshot()"
-                            class="w-full px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-xl font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150">
-                            📸 Take Screenshot
-                        </button>
-
                         <button onclick="startReviewMode()" 
-                                class="w-full px-6 py-3 bg-gradient-to-r from-indigo-500 to-indigo-700 text-white text-xl font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150">
-                            Review Test Questions
+                                class="px-5 py-3 bg-gradient-to-r from-indigo-500 to-indigo-700 text-white text-lg font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150">
+                            Review Questions
                         </button>
 
                         <button onclick="window.navigateToHome()"
-                            class="w-full px-6 py-3 bg-gradient-to-r from-gray-500 to-gray-700 text-white text-xl font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150">
+                            class="px-5 py-3 bg-gradient-to-r from-gray-500 to-gray-700 text-white text-lg font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150">
                             Home
                         </button>
                     </div>
@@ -5105,26 +5639,25 @@ Student: ${userMessage}${questionContext}`;
             saveState(); 
         }
 
-        window.takeScoreScreenshot = async function() {
-            const target = document.getElementById('score-card-container');
-            if (!target || typeof html2canvas === 'undefined') {
-                alert('Screenshot library not loaded. Please try again.');
-                return;
-            }
-            try {
-                const canvas = await html2canvas(target, { scale: 2, useCORS: true, logging: false });
-                const link = document.createElement('a');
-                link.download = 'score-report.png';
-                link.href = canvas.toDataURL('image/png');
-                document.body.appendChild(link);
-                link.click();
-                setTimeout(() => { document.body.removeChild(link); URL.revokeObjectURL(link.href); }, 1000);
-            } catch (e) {
-                console.error('Screenshot failed:', e);
-                alert('Failed to take screenshot.');
-            }
+
+        window.printScoreReport = function() {
+            var scoreCard = document.getElementById('score-card-container');
+            if (!scoreCard) { window.showWarning('Score report not available. Complete a test first.'); return; }
+            var printWin = window.open('', '_blank', 'width=900,height=700');
+            printWin.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8">');
+            printWin.document.write('<title>Dr. Joe For SAT - Score Report</title>');
+            printWin.document.write('<style>body{font-family:Arial,sans-serif;padding:24px;max-width:800px;margin:0 auto;}h1,h2,h3{color:#1e3a8a;}table{width:100%;border-collapse:collapse;}td,th{border:1px solid #e5e7eb;padding:8px 12px;}.score-big{font-size:64px;font-weight:900;color:#1e3a8a;text-align:center;}.section{margin:16px 0;padding:16px;border:1px solid #e5e7eb;border-radius:8px;}.bar-container{background:#e5e7eb;border-radius:4px;height:8px;}.bar-fill{height:8px;border-radius:4px;}</style>');
+            printWin.document.write('</head><body>');
+            printWin.document.write('<h1 style="text-align:center">Dr. Joe For SAT - Score Report</h1>');
+            printWin.document.write('<p style="text-align:center">Student: <strong>' + (window.state.studentName || 'N/A') + '</strong></p>');
+            printWin.document.write('<p style="text-align:center">Date: <strong>' + new Date().toLocaleDateString() + '</strong></p>');
+            printWin.document.write('<hr>');
+            printWin.document.write(scoreCard.innerHTML);
+            printWin.document.write('</body></html>');
+            printWin.document.close();
+            printWin.focus();
+            setTimeout(function(){ printWin.print(); }, 500);
         };
-        
         window.sendParentEmail = function(score, correct, total) {
             const subject = encodeURIComponent(`Test Results for ${window.state.studentName}`);
             const body = encodeURIComponent(
@@ -5142,6 +5675,24 @@ Student: ${userMessage}${questionContext}`;
         /**
          * Main scoring and adaptive logic trigger.
          */
+        function updateCategoryScores(questions, answers) {
+            for (const cat of SAT_CATEGORIES) {
+                if (!window.state.categoryScores[cat.id]) {
+                    window.state.categoryScores[cat.id] = { label: cat.label, correct: 0, total: 0 };
+                }
+            }
+            questions.forEach((q, i) => {
+                const catId = q.category || 'other';
+                if (!window.state.categoryScores[catId]) {
+                    window.state.categoryScores[catId] = { label: catId, correct: 0, total: 0 };
+                }
+                window.state.categoryScores[catId].total++;
+                if (answers[i] && normalizeAnswer(answers[i]) === normalizeAnswer(q.correctAnswer)) {
+                    window.state.categoryScores[catId].correct++;
+                }
+            });
+        }
+
         window.endModule = function() {
             if (window.state.isCalculatorOpen) window.toggleCalculator(false); 
             
@@ -5150,7 +5701,7 @@ Student: ${userMessage}${questionContext}`;
 
                 let correctCount = 0;
                 window.state.moduleQuestions.forEach((q, i) => {
-                    if (window.state.userAnswers[i] && window.state.userAnswers[i] === q.correctAnswer) {
+                    if (window.state.userAnswers[i] && normalizeAnswer(window.state.userAnswers[i]) === normalizeAnswer(q.correctAnswer)) {
                         correctCount++;
                     }
                 });
@@ -5161,9 +5712,12 @@ Student: ${userMessage}${questionContext}`;
                 window.state.testHistory.module1 = {
                     questions: window.state.moduleQuestions,
                     answers: window.state.userAnswers,
+                    flags: window.state.flags,
                     score: correctCount,
                     percentage: percentage
                 };
+
+                updateCategoryScores(window.state.moduleQuestions, window.state.userAnswers);
 
                 // Practice quizzes are single-module — go straight to score
                 if (window.isPracticeQuiz) {
@@ -5176,7 +5730,7 @@ Student: ${userMessage}${questionContext}`;
                 // Regular test — transition to Module 2 break
                 window.state.appStage = 'break';
 
-                const moduleTwoSet = determineModuleTwo(percentage);
+                const moduleTwoSet = determineModuleTwo(correctCount);
                 const testData = ALL_TEST_QUESTIONS[window.state.currentTestId];
                 const nextQuestions = testData[moduleTwoSet] || testData.M1;
                 const m2DifficultyName = moduleTwoSet === 'M2H' ? 'HARD' : 'EASY';
@@ -5218,15 +5772,18 @@ Student: ${userMessage}${questionContext}`;
                 
                 let correctCountM2 = 0;
                 window.state.moduleQuestions.forEach((q, i) => {
-                    if (window.state.userAnswers[i] && window.state.userAnswers[i] === q.correctAnswer) {
+                    if (window.state.userAnswers[i] && normalizeAnswer(window.state.userAnswers[i]) === normalizeAnswer(q.correctAnswer)) {
                         correctCountM2++;
                     }
                 });
 
                 window.state.testHistory.module2.questions = window.state.moduleQuestions;
                 window.state.testHistory.module2.answers = window.state.userAnswers;
+                window.state.testHistory.module2.flags = window.state.flags;
                 window.state.testHistory.module2.score = correctCountM2;
                 window.state.testHistory.module2.percentage = (correctCountM2 / window.state.moduleQuestions.length) * 100;
+
+                updateCategoryScores(window.state.moduleQuestions, window.state.userAnswers);
                 
                 const totalQuestions = 44;
                 const totalCorrect = window.state.testHistory.module1.score + correctCountM2;
@@ -5438,7 +5995,7 @@ Student: ${userMessage}${questionContext}`;
                 a.click();
         setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
     } catch (e) {
-        alert('Export failed: ' + e.message);
+        window.showError('Export failed: ' + e.message);
     }
 };
 
@@ -5448,36 +6005,51 @@ window.getSelectedUserIds = function() {
 
 window.bulkApproveUsers = async function() {
     const ids = window.getSelectedUserIds();
-    if (!ids.length) return alert('No users selected.');
+    if (!ids.length) { window.showWarning('No users selected.'); return; }
     if (!confirm(`Approve ${ids.length} user(s)?`)) return;
     for (const id of ids) {
-        try { await updateDoc(doc(db, "users", id), { status: 'approved' }); } catch (e) { console.warn('Approve failed for', id, e); }
+        try {
+            await updateDoc(doc(db, "users", id), { status: 'approved' });
+        } catch (e) { console.warn('Approve failed for', id, e); }
     }
-    alert(`${ids.length} user(s) approved.`);
+    window.showSuccess(ids.length + " user(s) approved.");
     window.renderAdminDashboard();
     return;
 };
 
 window.bulkRejectUsers = async function() {
     const ids = window.getSelectedUserIds();
-    if (!ids.length) return alert('No users selected.');
+    if (!ids.length) { window.showWarning('No users selected.'); return; }
     if (!confirm(`Reject ${ids.length} user(s)?`)) return;
     for (const id of ids) {
         try { await updateDoc(doc(db, "users", id), { status: 'rejected' }); } catch (e) { console.warn('Reject failed for', id, e); }
     }
-    alert(`${ids.length} user(s) rejected.`);
+    window.showSuccess(ids.length + " user(s) rejected.");
     window.renderAdminDashboard();
     return;
 };
 
 window.bulkDeleteUsers = async function() {
     const ids = window.getSelectedUserIds();
-    if (!ids.length) return alert('No users selected.');
+    if (!ids.length) { window.showWarning('No users selected.'); return; }
     if (!confirm(`Permanently delete ${ids.length} user(s)? This cannot be undone.`)) return;
+    let success = 0, failed = 0;
     for (const id of ids) {
-        try { await deleteDoc(doc(db, "users", id)); } catch (e) { console.warn('Delete failed for', id, e); }
+        try {
+            // Delete Auth account via Electron main process (Admin SDK)
+            if (window.electronAPI && window.electronAPI.deleteAuthUser) {
+                const result = await window.electronAPI.deleteAuthUser(id);
+                if (!result.success) console.warn('Auth delete failed for', id, result.error);
+            }
+            // Always delete the Firestore doc
+            await deleteDoc(doc(db, "users", id));
+            success++;
+        } catch (e) {
+            console.warn('Delete failed for', id, e);
+            failed++;
+        }
     }
-    alert(`${ids.length} user(s) deleted.`);
+    window.showSuccess(success + " user(s) deleted." + (failed ? ` ${failed} failed.` : ''));
     window.renderAdminDashboard();
     return;
 };
@@ -5516,9 +6088,12 @@ function adminSidebarHtml(active) {
     const items = [
         { id: 'dashboard', label: 'Dashboard', action: 'window.renderAdminDashboard()' },
         { id: 'users', label: 'User Management', action: 'window.renderAdminDashboard()' },
-        { id: 'logs', label: 'System Logs', action: 'window.viewSystemLogs()' },
+        { id: 'create', label: 'Create Test', action: 'window.showTeacherTestCreationPanel()' },
         { id: 'testbank', label: 'Test Bank', action: 'window.manageTestBank()' },
+        { id: 'testaccess', label: 'Test Access', action: 'window.manageStudentTestAccess()' },
+        { id: 'logs', label: 'System Logs', action: 'window.viewSystemLogs()' },
         { id: 'settings', label: 'Settings', action: 'window.systemSettings()' },
+        { id: 'ebooks', label: '📚 E-Books', action: 'window.renderEbookManager()' },
     ];
     return `
     <div class="flex flex-col min-h-full p-5">
@@ -5539,7 +6114,9 @@ function teacherSidebarHtml(active) {
         { id: 'dashboard', label: 'Dashboard', action: 'window.renderTeacherDashboard()' },
         { id: 'create', label: 'Create Test', action: 'window.showTeacherTestCreationPanel()' },
         { id: 'schedule', label: 'Schedule Tests', action: 'window.showTestScheduling()' },
+        { id: 'testaccess', label: 'Test Access', action: 'window.manageStudentTestAccess()' },
         { id: 'settings', label: 'Settings', action: 'window.showStudentSettings()' },
+        { id: 'ebooks', label: '📚 E-Books', action: 'window.renderEbookManager()' },
     ];
     return `
     <div class="flex flex-col min-h-full p-5">
@@ -5566,6 +6143,7 @@ function studentSidebarHtml(active) {
         { id: 'analytics', label: 'Analytics', action: 'window.showTestAnalytics()' },
         { id: 'flashcards', label: 'Flashcards', action: 'window.showFlashcards()' },
         { id: 'settings', label: 'Settings', action: 'window.showStudentSettings()' },
+        { id: 'ebooks', label: '📚 E-Books', action: 'window.renderStudentEbooks()' },
     ];
     return `
     <div class="flex flex-col min-h-full p-5">
@@ -5685,6 +6263,10 @@ window.renderAdminDashboard = async function() {
                                 <option value="admin">Admin</option>
                             </select>
                         </div>
+                        <div>
+                            <label class="block font-semibold text-gray-700 mb-2">Confirm your admin password to create user</label>
+                            <input type="password" id="admin-password-confirm" placeholder="Enter your admin password" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
                         <div class="flex gap-2 pt-4">
                             <button onclick="window.createNewUser()" class="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-semibold">
                                 Create User
@@ -5803,6 +6385,8 @@ window.showAddUserModal = function() {
 window.closeAddUserModal = function() {
     const modal = document.getElementById('add-user-modal');
     if (modal) modal.classList.add('hidden');
+    const pwdField = document.getElementById('admin-password-confirm');
+    if (pwdField) pwdField.value = '';
 };
 
 window.createNewUser = async function() {
@@ -5810,30 +6394,58 @@ window.createNewUser = async function() {
     const name = document.getElementById('new-user-name').value.trim();
     const password = document.getElementById('new-user-password').value.trim();
     const role = document.getElementById('new-user-role').value;
+    const adminPassword = document.getElementById('admin-password-confirm').value.trim();
 
     if (!email || !name || !password) {
-        alert('Please fill in all fields');
+        window.showWarning('Please fill in all fields');
+        return;
+    }
+
+    if (!adminPassword) {
+        window.showWarning('Please enter your admin password to create a new user.');
+        return;
+    }
+
+    const adminEmail = auth.currentUser?.email;
+    if (!adminEmail) {
+        window.showError('Admin session not found. Please log in again.');
         return;
     }
 
     try {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
+        // Prevent onAuthStateChanged from routing away
+        windowAuthRoutingLock = true;
 
-        await setDoc(doc(db, "users", user.uid), {
-            uid: user.uid,
-            email: user.email,
+        // Create the new user (this automatically signs them in)
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const newUser = userCredential.user;
+
+        // Create Firestore document
+        await setDoc(doc(db, "users", newUser.uid), {
+            uid: newUser.uid,
+            email: email,
             displayName: name,
             role: role,
+            status: 'pending',
             createdAt: new Date(),
-            createdBy: userId
+            createdBy: 'admin'
         });
 
-        alert('User created successfully!');
+        // Sign out the new user
+        await auth.signOut();
+
+        // Sign the admin back in
+        await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
+
+        windowAuthRoutingLock = false;
         window.closeAddUserModal();
+        logSystemEvent('Create User', 'Created ' + role + ' user: ' + email + ' (' + name + ')');
         window.renderAdminDashboard();
     } catch (e) {
-        alert('Error creating user: ' + e.message);
+        windowAuthRoutingLock = false;
+        logSystemEvent('Create User Failed', email + ': ' + e.message, 'error');
+        window.showError('Error creating user: ' + e.message);
+        console.error('Create user error:', e);
     }
 };
 
@@ -5876,21 +6488,32 @@ window.showBulkImportModal = function() {
 
 window.bulkImportUsers = async function() {
     const input = document.getElementById('bulk-import-csv');
-    if (!input || !input.files || !input.files[0]) { alert('Please select a CSV file'); return; }
+    if (!input || !input.files || !input.files[0]) { window.showWarning('Please select a CSV file'); return; }
     const file = input.files[0];
     const reader = new FileReader();
     reader.onload = async function(e) {
         const lines = e.target.result.split('\n').filter(l => l.trim());
-        if (lines.length < 2) { alert('CSV must have a header row and at least one user'); return; }
+        if (lines.length < 2) { window.showWarning('CSV must have a header row and at least one user'); return; }
         const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
         const emailIdx = headers.indexOf('email');
         const nameIdx = headers.indexOf('displayname');
         const passIdx = headers.indexOf('password');
         const roleIdx = headers.indexOf('role');
         if (emailIdx === -1 || nameIdx === -1 || passIdx === -1 || roleIdx === -1) {
-            alert('CSV must have columns: email, displayName, password, role'); return;
+            window.showWarning('CSV must have columns: email, displayName, password, role'); return;
         }
+        
+        // Get current admin email and prompt for password
+        const adminEmail = auth.currentUser.email;
+        const adminPassword = prompt('Enter your admin password to continue bulk import:');
+        
+        if (!adminPassword) {
+            alert('Admin password is required for bulk import. Operation cancelled.');
+            return;
+        }
+        
         let success = 0, errors = 0;
+        
         for (let i = 1; i < lines.length; i++) {
             const cols = lines[i].split(',').map(c => c.trim());
             const email = cols[emailIdx];
@@ -5899,19 +6522,35 @@ window.bulkImportUsers = async function() {
             const role = cols[roleIdx];
             if (!email || !name || !password || !role) { errors++; continue; }
             try {
+                // Create the new user (this will sign them in automatically)
                 const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-                await setDoc(doc(db, "users", userCredential.user.uid), {
-                    uid: userCredential.user.uid,
+                const newUser = userCredential.user;
+
+                // Sign out the new user immediately
+                await auth.signOut();
+
+                // Sign the admin back in
+                await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
+
+                // Create the Firestore document for the new user
+                await setDoc(doc(db, "users", newUser.uid), {
+                    uid: newUser.uid,
                     email: email,
                     displayName: name,
                     role: role,
-                    status: 'approved',
+                    status: 'pending',
                     createdAt: new Date(),
-                    createdBy: userId
+                    createdBy: auth.currentUser.uid
                 });
+                
                 success++;
-            } catch (e) { errors++; console.error('Failed to create user ' + email + ':', e); }
+            } catch (e) { 
+                errors++; 
+                console.error('Failed to create user ' + email + ':', e); 
+            }
         }
+        
+        logSystemEvent('Bulk Import', success + ' created, ' + errors + ' failed');
         alert('Import complete: ' + success + ' created, ' + errors + ' failed.');
         document.getElementById('bulk-import-modal').remove();
         window.renderAdminDashboard();
@@ -5920,24 +6559,49 @@ window.bulkImportUsers = async function() {
 };
 
 window.deleteUser = async function(userId) {
-    if (confirm('Are you sure you want to permanently delete this user? This will remove their Firestore data and trigger Auth deletion.')) {
+    if (confirm('Are you sure you want to permanently delete this user? This will remove them from both Auth and Firestore so they can re-register with the same email.')) {
         try {
-            await deleteDoc(doc(db, "users", userId));
-            // Attempt to delete from Firebase Auth via Cloud Function
-            const cloudFunctionUrl = `https://us-central1-dr-joe-for-sat.cloudfunctions.net/deleteUser`;
-            try {
-                const response = await fetch(cloudFunctionUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ uid: userId })
-                });
-                if (!response.ok) {
-                    console.warn('Cloud function delete failed, user deleted from Firestore only:', await response.text());
+            // Step 1: Delete Firebase Auth account via Electron main process (Admin SDK)
+            let authDeleted = false;
+            let authError = null;
+            if (window.electronAPI && window.electronAPI.deleteAuthUser) {
+                try {
+                    const result = await window.electronAPI.deleteAuthUser(userId);
+                    if (result.success) {
+                        authDeleted = true;
+                    } else {
+                        authError = result.error;
+                    }
+                } catch (e) {
+                    authError = e.message;
                 }
-            } catch (cfErr) {
-                console.warn('Cloud function unreachable, user deleted from Firestore only:', cfErr);
+            } else {
+                authError = 'Electron API not available (running in browser?)';
             }
-            alert('User deleted successfully');
+
+            // Step 2: Always delete the Firestore document
+            const userSnap = await getDoc(doc(db, "users", userId));
+            const email = userSnap.exists() ? userSnap.data().email : null;
+            await deleteDoc(doc(db, "users", userId));
+
+            if (authDeleted) {
+                logSystemEvent('Delete User', 'Deleted user (Auth + Firestore): ' + userId + (email ? ' (' + email + ')' : ''));
+                alert('✅ User deleted successfully.\n\nBoth the Auth account and Firestore data have been removed. The email address is now free to be used for a new sign-up.');
+            } else {
+                if (email) {
+                    await setDoc(doc(db, "recycledEmails", email.replace(/[.#$\/\[\]]/g, '_')), { email, recycledAt: Date.now() });
+                }
+                logSystemEvent('Delete User', 'Deleted Firestore only for: ' + userId + (email ? ' (' + email + ')' : '') + ' | Auth NOT deleted: ' + authError);
+                alert('⚠️ Firestore data deleted, but the Firebase Auth account could NOT be removed.\n\n' +
+                    'Reason: ' + (authError || 'Unknown') + '\n\n' +
+                    'To fix this, download your service account key:\n' +
+                    '1. Go to Firebase Console → Project Settings → Service Accounts\n' +
+                    '2. Click "Generate new private key"\n' +
+                    '3. Save it as "serviceAccountKey.json" in the app folder\n' +
+                    '4. Restart the app\n\n' +
+                    'Or delete the user manually from:\n' +
+                    'Firebase Console → Authentication → Users → ' + (email || userId));
+            }
             window.renderAdminDashboard();
         } catch (e) {
             alert('Error deleting user: ' + e.message);
@@ -5945,12 +6609,12 @@ window.deleteUser = async function(userId) {
     }
 };
 
-window.editUser = function(userId) {
+window.editUser = async function(userId) {
     const modal = document.createElement('div');
     modal.id = 'edit-user-modal';
     modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
     modal.innerHTML = `
-        <div class="bg-white rounded-xl shadow-2xl p-8 max-w-md w-full mx-4 max-h-screen overflow-y-auto">
+        <div class="bg-white rounded-xl shadow-2xl p-8 max-w-lg w-full mx-4 max-h-screen overflow-y-auto">
             <h2 class="text-2xl font-bold mb-6">Edit User</h2>
             <div class="space-y-4">
                 <div>
@@ -5989,6 +6653,12 @@ window.editUser = function(userId) {
                         <option value="rejected">Rejected</option>
                     </select>
                 </div>
+                <div id="edit-user-tests-section">
+                    <label class="block font-semibold text-gray-700 mb-2">Visible Tests</label>
+                    <div id="edit-user-tests-list" class="max-h-40 overflow-y-auto border rounded-lg p-3 bg-gray-50 space-y-2">
+                        <p class="text-sm text-gray-400">Loading tests...</p>
+                    </div>
+                </div>
                 <div class="flex gap-2 pt-4">
                     <button onclick="window.saveEditUser('${userId}')" class="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-semibold">Save</button>
                     <button onclick="window.closeEditUserModal()" class="flex-1 px-4 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500 font-semibold">Cancel</button>
@@ -5998,18 +6668,54 @@ window.editUser = function(userId) {
     `;
     document.body.appendChild(modal);
 
-    // Load existing data
-    getDoc(doc(db, "users", userId)).then(userDoc => {
-        if (userDoc.exists()) {
-            const data = userDoc.data();
-            document.getElementById('edit-user-name').value = data.displayName || '';
-            document.getElementById('edit-user-email').value = data.email || '';
-            document.getElementById('edit-user-role').value = data.role || 'student';
-            document.getElementById('edit-user-student-phone').value = data.studentPhone || '';
-            document.getElementById('edit-user-parent-phone').value = data.parentPhone || '';
-            document.getElementById('edit-user-status').value = data.status || 'approved';
+    // Load existing data and populate test checkboxes
+    const userDoc = await getDoc(doc(db, "users", userId));
+    if (userDoc.exists()) {
+        const data = userDoc.data();
+        document.getElementById('edit-user-name').value = data.displayName || '';
+        document.getElementById('edit-user-email').value = data.email || '';
+        document.getElementById('edit-user-role').value = data.role || 'student';
+        document.getElementById('edit-user-student-phone').value = data.studentPhone || '';
+        document.getElementById('edit-user-parent-phone').value = data.parentPhone || '';
+        document.getElementById('edit-user-status').value = data.status || 'approved';
+
+        // Populate test checkboxes
+        const isStudent = data.role === 'student';
+        document.getElementById('edit-user-tests-section').style.display = isStudent ? 'block' : 'none';
+        if (isStudent) {
+            const testsList = document.getElementById('edit-user-tests-list');
+            const visibleTests = data.visibleTests || [];
+            let testsHtml = '';
+            // Built-in tests
+            for (const [id, t] of Object.entries(ALL_TEST_QUESTIONS)) {
+                const checked = visibleTests.includes(id) ? 'checked' : '';
+                testsHtml += `
+                    <label class="flex items-center gap-2 text-sm">
+                        <input type="checkbox" class="test-visibility-cb" value="${id}" ${checked}>
+                        <span>${t.name}</span>
+                    </label>`;
+            }
+            // Firestore tests
+            try {
+                const snap = await getDocs(collection(db, "tests"));
+                snap.forEach(d => {
+                    const data = d.data();
+                    const checked = visibleTests.includes(d.id) ? 'checked' : '';
+                    testsHtml += `
+                        <label class="flex items-center gap-2 text-sm">
+                            <input type="checkbox" class="test-visibility-cb" value="${d.id}" ${checked}>
+                            <span>${data.name || d.id}</span>
+                        </label>`;
+                });
+            } catch (e) {
+                console.warn("Could not fetch tests for edit modal:", e);
+            }
+            if (!testsHtml) {
+                testsHtml = '<p class="text-sm text-gray-400">No tests available.</p>';
+            }
+            testsList.innerHTML = testsHtml;
         }
-    });
+    }
 };
 
 window.closeEditUserModal = function() {
@@ -6026,31 +6732,35 @@ window.saveEditUser = async function(userId) {
     const status = document.getElementById('edit-user-status').value;
     const password = document.getElementById('edit-user-password').value.trim();
 
+    // Collect visibleTests from checkboxes
+    const testCbs = document.querySelectorAll('.test-visibility-cb');
+    const visibleTests = [];
+    testCbs.forEach(cb => { if (cb.checked) visibleTests.push(cb.value); });
+
     try {
-        await updateDoc(doc(db, "users", userId), {
+        const updateData = {
             displayName: displayName,
             email: email,
             role: role,
             studentPhone: studentPhone,
             parentPhone: parentPhone,
             status: status
-        });
-
-        // TASK 1d: Approval notification - When admin changes status to "approved",
-        // a Firebase Extension (e.g., Firebase Extensions - Trigger Email) would send
-        // an email notification to the user. For now we just log it.
-        if (status === 'approved') {
-            console.log(`User ${userId} approved. Email notification would be sent via Firebase Extension.`);
+        };
+        if (testCbs.length > 0) {
+            updateData.visibleTests = visibleTests;
         }
+        await updateDoc(doc(db, "users", userId), updateData);
 
         if (password) {
-            console.log(`Password change requested for user ${userId}. Would call Cloud Function: https://us-central1-dr-joe-for-sat.cloudfunctions.net/changePassword`);
+            // Password change would be handled via Cloud Function
         }
 
+        logSystemEvent('Edit User', 'Updated user: ' + userId + ' (role=' + role + ', status=' + status + ')');
         alert('User updated successfully!');
         window.closeEditUserModal();
         window.renderAdminDashboard();
     } catch (e) {
+        logSystemEvent('Edit User Failed', userId + ': ' + e.message, 'error');
         alert('Error updating user: ' + e.message);
     }
 };
@@ -6086,7 +6796,7 @@ window.exportAllData = async function() {
         setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
         alert('Data exported successfully!');
     } catch (e) {
-        alert('Export failed: ' + e.message);
+        window.showError('Export failed: ' + e.message);
     }
 };
 
@@ -6108,12 +6818,30 @@ window.viewSystemLogs = async function() {
             </tr>
         `).join('');
 
+        // Fetch network logs
+        let netRows = '';
+        try {
+            const netSnap = await getDocs(collection(db, "network_logs"));
+            let netLogs = [];
+            netSnap.forEach(d => netLogs.push({ id: d.id, ...d.data() }));
+            netLogs.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
+            netRows = netLogs.slice(0, 50).map(log => `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="px-4 py-2 text-sm">${log.timestamp ? new Date(log.timestamp.toMillis()).toLocaleString() : 'N/A'}</td>
+                    <td class="px-4 py-2 text-sm"><span class="px-2 py-0.5 rounded text-xs font-bold ${log.status === 'disconnected' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}">${log.status || '—'}</span></td>
+                    <td class="px-4 py-2 text-sm">${log.userId || '—'}</td>
+                </tr>
+            `).join('');
+        } catch (e) { /* network_logs collection may not exist */ }
+
         const logsContent = `
             <div class="max-w-7xl">
                 <div class="flex justify-between items-center mb-6">
                     <h1 class="text-3xl font-extrabold text-gray-800">System Logs</h1>
+                    <button onclick="window.clearAllLogs()" class="px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-xl hover:bg-red-700 transition shadow-md">Clear All Logs</button>
                 </div>
-                <div class="bg-white rounded-xl shadow-lg overflow-hidden overflow-x-auto">
+                <h2 class="text-xl font-bold text-gray-700 mb-3">System Actions</h2>
+                <div class="bg-white rounded-xl shadow-lg overflow-hidden overflow-x-auto mb-8">
                     <table class="min-w-full">
                         <thead><tr class="bg-gray-100 text-left text-xs font-semibold uppercase tracking-wider">
                             <th class="px-4 py-3">Timestamp</th>
@@ -6124,10 +6852,36 @@ window.viewSystemLogs = async function() {
                         <tbody>${rows || '<tr><td colspan="4" class="text-center py-4 text-gray-500">No logs found.</td></tr>'}</tbody>
                     </table>
                 </div>
+                <h2 class="text-xl font-bold text-gray-700 mb-3">Network Events (Last 50)</h2>
+                <div class="bg-white rounded-xl shadow-lg overflow-hidden overflow-x-auto">
+                    <table class="min-w-full">
+                        <thead><tr class="bg-gray-100 text-left text-xs font-semibold uppercase tracking-wider">
+                            <th class="px-4 py-3">Timestamp</th>
+                            <th class="px-4 py-3">Status</th>
+                            <th class="px-4 py-3">User</th>
+                        </tr></thead>
+                        <tbody>${netRows || '<tr><td colspan="3" class="text-center py-4 text-gray-500">No network events recorded.</td></tr>'}</tbody>
+                    </table>
+                </div>
             </div>`;
         contentDiv.innerHTML = sidebarWrapper(logsContent, adminSidebarHtml('logs'));
     } catch (e) {
         contentDiv.innerHTML = `<p class="text-red-500 text-center">Error loading logs: ${e.message}</p>`;
+    }
+};
+
+window.clearAllLogs = async function() {
+    if (!confirm('Delete all system logs? This cannot be undone.')) return;
+    if (!confirm('Are you sure? All log data will be permanently removed.')) return;
+    try {
+        const snap = await getDocs(collection(db, "system_logs"));
+        const promises = [];
+        snap.forEach(d => promises.push(deleteDoc(doc(db, "system_logs", d.id))));
+        await Promise.all(promises);
+        window.showSuccess('All system logs cleared.');
+        window.viewSystemLogs();
+    } catch (e) {
+        window.showError('Failed to clear logs: ' + e.message);
     }
 };
 
@@ -6244,6 +6998,112 @@ window.toggleSetting = async function(key, value) {
 };
 
 
+
+// ============================================
+// TEST ACCESS MANAGEMENT (Admin & Teacher)
+// ============================================
+
+window.manageStudentTestAccess = async function() {
+    window.state.appStage = 'test_access';
+    hideTestUIElements();
+    document.getElementById('header-test-info').textContent = 'Test Access Management';
+    const contentDiv = document.getElementById('question-content');
+    contentDiv.classList.remove('flex', 'items-center', 'justify-center');
+    showLoading('Loading students and tests...');
+
+    try {
+        // Fetch all students
+        const usersSnap = await getDocs(query(collection(db, "users"), where("role", "==", "student")));
+        const students = [];
+        usersSnap.forEach(d => students.push({ id: d.id, ...d.data() }));
+
+        // Fetch all tests
+        let allTests = [];
+        for (const [id, t] of Object.entries(ALL_TEST_QUESTIONS)) {
+            allTests.push({ id, name: t.name });
+        }
+        try {
+            const testsSnap = await getDocs(collection(db, "tests"));
+            testsSnap.forEach(d => {
+                const data = d.data();
+                allTests.push({ id: d.id, name: data.name || d.id });
+            });
+        } catch (e) {
+            console.warn("Could not fetch Firestore tests:", e);
+        }
+
+        window._taAllTests = allTests;
+
+        let html = `
+            <div class="max-w-6xl w-full">
+                <h1 class="text-2xl font-bold text-gray-800 mb-6">Manage Test Access</h1>
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <div class="mb-4">
+                        <label class="block font-semibold text-gray-700 mb-2">Select Student</label>
+                        <select id="ta-student-select" onchange="window.loadStudentTestAccess(this.value)" class="w-full p-2 border rounded-lg">
+                            <option value="">— Choose a student —</option>
+                            ${students.map(s => `<option value="${s.id}">${s.displayName || s.email} (${s.email})</option>`).join('')}
+                        </select>
+                    </div>
+                    <div id="ta-test-list" class="mt-4">
+                        <p class="text-gray-400 text-sm">Select a student above to manage their visible tests.</p>
+                    </div>
+                </div>
+            </div>`;
+
+        const sidebar = window.state.role === 'admin' ? adminSidebarHtml('testaccess') : teacherSidebarHtml('testaccess');
+        contentDiv.innerHTML = sidebarWrapper(html, sidebar);
+    } catch (e) {
+        contentDiv.innerHTML = '<p class="text-red-500 text-center">Error: ' + e.message + '</p>';
+        console.error(e);
+    }
+};
+
+window.loadStudentTestAccess = async function(studentId) {
+    const container = document.getElementById('ta-test-list');
+    if (!studentId) {
+        container.innerHTML = '<p class="text-gray-400 text-sm">Select a student above to manage their visible tests.</p>';
+        return;
+    }
+
+    const allTests = window._taAllTests || [];
+
+    try {
+        const userDoc = await getDoc(doc(db, "users", studentId));
+        const visibleTests = userDoc.exists() ? (userDoc.data().visibleTests || []) : [];
+
+        let listHtml = '<div class="space-y-2 max-h-96 overflow-y-auto border rounded-lg p-4 bg-gray-50">';
+        allTests.forEach(t => {
+            const checked = visibleTests.includes(t.id) ? 'checked' : '';
+            listHtml += `
+                <label class="flex items-center gap-2 text-sm py-1">
+                    <input type="checkbox" class="ta-test-cb" value="${t.id}" ${checked}>
+                    <span>${t.name}</span>
+                </label>`;
+        });
+        listHtml += '</div>';
+        listHtml += `
+            <div class="mt-4">
+                <button onclick="window.saveStudentTestAccess('${studentId}')" class="px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-semibold">Save Access</button>
+            </div>`;
+        container.innerHTML = listHtml;
+    } catch (e) {
+        container.innerHTML = '<p class="text-red-500">Error loading student data: ' + e.message + '</p>';
+    }
+};
+
+window.saveStudentTestAccess = async function(studentId) {
+    const cbs = document.querySelectorAll('.ta-test-cb');
+    const visibleTests = [];
+    cbs.forEach(cb => { if (cb.checked) visibleTests.push(cb.value); });
+
+    try {
+        await updateDoc(doc(db, "users", studentId), { visibleTests });
+        alert('Test access updated successfully!');
+    } catch (e) {
+        alert('Error saving test access: ' + e.message);
+    }
+};
 
 // ============================================
 // TEACHER TEST CREATION FEATURES
@@ -6375,6 +7235,14 @@ window.showTeacherTestCreationPanel = async function() {
                             <textarea id="question-explanation" placeholder="Explain the correct answer..." class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 h-20"></textarea>
                         </div>
 
+                        <div>
+                            <label class="block font-semibold text-gray-700 mb-2">SAT Category</label>
+                            <select id="question-category" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="">— Uncategorized —</option>
+                                ${SAT_CATEGORIES.map(c => `<option value="${c.id}">${c.label}</option>`).join('')}
+                            </select>
+                        </div>
+
                         <div class="flex gap-2 pt-4">
                             <button onclick="window.saveQuestion()" class="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-semibold">
                                 Save Question
@@ -6428,6 +7296,8 @@ window.addNewQuestion = function() {
     document.querySelectorAll('[id^="choice-preview-"]').forEach(el => el.innerHTML = '');
     document.getElementById('katex-preview').innerHTML = 'Preview will appear here';
     document.getElementById('image-preview-container').classList.add('hidden');
+    const catSelect = document.getElementById('question-category');
+    if (catSelect) catSelect.value = '';
     
     window.currentEditingQuestionIndex = -1;
 };
@@ -6473,12 +7343,15 @@ window.saveQuestion = async function() {
         }
     }
 
+    const category = document.getElementById('question-category')?.value || '';
+
     const question = {
         text: questionText,
         choices: choices,
         correctAnswer: correctAnswer,
         explanation: explanation,
-        image: imageUrl
+        image: imageUrl,
+        category: category
     };
 
     if (!window.currentTestQuestions) window.currentTestQuestions = { M1: [], M2E: [], M2H: [] };
@@ -6490,6 +7363,7 @@ window.saveQuestion = async function() {
         window.currentTestQuestions[module].push(question);
     }
 
+    logSystemEvent('Save Question', (window.currentEditingQuestionIndex >= 0 ? 'Updated' : 'Created') + ' question in test, module ' + module);
     window.closeQuestionEditor();
     window.updateQuestionsList();
 };
@@ -6543,6 +7417,9 @@ window.editQuestion = function(index) {
     const radios = document.querySelectorAll('input[name="correct-answer"]');
     const correctIdx = ['A', 'B', 'C', 'D'].indexOf(q.correctAnswer);
     if (radios[correctIdx]) radios[correctIdx].checked = true;
+
+    const catSelect = document.getElementById('question-category');
+    if (catSelect && q.category) catSelect.value = q.category;
     
     document.getElementById('question-editor-modal').classList.remove('hidden');
 };
@@ -6611,7 +7488,7 @@ window.backToTeacherDashboard = function() {
 window.handleBulkUpload = function() {
     const input = document.getElementById('bulk-upload-input');
     if (!input || !input.files || !input.files[0]) {
-        alert('Please select a CSV file');
+        window.showWarning('Please select a CSV file');
         return;
     }
     const file = input.files[0];
@@ -6621,7 +7498,7 @@ window.handleBulkUpload = function() {
             const text = e.target.result;
             const lines = text.split('\n').filter(l => l.trim());
             if (lines.length < 2) {
-                alert('CSV must have a header row and at least one question');
+                window.showError('CSV must have a header row and at least one question');
                 return;
             }
             const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
@@ -6641,17 +7518,17 @@ window.handleBulkUpload = function() {
                 if (q.text) questions.push(q);
             }
             if (questions.length === 0) {
-                alert('No valid questions found in CSV');
+                window.showError('No valid questions found in CSV');
                 return;
             }
             if (!window.currentTestQuestions) window.currentTestQuestions = { M1: [], M2E: [], M2H: [] };
             const module = window.currentTestModule || 'M1';
             window.currentTestQuestions[module].push(...questions);
             window.updateQuestionsList();
-            alert(`${questions.length} questions imported to ${module}!`);
+            window.showSuccess(questions.length + " questions imported to " + module + "!");
             input.value = '';
         } catch (err) {
-            alert('Error parsing CSV: ' + err.message);
+            window.showError('Error parsing CSV: ' + err.message);
         }
     };
     reader.readAsText(file);
@@ -6745,3 +7622,222 @@ window.downloadCsvTemplate = function() {
     a.click();
     setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
 };
+
+
+
+
+// ═══════════════════════════════════════════════════════════════
+//  E-BOOK LIBRARY — Admin/Teacher Management
+// ═══════════════════════════════════════════════════════════════
+window.renderEbookManager = async function() {
+    const role = window.state?.role;
+    if (role !== 'admin' && role !== 'teacher') { window.showError('Access denied.'); return; }
+    hideTestUIElements();
+    const contentDiv = document.getElementById('question-content');
+    contentDiv.classList.remove('flex', 'items-center', 'justify-center');
+    const sidebar = role === 'admin' ? adminSidebarHtml('ebooks') : teacherSidebarHtml('ebooks');
+    document.getElementById('header-test-info').textContent = 'E-Book Library';
+    showLoading('Loading E-Books...');
+    try {
+        const snap = await getDocs(collection(db, 'ebooks'));
+        const books = [];
+        snap.forEach(d => { const data = d.data(); data.id = d.id; books.push(data); });
+        const bookRows = books.length === 0
+            ? `<tr><td colspan="5" class="text-center py-8 text-gray-500 dark:text-gray-400">No e-books uploaded yet.</td></tr>`
+            : books.map(b => `
+                <tr class="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                    <td class="px-4 py-3 font-medium text-gray-800 dark:text-gray-100">${b.title || 'Untitled'}</td>
+                    <td class="px-4 py-3 text-gray-500 dark:text-gray-400">${b.author || '—'}</td>
+                    <td class="px-4 py-3 text-xs text-gray-400">${(b.access || []).join(', ') || 'all'}</td>
+                    <td class="px-4 py-3">
+                        <a href="${b.fileUrl}" target="_blank" class="text-blue-600 hover:underline text-sm">View/Download</a>
+                    </td>
+                    <td class="px-4 py-3">
+                        <button onclick="window.deleteEbook('${b.id}')" class="text-xs text-red-500 hover:text-red-700 font-semibold">Delete</button>
+                    </td>
+                </tr>`).join('');
+
+        const html = `
+        <div class="max-w-5xl">
+            <div class="mb-6">
+                <h1 class="text-3xl font-extrabold text-gray-800 dark:text-gray-100">📚 E-Book Library</h1>
+                <p class="text-gray-500 mt-1 dark:text-gray-400">Upload and manage educational books</p>
+            </div>
+            <!-- Upload Form -->
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-md p-6 mb-8 border border-gray-100 dark:border-gray-700">
+                <h2 class="text-xl font-bold text-gray-700 dark:text-gray-200 mb-4">Upload New E-Book</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title *</label>
+                        <input id="ebook-title" type="text" placeholder="Book title" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Author</label>
+                        <input id="ebook-author" type="text" placeholder="Author name" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                        <input id="ebook-desc" type="text" placeholder="Short description" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Access (who can see)</label>
+                        <select id="ebook-access" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="student,teacher,admin">Everyone</option>
+                            <option value="student">Students Only</option>
+                            <option value="teacher,admin">Teachers &amp; Admins Only</option>
+                            <option value="admin">Admins Only</option>
+                        </select>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">PDF File *</label>
+                        <input id="ebook-file" type="file" accept=".pdf" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+                    </div>
+                </div>
+                <div class="mt-4 flex items-center gap-3">
+                    <button onclick="window.uploadEbook()" class="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold text-sm shadow hover:opacity-90 transition">Upload E-Book</button>
+                    <span id="ebook-upload-status" class="text-sm text-gray-500"></span>
+                </div>
+            </div>
+            <!-- Book List -->
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-md border border-gray-100 dark:border-gray-700 overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
+                    <h2 class="text-lg font-bold text-gray-700 dark:text-gray-200">Uploaded Books (${books.length})</h2>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full">
+                        <thead class="bg-gray-50 dark:bg-gray-900">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Title</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Author</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Access</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">File</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>${bookRows}</tbody>
+                    </table>
+                </div>
+            </div>
+        </div>`;
+        contentDiv.innerHTML = sidebarWrapper(html, sidebar);
+    } catch(e) {
+        contentDiv.innerHTML = sidebarWrapper(`<p class="text-red-500">Error loading e-books: ${e.message}</p>`, sidebar);
+    }
+};
+
+window.uploadEbook = async function() {
+    const title  = document.getElementById('ebook-title')?.value?.trim();
+    const author = document.getElementById('ebook-author')?.value?.trim();
+    const desc   = document.getElementById('ebook-desc')?.value?.trim();
+    const access = document.getElementById('ebook-access')?.value?.split(',') || ['student','teacher','admin'];
+    const fileInput = document.getElementById('ebook-file');
+    const statusEl  = document.getElementById('ebook-upload-status');
+    if (!title) { window.showWarning('Please enter a title.'); return; }
+    if (!fileInput?.files?.length) { window.showWarning('Please select a PDF file.'); return; }
+    const file = fileInput.files[0];
+    if (file.type !== 'application/pdf') { window.showWarning('Only PDF files are allowed.'); return; }
+    try {
+        if (statusEl) statusEl.textContent = 'Uploading…';
+        const storageRef = ref(storage, `ebooks/${Date.now()}_${file.name}`);
+        const snap = await uploadBytes(storageRef, file);
+        const fileUrl = await getDownloadURL(snap.ref);
+        await addDoc(collection(db, 'ebooks'), {
+            title, author, description: desc, access, fileUrl,
+            uploadedBy: userId, uploadedAt: Date.now()
+        });
+        if (statusEl) statusEl.textContent = '';
+        window.showSuccess('E-Book uploaded successfully!');
+        window.renderEbookManager();
+    } catch(e) {
+        if (statusEl) statusEl.textContent = '';
+        window.showError('Upload failed: ' + e.message);
+    }
+};
+
+window.deleteEbook = async function(ebookId) {
+    if (!confirm('Delete this e-book? This cannot be undone.')) return;
+    try {
+        await deleteDoc(doc(db, 'ebooks', ebookId));
+        window.showSuccess('E-Book deleted.');
+        window.renderEbookManager();
+    } catch(e) {
+        window.showError('Delete failed: ' + e.message);
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+//  E-BOOK LIBRARY — Student View
+// ═══════════════════════════════════════════════════════════════
+window.renderStudentEbooks = async function() {
+    const role = window.state?.role || 'student';
+    hideTestUIElements();
+    const contentDiv = document.getElementById('question-content');
+    contentDiv.classList.remove('flex', 'items-center', 'justify-center');
+    const sidebar = studentSidebarHtml('ebooks');
+    document.getElementById('header-test-info').textContent = 'E-Book Library';
+    showLoading('Loading E-Books…');
+    try {
+        const snap = await getDocs(collection(db, 'ebooks'));
+        const books = [];
+        snap.forEach(d => {
+            const data = d.data(); data.id = d.id;
+            if (!data.access || data.access.includes(role)) books.push(data);
+        });
+        const bookCards = books.length === 0
+            ? `<div class="col-span-full text-center py-16 text-gray-400 dark:text-gray-500">
+                   <div class="text-6xl mb-4">📚</div>
+                   <p class="text-lg">No e-books available yet. Check back soon!</p>
+               </div>`
+            : books.map(b => `
+                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-md border border-gray-100 dark:border-gray-700 overflow-hidden hover:shadow-lg transition-shadow group">
+                    <div class="bg-gradient-to-br from-blue-500 to-purple-600 h-36 flex items-center justify-center text-6xl">📖</div>
+                    <div class="p-5">
+                        <h3 class="text-lg font-bold text-gray-800 dark:text-gray-100 group-hover:text-blue-600 transition">${b.title || 'Untitled'}</h3>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">${b.author || ''}</p>
+                        <p class="text-xs text-gray-400 dark:text-gray-500 mt-2 leading-relaxed">${b.description || ''}</p>
+                        <div class="mt-4 flex gap-2">
+                            <button onclick="window.previewEbook('${b.fileUrl}')" class="flex-1 px-3 py-2 bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-lg text-xs font-semibold hover:bg-blue-100 transition">👁 Preview</button>
+                            <a href="${b.fileUrl}" download target="_blank" class="flex-1 px-3 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg text-xs font-semibold text-center hover:opacity-90 transition">⬇ Download</a>
+                        </div>
+                    </div>
+                </div>`).join('');
+
+        const html = `
+        <div class="max-w-6xl">
+            <div class="mb-6">
+                <h1 class="text-3xl font-extrabold text-gray-800 dark:text-gray-100">📚 E-Book Library</h1>
+                <p class="text-gray-500 mt-1 dark:text-gray-400">Browse and download your study materials</p>
+            </div>
+            <div id="ebook-preview-container" class="hidden mb-8 bg-white dark:bg-gray-800 rounded-2xl shadow-md border border-gray-100 dark:border-gray-700 overflow-hidden">
+                <div class="flex items-center justify-between px-6 py-3 border-b border-gray-100 dark:border-gray-700">
+                    <span class="font-semibold text-gray-700 dark:text-gray-200">📄 Preview</span>
+                    <button onclick="window.closeEbookPreview()" class="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
+                </div>
+                <iframe id="ebook-preview-frame" src="" class="w-full" style="height:70vh; border:0;"></iframe>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">${bookCards}</div>
+        </div>`;
+        contentDiv.innerHTML = sidebarWrapper(html, sidebar);
+    } catch(e) {
+        contentDiv.innerHTML = sidebarWrapper(`<p class="text-red-500">Error: ${e.message}</p>`, sidebar);
+    }
+};
+
+window.previewEbook = function(url) {
+    const container = document.getElementById('ebook-preview-container');
+    const frame     = document.getElementById('ebook-preview-frame');
+    if (container && frame) {
+        frame.src = url;
+        container.classList.remove('hidden');
+        container.scrollIntoView({ behavior: 'smooth' });
+    }
+};
+
+window.closeEbookPreview = function() {
+    const container = document.getElementById('ebook-preview-container');
+    const frame     = document.getElementById('ebook-preview-frame');
+    if (container) container.classList.add('hidden');
+    if (frame) frame.src = '';
+};
+
+// ── LANDING PAGE (removed per user request) ──
