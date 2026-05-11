@@ -6,7 +6,8 @@
             signOut,
             sendPasswordResetEmail,
             GoogleAuthProvider,
-            signInWithPopup
+            signInWithRedirect,
+            getRedirectResult
         } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
         import { 
             collection, 
@@ -2652,17 +2653,40 @@
              const authStatus = document.getElementById('auth-status');
              const hiddenUserIdDisplay = document.getElementById('full-user-id-hidden');
              
-             onAuthStateChanged(auth, async (user) => {
-                 if (user) {
-                     userId = user.uid;
-                     const name = user.email.split('@')[0];
-                     
-                     window.state.studentName = name;
-                     
-                     authStatus.textContent = user.email;
-                     hiddenUserIdDisplay.textContent = userId;
-                     
-                       try {
+              onAuthStateChanged(auth, async (user) => {
+                  if (user) {
+                      userId = user.uid;
+                      const name = user.email.split('@')[0];
+                      
+                      window.state.studentName = name;
+                      
+                      authStatus.textContent = user.email;
+                      hiddenUserIdDisplay.textContent = userId;
+
+                      // Handle redirect sign-in (Google) — create Firestore doc for new users
+                      try {
+                          const redirectResult = await getRedirectResult(auth);
+                          if (redirectResult?.user) {
+                              const newUser = redirectResult.user;
+                              const newUserDoc = await getDoc(doc(db, "users", newUser.uid));
+                              if (!newUserDoc.exists()) {
+                                  const userData = {
+                                      email: newUser.email,
+                                      displayName: newUser.displayName || newUser.email.split('@')[0],
+                                      role: 'student',
+                                      status: 'pending',
+                                      createdAt: new Date().toISOString(),
+                                      studentPhone: '',
+                                      parentPhone: ''
+                                  };
+                                  await setDoc(doc(db, "users", newUser.uid), userData);
+                              }
+                          }
+                      } catch (e) {
+                          // getRedirectResult throws if there's no pending result — ignore
+                      }
+
+                        try {
                           const userDoc = await getDoc(doc(db, "users", userId));
                           if (userDoc.exists()) {
                               const userData = userDoc.data();
@@ -3207,45 +3231,9 @@
             }
         };
 
-        window.handleGoogleSignIn = async function() {
-            const errorEl = document.getElementById('login-error-message');
-            if (errorEl) errorEl.classList.add('hidden');
-            try {
-                const provider = new GoogleAuthProvider();
-                const result = await signInWithPopup(auth, provider);
-                const user = result.user;
-                const userDoc = await getDoc(doc(db, "users", user.uid));
-                if (!userDoc.exists()) {
-                    const userData = {
-                        email: user.email,
-                        displayName: user.displayName || user.email.split('@')[0],
-                        role: 'student',
-                        status: 'pending',
-                        createdAt: new Date().toISOString(),
-                        studentPhone: '',
-                        parentPhone: ''
-                    };
-                    windowAuthRoutingLock = true;
-                    await setDoc(doc(db, "users", user.uid), userData);
-                    // Manually route to pending screen after doc creation
-                    windowAuthRoutingLock = false;
-                    window.state.studentName = userData.displayName;
-                    window.state.role = 'student';
-                    document.getElementById('student-name-display-sidebar').textContent = userData.displayName;
-                    document.getElementById('student-name-header-display').textContent = userData.displayName;
-                    hideTestUIElements();
-                    toggleGlobalNav(true);
-                    renderPendingApprovalScreen(user.email);
-                    setupApprovalListener(user.uid);
-                }
-            } catch (e) {
-                if (e.code === 'auth/popup-closed-by-user') return;
-                if (e.code === 'auth/operation-not-allowed') {
-                    if (errorEl) { errorEl.textContent = 'Google sign-in is not enabled. Ask the admin to enable it in Firebase Console → Authentication → Sign-in providers.'; errorEl.classList.remove('hidden'); }
-                    return;
-                }
-                if (errorEl) { errorEl.textContent = e.message; errorEl.classList.remove('hidden'); }
-            }
+        window.handleGoogleSignIn = function() {
+            const provider = new GoogleAuthProvider();
+            signInWithRedirect(auth, provider);
         };
 
         window.showProgressChart = async function() {
