@@ -3232,8 +3232,13 @@
         };
 
         window.handleGoogleSignIn = function() {
+            console.log('[GoogleAuth] Origin:', window.location.origin);
             const provider = new GoogleAuthProvider();
-            signInWithRedirect(auth, provider);
+            signInWithRedirect(auth, provider).catch(function(e) {
+                console.error('[GoogleAuth] Error:', e.code, e.message);
+                var errorEl = document.getElementById('login-error-message');
+                if (errorEl) { errorEl.textContent = e.message + ' (code: ' + e.code + ')'; errorEl.classList.remove('hidden'); }
+            });
         };
 
         window.showProgressChart = async function() {
