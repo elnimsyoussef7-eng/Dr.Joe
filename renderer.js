@@ -6,6 +6,7 @@
             signOut,
             sendPasswordResetEmail,
             GoogleAuthProvider,
+            signInWithPopup,
             signInWithRedirect,
             getRedirectResult
         } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
@@ -3266,8 +3267,12 @@
         window.handleGoogleSignIn = function() {
             console.log('[GoogleAuth] Origin:', window.location.origin);
             const provider = new GoogleAuthProvider();
-            signInWithRedirect(auth, provider).catch(function(e) {
+            signInWithPopup(auth, provider).catch(function(e) {
                 console.error('[GoogleAuth] Error:', e.code, e.message);
+                if (e.code === 'auth/popup-blocked' || e.code === 'auth/popup-closed-by-user') {
+                    // Fall back to redirect if popup is blocked
+                    return signInWithRedirect(auth, provider);
+                }
                 var errorEl = document.getElementById('login-error-message');
                 if (errorEl) { errorEl.textContent = e.message + ' (code: ' + e.code + ')'; errorEl.classList.remove('hidden'); }
             });
