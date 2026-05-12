@@ -2652,7 +2652,31 @@
         window.initFirebase = function() {
              const authStatus = document.getElementById('auth-status');
              const hiddenUserIdDisplay = document.getElementById('full-user-id-hidden');
-             
+
+             // Handle redirect sign-in BEFORE onAuthStateChanged.
+             // Firebase SDK consumes the redirect result during initialization,
+             // so getRedirectResult must be called before the auth observer fires
+             // to reliably capture the credential for new Google users.
+             getRedirectResult(auth).then(async (redirectResult) => {
+                 if (redirectResult?.user) {
+                     const newUser = redirectResult.user;
+                     const newUserDoc = await getDoc(doc(db, "users", newUser.uid));
+                     if (!newUserDoc.exists()) {
+                         await setDoc(doc(db, "users", newUser.uid), {
+                             email: newUser.email,
+                             displayName: newUser.displayName || newUser.email.split('@')[0],
+                             role: 'student',
+                             status: 'pending',
+                             createdAt: new Date().toISOString(),
+                             studentPhone: '',
+                             parentPhone: ''
+                         });
+                     }
+                 }
+             }).catch(e => {
+                 // getRedirectResult throws if there's no pending result — ignore
+             });
+
               onAuthStateChanged(auth, async (user) => {
                   if (user) {
                       userId = user.uid;
@@ -2662,29 +2686,6 @@
                       
                       authStatus.textContent = user.email;
                       hiddenUserIdDisplay.textContent = userId;
-
-                      // Handle redirect sign-in (Google) — create Firestore doc for new users
-                      try {
-                          const redirectResult = await getRedirectResult(auth);
-                          if (redirectResult?.user) {
-                              const newUser = redirectResult.user;
-                              const newUserDoc = await getDoc(doc(db, "users", newUser.uid));
-                              if (!newUserDoc.exists()) {
-                                  const userData = {
-                                      email: newUser.email,
-                                      displayName: newUser.displayName || newUser.email.split('@')[0],
-                                      role: 'student',
-                                      status: 'pending',
-                                      createdAt: new Date().toISOString(),
-                                      studentPhone: '',
-                                      parentPhone: ''
-                                  };
-                                  await setDoc(doc(db, "users", newUser.uid), userData);
-                              }
-                          }
-                      } catch (e) {
-                          // getRedirectResult throws if there's no pending result — ignore
-                      }
 
                         try {
                           const userDoc = await getDoc(doc(db, "users", userId));
@@ -2776,7 +2777,7 @@
                                      <span class="font-bold text-indigo-700">${window.state.testHistory.module2.difficulty === 'M2H' ? 'HARD' : 'EASY'}</span> Module 2.</p>
                                      <p class="text-gray-600 mt-4 font-semibold text-lg">5-Minute Break in Progress (Resumed)...</p>
                                      <p id="break-timer-display" class="text-6xl font-mono text-red-600 mt-4">${Math.floor(window.state.timeLeft / 60).toString().padStart(2, '0')}:${(window.state.timeLeft % 60).toString().padStart(2, '0')}</p>
-                                     <button onclick="startModuleTwoImmediately()" class="mt-6 px-6 py-3 bg-indigo-500 text-white rounded-xl font-semibold shadow-md hover:bg-indigo-600 transition duration-150 transform hover:scale-105">
+                                     <button onclick="startModuleTwoImmediately()" class="mt-6 px-6 py-3 bg-indigo-500 text-white rounded-xl font-semibold shadow-md hover:bg-indigo-600 transition duration-150 transform hover:scale-110">
                                          Skip Break and Start Module 2
                                      </button>
                                  </div>
@@ -2806,7 +2807,7 @@
               });
          }
 
-        // ============================================
+         // ============================================
         // NETWORK MONITORING
         // ============================================
 
@@ -3345,19 +3346,24 @@
                             <p class="text-red-700 font-semibold">Weakest Area: ${topWeakTopic[0]} (${topWeakTopic[1]} mistakes)</p>
                         </div>` : ''}
                         <div class="space-y-3 max-h-[70vh] overflow-y-auto">
-                            ${wrongAnswers.map(w => `
+                            ${wrongAnswers.map(w => {
+                                const renderText = (typeof renderMathInString === 'function') ? renderMathInString(w.text) : w.text;
+                                const renderCorrect = (typeof renderMathInString === 'function') ? renderMathInString(w.correctAnswer) : w.correctAnswer;
+                                const renderExpl = (typeof renderMathInString === 'function') ? renderMathInString(w.explanation) : w.explanation;
+                                return `
                             <div class="bg-white rounded-xl shadow p-4 border-l-4 border-red-400">
                                 <div class="flex justify-between text-xs text-gray-400 mb-1">
                                     <span>${w.testName} · ${w.date}</span>
                                     <span class="bg-red-100 text-red-700 px-2 py-0.5 rounded">${w.topic}</span>
                                 </div>
-                                <p class="text-gray-800 font-medium">${w.text}</p>
+                                <p class="text-gray-800 font-medium">${renderText}</p>
                                 <div class="mt-2 flex gap-4 text-sm">
                                     <span class="text-red-600">Your answer: <strong>${w.userAnswer}</strong></span>
-                                    <span class="text-green-600">Correct: <strong>${w.correctAnswer}</strong></span>
+                                    <span class="text-green-600">Correct: <strong>${renderCorrect}</strong></span>
                                 </div>
-                                ${w.explanation ? `<p class="text-xs text-gray-500 mt-1">${w.explanation}</p>` : ''}
-                            </div>`).join('')}
+                                ${renderExpl ? `<p class="text-xs text-gray-500 mt-1">${renderExpl}</p>` : ''}
+                            </div>`;
+                            }).join('')}
                         </div>
                         <div class="mt-6 bg-white rounded-xl shadow-lg p-6">
                             <h3 class="text-xl font-bold text-gray-800 mb-4">Weak Topic Analysis</h3>
@@ -3657,6 +3663,9 @@
                     const diffColor = { Easy: 'green', Medium: 'yellow', Hard: 'red' };
                     const itemDiff = item.difficulty || 'Medium';
 
+                    const renderQ = (typeof renderMathInString === 'function') ? renderMathInString(item.text) : item.text;
+                    const renderA = (typeof renderMathInString === 'function') ? renderMathInString(item.correctAnswer) : item.correctAnswer;
+                    const renderE = (typeof renderMathInString === 'function') ? renderMathInString(item.explanation || 'No explanation available.') : (item.explanation || 'No explanation available.');
                     const cardContent = `
                         <div id="${flashcardContainerId}">
                             <div class="flex flex-wrap justify-between items-center mb-4 gap-2">
@@ -3684,15 +3693,15 @@
                                 <div class="fc-inner ${flipped ? 'flipped' : ''}">
                                     <div class="fc-front">
                                         <span class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Question</span>
-                                        <div class="text-lg text-gray-800 text-center leading-relaxed max-h-48 overflow-y-auto px-2">${item.text}</div>
+                                        <div class="text-lg text-gray-800 text-center leading-relaxed max-h-48 overflow-y-auto px-2">${renderQ}</div>
                                         <span class="mt-4 text-xs text-gray-400">Tap to reveal answer</span>
                                     </div>
                                     <div class="fc-back">
                                         <span class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Answer</span>
-                                        <p class="text-3xl font-extrabold text-green-600 mb-4">${item.correctAnswer}</p>
+                                        <p class="text-3xl font-extrabold text-green-600 mb-4">${renderA}</p>
                                         <div class="w-full max-w-md bg-white rounded-xl p-4 text-left shadow-sm border border-green-100 mb-3">
                                             <p class="text-xs font-semibold text-green-700 mb-1">Explanation:</p>
-                                            <p class="text-sm text-gray-700 leading-relaxed">${item.explanation || 'No explanation available.'}</p>
+                                            <p class="text-sm text-gray-700 leading-relaxed">${renderE}</p>
                                         </div>
                                         <div class="flex gap-3 text-xs text-gray-500">
                                             <span class="bg-red-50 text-red-600 px-2 py-0.5 rounded">Your answer: ${item.userAnswer}</span>
@@ -3712,7 +3721,6 @@
                             </div>
                         </div>`;
                     contentDiv.innerHTML = sidebarWrapper(cardContent, studentSidebarHtml('flashcards'));
-                    renderMath();
                 }
 
                 // Event delegation on the container
