@@ -2657,7 +2657,7 @@
              // Firebase SDK consumes the redirect result during initialization,
              // so getRedirectResult must be called before the auth observer fires
              // to reliably capture the credential for new Google users.
-             getRedirectResult(auth).then(async (redirectResult) => {
+             const redirectPromise = getRedirectResult(auth).then(async (redirectResult) => {
                  if (redirectResult?.user) {
                      const newUser = redirectResult.user;
                      const newUserDoc = await getDoc(doc(db, "users", newUser.uid));
@@ -2678,6 +2678,10 @@
              });
 
               onAuthStateChanged(auth, async (user) => {
+                  // Ensure redirect processing completes before reading Firestore,
+                  // otherwise a new Google user's doc may not exist yet.
+                  try { await redirectPromise; } catch (_) {}
+                  
                   if (user) {
                       userId = user.uid;
                       const name = user.email.split('@')[0];
