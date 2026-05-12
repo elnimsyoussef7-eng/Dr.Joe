@@ -3264,18 +3264,37 @@
             }
         };
 
-        window.handleGoogleSignIn = function() {
+        window.handleGoogleSignIn = async function() {
             console.log('[GoogleAuth] Origin:', window.location.origin);
             const provider = new GoogleAuthProvider();
-            signInWithPopup(auth, provider).catch(function(e) {
+            try {
+                const result = await signInWithPopup(auth, provider);
+                const user = result.user;
+                const userDoc = await getDoc(doc(db, "users", user.uid));
+                if (!userDoc.exists()) {
+                    await setDoc(doc(db, "users", user.uid), {
+                        email: user.email,
+                        displayName: user.displayName || user.email.split('@')[0],
+                        role: 'student',
+                        status: 'pending',
+                        createdAt: new Date().toISOString(),
+                        studentPhone: '',
+                        parentPhone: ''
+                    });
+                }
+                // onAuthStateChanged will handle routing to pending screen
+            } catch (e) {
                 console.error('[GoogleAuth] Error:', e.code, e.message);
                 if (e.code === 'auth/popup-blocked' || e.code === 'auth/popup-closed-by-user') {
                     // Fall back to redirect if popup is blocked
-                    return signInWithRedirect(auth, provider);
+                    signInWithRedirect(auth, provider).catch(function(e2) {
+                        console.error('[GoogleAuth] Redirect fallback error:', e2.code, e2.message);
+                    });
+                    return;
                 }
                 var errorEl = document.getElementById('login-error-message');
                 if (errorEl) { errorEl.textContent = e.message + ' (code: ' + e.code + ')'; errorEl.classList.remove('hidden'); }
-            });
+            }
         };
 
         window.showProgressChart = async function() {
