@@ -2722,10 +2722,37 @@
                          renderRejectedScreen();
                          return;
                      }
+                          } else {
+                              // Fallback: getRedirectResult may return null if the Firebase SDK
+                              // consumed the redirect internally during init. Create the doc here
+                              // so the user gets a pending profile and the admin sees a request.
+                              await setDoc(doc(db, "users", userId), {
+                                  email: user.email,
+                                  displayName: user.displayName || user.email.split('@')[0],
+                                  role: 'student',
+                                  status: 'pending',
+                                  createdAt: new Date().toISOString(),
+                                  studentPhone: '',
+                                  parentPhone: ''
+                              });
+                              // Re-read immediately and show pending screen
+                              const freshDoc = await getDoc(doc(db, "users", userId));
+                              if (freshDoc.exists()) {
+                                  const freshData = freshDoc.data();
+                                  window.state.role = freshData.role;
+                                  window.state.studentName = freshData.displayName || name;
+                                  authStatus.textContent = user.email + ' (Pending)';
+                                  document.getElementById('student-name-display-sidebar').textContent = window.state.studentName;
+                                  document.getElementById('student-name-header-display').textContent = window.state.studentName;
+                                  hideTestUIElements();
+                                  toggleGlobalNav(true);
+                                  renderPendingApprovalScreen(user.email);
+                                  setupApprovalListener(userId);
+                                  return;
+                              }
                           }
 
-                          // Set up onSnapshot listener only for existing docs (avoids race
-                          // where a new Google user's doc hasn't been created yet)
+                          // Set up onSnapshot listener only for existing docs
                           if (userDoc.exists()) {
                               onSnapshot(doc(db, "users", userId), (snap) => {
                                   if (!snap.exists()) {
