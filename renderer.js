@@ -2356,7 +2356,7 @@
             text: "If $3x = 30$, what is the value of $4x + 5$?",
             type: 'MC',
             options: ["$45$", "$35$", "$27$", "$17$"],
-            correctAnswer: "$45$",
+            correctAnswer: "A",
             difficulty: 'Easy',
             imageUrl: null,
             explanation: "First, solve for $x$ by dividing by 3: $x = 10$. Then, substitute 10 into the expression: $4(10) + 5 = 40 + 5 = 45$."
@@ -2367,7 +2367,7 @@
             text: "In $\\triangle ABC$, the sum of the measures of $\\angle A$ and $\\angle B$ is $143.5^{\\circ}$. What is the measure of $\\angle C$?",
             type: 'MC',
             options: ["$36.5^{\\circ}$", "$90^{\\circ}$", "$126.5^{\\circ}$", "$180^{\\circ}$"],
-            correctAnswer: "$36.5^{\\circ}$",
+            correctAnswer: "A",
             difficulty: 'Easy',
             imageUrl: null,
             explanation: "The sum of angles in a triangle is $180^{\\circ}$. To find $\\angle C$, subtract the sum of the other two angles from 180: $180 - 143.5 = 36.5^{\\circ}$."
@@ -2378,7 +2378,7 @@
             text: "A wildlife biologist recorded a white-tailed deer running at a speed of $12.54$ yards per second. What is this deer's speed, in feet per second? ($1$ yard = $3$ feet)",
             type: 'SPR',
             options: [],
-            correctAnswer: "$37.62$",
+            correctAnswer: "37.62",
             difficulty: 'Easy',
             imageUrl: null,
             explanation: "To convert from yards to feet, multiply by the conversion factor of 3: $12.54 \\times 3 = 37.62$."
@@ -2389,7 +2389,7 @@
             text: "The number $b$ is $26$ more than half of the number $a$. Which equation represents the relationship between $a$ and $b$?",
             type: 'MC',
             options: ["$b = 52a$", "$b = 26a + 2$", "$b = a/2 + 26$", "$b = 2a + 26$"],
-            correctAnswer: "$b = a/2 + 26$",
+            correctAnswer: "C",
             difficulty: 'Easy',
             imageUrl: null,
             explanation: "Translate the sentence into math: 'half of $a$' is $a/2$, and '26 more than' means adding 26. Thus, $b = a/2 + 26$."
@@ -2400,7 +2400,7 @@
             text: "$4x + 11y = 110$. If there are $6$ plates, how many mugs are in the collection?",
             type: 'SPR',
             options: [],
-            correctAnswer: "$11$",
+            correctAnswer: "11",
             difficulty: 'Easy',
             imageUrl: null,
             explanation: "Substitute $y = 6$ into the equation: $4x + 11(6) = 110 \\implies 4x + 66 = 110$. Subtract 66: $4x = 44$. Divide by 4: $x = 11$."
@@ -2411,7 +2411,7 @@
             text: "The function $f$ is defined by $f(x) = \\frac{1}{7}x + 7$. What is the slope of the graph of $y = f(x)$ in the $xy$-plane?",
             type: 'MC',
             options: ["$-7$", "$-1/7$", "$1/7$", "$7$"],
-            correctAnswer: "$1/7$",
+            correctAnswer: "C",
             difficulty: 'Easy',
             imageUrl: null,
             explanation: "In the slope-intercept form $y = mx + b$, $m$ represents the slope. For $f(x) = \\frac{1}{7}x + 7$, the slope is $1/7$."
@@ -2422,7 +2422,7 @@
             text: "What is the $x$-coordinate of the $x$-intercept of the rational function graph that passes through $(3, 0)$ and $(0, -8)$?",
             type: 'SPR',
             options: [],
-            correctAnswer: "$3$",
+            correctAnswer: "3",
             difficulty: 'Medium',
             imageUrl: null,
             explanation: "The $x$-intercept is the point where $y = 0$. The problem states the graph passes through $(3, 0)$, which is the $x$-intercept. The $x$-coordinate is 3."
@@ -2433,7 +2433,7 @@
             text: "A system of equations is given: $y = 0$ and $y = 10x^2 - 250$. Which ordered pair $(x, y)$ is a solution?",
             type: 'MC',
             options: ["$(0, 5)$", "$(0, 25)$", "$(5, 0)$", "$(25, 0)$"],
-            correctAnswer: "$(5, 0)$",
+            correctAnswer: "C",
             difficulty: 'Medium',
             imageUrl: null,
             explanation: "Substitute $y = 0$ into the second equation: $0 = 10x^2 - 250 \\implies 10x^2 = 250 \\implies x^2 = 25$. Thus $x = 5$ or $x = -5$. The solution provided is $(5, 0)$."
@@ -2444,7 +2444,7 @@
             text: "At how many points do the graphs of $y = x - 29$ and $y = -7$ intersect in the $xy$-plane?",
             type: 'SPR',
             options: [],
-            correctAnswer: "$1$",
+            correctAnswer: "1",
             difficulty: 'Medium',
             imageUrl: null,
             explanation: "Set the equations equal to find the intersection: $-7 = x - 29 \\implies x = 22$. There is exactly one value of $x$ that satisfies both, so there is 1 intersection point."
@@ -2455,7 +2455,7 @@
             text: "The function $f(w) = 8w^2$ gives the area of a rectangle. Best interpretation of $f(12) = 1,152$?",
             type: 'MC',
             options: ["If width is $12$, area is $1,152$", "If width is $12$, length is $1,152$", "If area is $1,152$, width is $12$", "If width is $1,152$, length is $12$"],
-            correctAnswer: "If width is $12$, area is $1,152$",
+            correctAnswer: "A",
             difficulty: 'Medium',
             imageUrl: null,
             explanation: "In functional notation $f(input) = output$, the input is the width ($w=12$) and the output is the area ($1,152$)."
@@ -2466,7 +2466,7 @@
             text: "$x^2 - 42x = 0$. Which of the following is a solution?",
             type: 'MC',
             options: ["$84$", "$42$", "$21$", "$\\sqrt{42}$"],
-            correctAnswer: "$42$",
+            correctAnswer: "B",
             difficulty: 'Easy',
             imageUrl: null,
             explanation: "Factor the equation: $x(x - 42) = 0$. The solutions are $x = 0$ and $x = 42$."
@@ -2477,7 +2477,7 @@
             text: "A polynomial graph passes through $(-5, 0)$, $(1, 0)$, and $(4, 0)$. Which must be a factor?",
             type: 'MC',
             options: ["$x + 1$", "$x + 4$", "$x - 1$", "$x - 5$"],
-            correctAnswer: "$x - 1$",
+            correctAnswer: "C",
             difficulty: 'Medium',
             imageUrl: null,
             explanation: "If a polynomial has a root at $x = k$, then $(x - k)$ is a factor. Since $(1, 0)$ is a root, $(x - 1)$ is a factor."
@@ -2488,7 +2488,7 @@
             text: "Solve the system: $y = 6x + 63$ and $4x = y - 43$. What is the value of $xy$?",
             type: 'SPR',
             options: [],
-            correctAnswer: "$-30$",
+            correctAnswer: "-30",
             difficulty: 'Medium',
             imageUrl: null,
             explanation: "Substitute $y$ in the second equation: $4x = (6x + 63) - 43 \\implies 4x = 6x + 20 \\implies -2x = 20 \\implies x = -10$. Solve for $y$: $y = 6(-10) + 63 = 3$. Then $xy = -10 \\times 3 = -30$."
@@ -2499,7 +2499,7 @@
             text: "A circle has center $O$. Measure of arc $AB$ is $45^{\\circ}$ and length is $3$ inches. What is the circumference?",
             type: 'MC',
             options: ["$3$", "$6$", "$9$", "$24$"],
-            correctAnswer: "$24$",
+            correctAnswer: "D",
             difficulty: 'Medium',
             imageUrl: null,
             explanation: "The ratio of arc length to circumference equals the ratio of arc angle to $360^{\\circ}$: $3/C = 45/360$. Since $45/360 = 1/8$, the circumference $C = 3 \\times 8 = 24$."
@@ -2510,7 +2510,7 @@
             text: "If $k^2 + 5k - 17 = 0$, what is a possible value of $k + \\frac{5}{2}$?",
             type: 'MC',
             options: ["$-17$", "$-\\sqrt{93}/2$", "$-\\sqrt{17}$", "$-2$"],
-            correctAnswer: "$-\\sqrt{93}/2$",
+            correctAnswer: "B",
             difficulty: 'Hard',
             imageUrl: null,
             explanation: "Complete the square: $k^2 + 5k + (5/2)^2 = 17 + (5/2)^2 \\implies (k + 5/2)^2 = 23.25$ (or $93/4$). Taking the square root gives $k + 5/2 = \\pm \\sqrt{93}/2$."
@@ -2521,7 +2521,7 @@
             text: "Which expression is equivalent to $(w^4 + 13)^2$?",
             type: 'MC',
             options: ["$w^8 + 169$", "$w^8 + 26w^4 + 169$", "$w^8 + 26w^4 + 676$", "$w^8 + 52w^4 + 676$"],
-            correctAnswer: "$w^8 + 26w^4 + 169$",
+            correctAnswer: "B",
             difficulty: 'Medium',
             imageUrl: null,
             explanation: "Use $(a+b)^2 = a^2 + 2ab + b^2$. Result: $(w^4)^2 + 2(13)w^4 + 13^2 = w^8 + 26w^4 + 169$."
@@ -2532,7 +2532,7 @@
             text: "Line $k$ passes through $(0, -6)$ and $(1, -1)$. Line $j$ is perpendicular to $k$. What is the slope of $j$?",
             type: 'MC',
             options: ["$-5$", "$-1/5$", "$1/5$", "$5$"],
-            correctAnswer: "$-1/5$",
+            correctAnswer: "B",
             difficulty: 'Medium',
             imageUrl: null,
             explanation: "Slope of $k = (-1 - (-6)) / (1 - 0) = 5$. Perpendicular slopes are negative reciprocals, so slope of $j = -1/5$."
@@ -2543,7 +2543,7 @@
             text: "Which point $(x, y)$ is a solution to $y \\leq x + 8$ and $y \\geq -7x - 8$?",
             type: 'MC',
             options: ["$(0, -9)$", "$(0, 9)$", "$(-3, 0)$", "$(3, 0)$"],
-            correctAnswer: "$(3, 0)$",
+            correctAnswer: "D",
             difficulty: 'Medium',
             imageUrl: null,
             explanation: "Test $(3, 0)$: $0 \\leq 3 + 8$ (True) and $0 \\geq -7(3) - 8$ (True). Other points will fail at least one inequality."
@@ -2554,7 +2554,7 @@
             text: "Min whole acres of corn needed for a total of 26,900 bushels?",
             type: 'SPR',
             options: [],
-            correctAnswer: "$149$",
+            correctAnswer: "149",
             difficulty: 'Hard',
             imageUrl: null,
             explanation: "Using maximum wheat yield to minimize corn: $26900 - (80 \\times 44) = 23380$. $23380 / (4 \\times 44) \\approx 132.8$; standard DSAT hard logic often results in 149 depending on yield floor."
@@ -2565,7 +2565,7 @@
             text: "Graph of $y = 9^x + 3$ has $y$-intercept $(0, p)$. Which form displays $p$ as a constant?",
             type: 'MC',
             options: ["$y = 9^x + 3$", "$y = 9(9^{x-1} + 1/3)$", "$y = 81(9^{x-2}) + 3$", "$y = 1(9^x) + 3$"],
-            correctAnswer: "$y = 9^x + 3$",
+            correctAnswer: "A",
             difficulty: 'Hard',
             imageUrl: null,
             explanation: "The $y$-intercept is 4. In $y = 9^x + 3$, the constant 3 combined with $9^0=1$ reveals the intercept directly."
@@ -2576,7 +2576,7 @@
             text: "$f(x) = -x^2 + bx + c$ passes through $(0, 5)$ and $(4, 0)$. What is the value of $b$?",
             type: 'SPR',
             options: [],
-            correctAnswer: "$2.75$",
+            correctAnswer: "2.75",
             difficulty: 'Hard',
             imageUrl: null,
             explanation: "From $(0, 5)$, $c = 5$. Using $(4, 0)$: $0 = -16 + 4b + 5 \\implies 11 = 4b \\implies b = 2.75$."
@@ -2587,7 +2587,7 @@
             text: "A calligrapher labels 8 envelopes in 1 hour. How many can they label in 15 hours?",
             type: 'MC',
             options: ["$8$", "$22$", "$23$", "$120$"],
-            correctAnswer: "$120$",
+            correctAnswer: "D",
             difficulty: 'Easy',
             imageUrl: null,
             explanation: "Multiply the rate by the time: $8 \\times 15 = 120$."
@@ -2600,7 +2600,7 @@
         text: "What is 27% of 100?",
         type: 'MC',
         options: ["$27$", "$54$", "$73$", "$127$"],
-        correctAnswer: "$27$",
+        correctAnswer: "A",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "$0.27 \\times 100 = 27$."
@@ -2611,7 +2611,7 @@
         text: "Which expression is equivalent to $10x + 2x + 10y + 7y + 6$?",
         type: 'MC',
         options: ["$35xy$", "$29xy + 6$", "$20x + 9y + 6$", "$12x + 17y + 6$"],
-        correctAnswer: "$12x + 17y + 6$",
+        correctAnswer: "D",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "Combine like terms: $(10x + 2x) + (10y + 7y) + 6 = 12x + 17y + 6$."
@@ -2622,7 +2622,7 @@
         text: "A certain swordfish swims at $23$ m/s. How many meters would it swim in $2$ seconds?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$46$",
+        correctAnswer: "46",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "Distance = Rate $\\times$ Time. $23 \\text{ m/s} \\times 2 \\text{ s} = 46$ meters."
@@ -2633,7 +2633,7 @@
         text: "There are 28 residents in a building. 100% attended a meeting. How many attended?",
         type: 'MC',
         options: ["$0$", "$28$", "$280$", "$2,800$"],
-        correctAnswer: "$28$",
+        correctAnswer: "B",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "100% of any number is the number itself. $1.00 \\times 28 = 28$."
@@ -2644,7 +2644,7 @@
         text: "$5x + 1 = 36$. Which equation has the same solution?",
         type: 'MC',
         options: ["$5x = -35$", "$5x = 1$", "$5x = 6$", "$5x = 35$"],
-        correctAnswer: "$5x = 35$",
+        correctAnswer: "D",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "Subtract 1 from both sides of the original equation: $5x = 35$. This matches option D."
@@ -2655,7 +2655,7 @@
         text: "A line has a slope of $-1/7$ and passes through $(0, 8)$. Which equation represents this line?",
         type: 'MC',
         options: ["$y = 8x - 1/7$", "$y = -1/7x + 8$", "$y = 7x + 8$", "$y = -7x + 8$"],
-        correctAnswer: "$y = -1/7x + 8$",
+        correctAnswer: "B",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "Using $y = mx + b$, substitute $m = -1/7$ and the $y$-intercept $b = 8$. This gives $y = -1/7x + 8$."
@@ -2666,7 +2666,7 @@
         text: "A cube has an edge length of 12 inches. What is its volume in cubic inches?",
         type: 'MC',
         options: ["$48$", "$144$", "$864$", "$1,728$"],
-        correctAnswer: "$1,728$",
+        correctAnswer: "D",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "Volume of a cube $= s^3$. $12^3 = 12 \\times 12 \\times 12 = 1,728$."
@@ -2677,7 +2677,7 @@
         text: "If $9x = 7$, what is the value of $27x$?",
         type: 'MC',
         options: ["$4$", "$10$", "$21$", "$66$"],
-        correctAnswer: "$21$",
+        correctAnswer: "C",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "Since $27x$ is $3$ times $9x$, multiply the result by 3: $7 \\times 3 = 21$."
@@ -2688,7 +2688,7 @@
         text: "Which of the following is a factor of $46x^2 + 46x + 46$?",
         type: 'MC',
         options: ["$46$", "$x + 1$", "$x^2 + 1$", "$x^2 + 46$"],
-        correctAnswer: "$46$",
+        correctAnswer: "A",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "Factor out the greatest common factor: $46(x^2 + x + 1)$. Therefore, 46 is a factor."
@@ -2699,7 +2699,7 @@
         text: "The function $f$ is defined by $f(x) = x - 4$. What is the value of $f(36)$?",
         type: 'MC',
         options: ["$32$", "$6$", "$8$", "$13$"],
-        correctAnswer: "$32$",
+        correctAnswer: "A",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "Substitute 36 for $x$: $36 - 4 = 32$."
@@ -2710,7 +2710,7 @@
         text: "The function $f$ is defined by $f(x) = 14x + 8$. What is the slope of the graph of $y = f(x)$?",
         type: 'MC',
         options: ["$-14$", "$-8$", "$8$", "$14$"],
-        correctAnswer: "$14$",
+        correctAnswer: "D",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "In $f(x) = mx + b$, the slope is $m$. Here $m = 14$."
@@ -2721,7 +2721,7 @@
         text: "If $x = 52$ and $cx = 52$, what is the value of $c$?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$1$",
+        correctAnswer: "1",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "Substitute $x = 52$ into the equation: $c(52) = 52$. Divide by 52: $c = 1$."
@@ -2732,7 +2732,7 @@
         text: "The expression $10x^4 + 7x^4 - 11x^4$ is equivalent to $bx^4$. What is $b$?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$6$",
+        correctAnswer: "6",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "Combine the coefficients: $10 + 7 - 11 = 6$. So the expression is $6x^4$ and $b=6$."
@@ -2743,7 +2743,7 @@
         text: "$x^2 - 54x = 0$. Which of the following is a solution?",
         type: 'MC',
         options: ["$108$", "$54$", "$27$", "$\\sqrt{54}$"],
-        correctAnswer: "$54$",
+        correctAnswer: "B",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "Factor the equation: $x(x - 54) = 0$. The solutions are $x = 0$ and $x = 54$."
@@ -2754,7 +2754,7 @@
         text: "Side of square M is 5x side of square N. Area of N is 49. What is area of M?",
         type: 'MC',
         options: ["$175$", "$245$", "$350$", "$1,225$"],
-        correctAnswer: "$1,225$",
+        correctAnswer: "D",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "If side of $N$ is $s$, then $s^2 = 49$, so $s = 7$. The side of $M$ is $5 \\times 7 = 35$. Area of $M = 35^2 = 1,225$."
@@ -2765,7 +2765,7 @@
         text: "Profit $f(x)$ is $180 for 6 items and $420 for 10 items. Which equation defines $f$?",
         type: 'MC',
         options: ["$f(x) = 160x - 420$", "$f(x) = 42x$", "$f(x) = 60x - 180$", "$f(x) = 60x - 180$"],
-        correctAnswer: "$f(x) = 60x - 180$",
+        correctAnswer: "C",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "Find the slope: $(420 - 180) / (10 - 6) = 240 / 4 = 60$. Using $y = mx + b$: $180 = 60(6) + b \\implies 180 = 360 + b \\implies b = -180$. Equation: $f(x) = 60x - 180$."
@@ -2776,7 +2776,7 @@
         text: "$p(x) = 7(2^x) + 3$. What is the $y$-intercept?",
         type: 'MC',
         options: ["$(0, 10)$", "$(0, 17)$", "$(0, 5)$", "$(0, 3)$"],
-        correctAnswer: "$(0, 10)$",
+        correctAnswer: "A",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "Set $x = 0$: $p(0) = 7(2^0) + 3 = 7(1) + 3 = 10$. The intercept is $(0, 10)$."
@@ -2787,7 +2787,7 @@
         text: "The equation $d = 6t + 240$ gives distance of a Mars rover. By how many feet does distance increase over 20 minutes?",
         type: 'MC',
         options: ["$360$", "$260$", "$120$", "$6$"],
-        correctAnswer: "$120$",
+        correctAnswer: "C",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "The increase is determined by the slope (6 feet per minute) times the change in time: $6 \\times 20 = 120$ feet."
@@ -2798,7 +2798,7 @@
         text: "A toy increased by 182% in 2018 then decreased by 16% in 2019. Net percentage increase from 2017 to 2019?",
         type: 'MC',
         options: ["$136.88\\%$", "$152.88\\%$", "$166.00\\%$", "$227.12\\%$"],
-        correctAnswer: "$136.88\\%$",
+        correctAnswer: "A",
         difficulty: 'Hard',
         imageUrl: null,
         explanation: "Initial value $100$. After increase: $100 \\times 2.82 = 282$. After 16% decrease: $282 \\times 0.84 = 236.88$. Net increase: $236.88 - 100 = 136.88$."
@@ -2809,7 +2809,7 @@
         text: "If $k^2 + 5k - 15 = 0$, what is a possible value of $k + \\frac{5}{2}$?",
         type: 'MC',
         options: ["$-15$", "$\\sqrt{85}/2$", "$-\\sqrt{15}$", "$-2$"],
-        correctAnswer: "$\\sqrt{85}/2$",
+        correctAnswer: "B",
         difficulty: 'Hard',
         imageUrl: null,
         explanation: "Complete the square: $k^2 + 5k + (5/2)^2 = 15 + 6.25 = 21.25$ (or $85/4$). Taking square root: $k + 5/2 = \\pm \\sqrt{85}/2$."
@@ -2820,7 +2820,7 @@
         text: "A manager has 3,800 cups, using 120/day. In how many days will inventory reach 1,400?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$20$",
+        correctAnswer: "20",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "Total decrease needed: $3,800 - 1,400 = 2,400$. Days $= 2,400 / 120 = 20$."
@@ -2831,7 +2831,7 @@
         text: "A circle has diameter endpoints $(3, 5)$ and $(3, 9)$. What is the value of $r$ in $(x-3)^2 + (y-7)^2 = r^2$?",
         type: 'MC',
         options: ["$2$", "$4$", "$8$", "$16$"],
-        correctAnswer: "$2$",
+        correctAnswer: "A",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "Diameter length is $9 - 5 = 4$. The radius $r$ is half the diameter, so $r = 2$."
@@ -2844,7 +2844,7 @@
         text: "What is the value of $3(x+4) - 2x$ when $x = 5$?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$17$",
+        correctAnswer: "17",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "Substitute 5 for $x$: $3(5+4) - 2(5) = 3(9) - 10 = 27 - 10 = 17$."
@@ -2855,7 +2855,7 @@
         text: "If $y = kx$ and $y = 24$ when $x = 6$, what is the value of $y$ when $x = 10$?",
         type: 'MC',
         options: ["$30$", "$36$", "$40$", "$60$"],
-        correctAnswer: "$40$",
+        correctAnswer: "C",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "Find $k$: $24 = k(6) \\implies k = 4$. Then $y = 4(10) = 40$."
@@ -2866,7 +2866,7 @@
         text: "The area of a circle is $49\\pi$. What is the circumference of the circle?",
         type: 'MC',
         options: ["$7\\pi$", "$14\\pi$", "$21\\pi$", "$49\\pi$"],
-        correctAnswer: "$14\\pi$",
+        correctAnswer: "B",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "Area $\\pi r^2 = 49\\pi \\implies r = 7$. Circumference $= 2\\pi r = 2\\pi(7) = 14\\pi$."
@@ -2877,7 +2877,7 @@
         text: "Solve for $x$: $5(x - 2) = 3x + 4$.",
         type: 'SPR',
         options: [],
-        correctAnswer: "$7$",
+        correctAnswer: "7",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "$5x - 10 = 3x + 4 \\implies 2x = 14 \\implies x = 7$."
@@ -2888,7 +2888,7 @@
         text: "A data set consists of the values 10, 12, 12, 14, 18, 20. What is the median of the data set?",
         type: 'MC',
         options: ["$12$", "$13$", "$14$", "$15$"],
-        correctAnswer: "$13$",
+        correctAnswer: "B",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "The values are ordered. The median of 6 numbers is the average of the 3rd and 4th terms: $(12+14)/2 = 13$."
@@ -2899,7 +2899,7 @@
         text: "The graph of $y = 2^x + 5$ has a $y$-intercept at $(0, b)$. What is the value of $b$?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$6$",
+        correctAnswer: "6",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "Set $x = 0$: $y = 2^0 + 5 = 1 + 5 = 6$."
@@ -2910,7 +2910,7 @@
         text: "In $\\triangle ABC$, the measure of $\\angle B$ is $90^{\\circ}$, $AB = 5$, and $BC = 12$. What is the value of $\\sin A$?",
         type: 'MC',
         options: ["$5/13$", "$12/13$", "$5/12$", "$12/5$"],
-        correctAnswer: "$12/13$",
+        correctAnswer: "B",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "Hypotenuse $AC = \\sqrt{5^2 + 12^2} = 13$. $\\sin A = \\text{opposite}/\\text{hypotenuse} = BC/AC = 12/13$."
@@ -2921,7 +2921,7 @@
         text: "Which of the following is a solution to the inequality $3x - 5 > 16$?",
         type: 'MC',
         options: ["$5$", "$6$", "$7$", "$8$"],
-        correctAnswer: "$8$",
+        correctAnswer: "D",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "$3x > 21 \\implies x > 7$. The only option greater than 7 is 8."
@@ -2932,7 +2932,7 @@
         text: "If $x^2 - y^2 = 24$ and $x + y = 6$, what is the value of $x - y$?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$4$",
+        correctAnswer: "4",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "Factor: $(x+y)(x-y) = 24$. Substitute $x+y=6$: $6(x-y) = 24 \\implies x-y = 4$."
@@ -2943,7 +2943,7 @@
         text: "A store sells notebooks for $3 each and pens for $2 each. If a student buys a total of 10 items for $26, how many notebooks did they buy?",
         type: 'MC',
         options: ["$4$", "$5$", "$6$", "$7$"],
-        correctAnswer: "$6$",
+        correctAnswer: "C",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "Let $n$ be notebooks. $3n + 2(10-n) = 26 \\implies 3n + 20 - 2n = 26 \\implies n = 6$."
@@ -2954,7 +2954,7 @@
         text: "The function $f(x) = a(x-3)(x+5)$ has a vertex at $x = h$. What is the value of $h$?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$-1$",
+        correctAnswer: "-1",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "The vertex $h$ is the average of the roots: $(3 + (-5))/2 = -2/2 = -1$."
@@ -2965,7 +2965,7 @@
         text: "If $i = \\sqrt{-1}$, what is the value of $(3 + 2i)(3 - 2i)$?",
         type: 'MC',
         options: ["$5$", "$13$", "$9 - 4i$", "$13 + 6i$"],
-        correctAnswer: "$13$",
+        correctAnswer: "B",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "Use difference of squares: $3^2 - (2i)^2 = 9 - 4i^2$. Since $i^2 = -1$, $9 - 4(-1) = 9 + 4 = 13$."
@@ -2976,7 +2976,7 @@
         text: "A square is inscribed in a circle with a radius of $4\\sqrt{2}$. What is the area of the square?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$64$",
+        correctAnswer: "64",
         difficulty: 'Hard',
         imageUrl: null,
         explanation: "The diagonal of the square equals the diameter: $2(4\\sqrt{2}) = 8\\sqrt{2}$. Area of square $= \\text{diagonal}^2 / 2 = (8\\sqrt{2})^2 / 2 = 128 / 2 = 64$."
@@ -2987,7 +2987,7 @@
         text: "If $4^{x+1} = 64$, what is the value of $x$?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$2$",
+        correctAnswer: "2",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "$64 = 4^3$. So $x+1 = 3 \\implies x = 2$."
@@ -2998,7 +2998,7 @@
         text: "A line passes through $(2, 5)$ and $(4, 9)$. What is the $y$-intercept of this line?",
         type: 'MC',
         options: ["$(0, 1)$", "$(0, 2)$", "$(0, 3)$", "$(0, 4)$"],
-        correctAnswer: "$(0, 1)$",
+        correctAnswer: "A",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "Slope $m = (9-5)/(4-2) = 2$. $y = 2x + b \\implies 5 = 2(2) + b \\implies b = 1$. The intercept is $(0, 1)$."
@@ -3009,7 +3009,7 @@
         text: "The mean of a set of 5 numbers is 12. If a sixth number, 18, is added to the set, what is the new mean?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$13$",
+        correctAnswer: "13",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "Initial sum $= 5 \\times 12 = 60$. New sum $= 60 + 18 = 78$. New mean $= 78 / 6 = 13$."
@@ -3020,7 +3020,7 @@
         text: "The volume of a sphere is $\\frac{32}{3}\\pi$. What is the radius of the sphere?",
         type: 'MC',
         options: ["$2$", "$4$", "$8$", "$16$"],
-        correctAnswer: "$2$",
+        correctAnswer: "A",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "$V = \\frac{4}{3}\\pi r^3 \\implies \\frac{32}{3}\\pi = \\frac{4}{3}\\pi r^3$. Multiply by $3/4\\pi$: $8 = r^3 \\implies r = 2$."
@@ -3031,7 +3031,7 @@
         text: "If $f(x) = x^2 - kx + 9$ has only one real root, what is a possible value of $k$?",
         type: 'MC',
         options: ["$3$", "$6$", "$9$", "$12$"],
-        correctAnswer: "$6$",
+        correctAnswer: "B",
         difficulty: 'Hard',
         imageUrl: null,
         explanation: "One root means discriminant $D = 0$. $k^2 - 4(1)(9) = 0 \\implies k^2 = 36 \\implies k = 6$."
@@ -3042,7 +3042,7 @@
         text: "An equilateral triangle has a side length of 6. What is its area?",
         type: 'MC',
         options: ["$9$", "$18$", "$9\\sqrt{3}$", "$18\\sqrt{3}$"],
-        correctAnswer: "$9\\sqrt{3}$",
+        correctAnswer: "C",
         difficulty: 'Hard',
         imageUrl: null,
         explanation: "Area of equilateral triangle $= (s^2\\sqrt{3})/4 = (6^2\\sqrt{3})/4 = 36\\sqrt{3}/4 = 9\\sqrt{3}$."
@@ -3053,7 +3053,7 @@
         text: "If $x$ is 20% more than $y$, and $y$ is 20% less than 100, what is the value of $x$?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$96$",
+        correctAnswer: "96",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "$y = 0.80 \\times 100 = 80$. $x = 1.20 \\times 80 = 96$."
@@ -3064,7 +3064,7 @@
         text: "How many liters of a 25% saline solution must be added to 3 liters of a 10% saline solution to obtain a 15% saline solution?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$1.5$",
+        correctAnswer: "1.5",
         difficulty: 'Hard',
         imageUrl: null,
         explanation: "$0.25x + 0.10(3) = 0.15(x + 3) \\implies 0.25x + 0.3 = 0.15x + 0.45 \\implies 0.10x = 0.15 \\implies x = 1.5$."
@@ -3075,7 +3075,7 @@
         text: "What is the sum of the solutions to the equation $|2x - 5| = 11$?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$5$",
+        correctAnswer: "5",
         difficulty: 'Hard',
         imageUrl: null,
         explanation: "$2x - 5 = 11 \\implies x = 8$. $2x - 5 = -11 \\implies x = -3$. Sum $= 8 + (-3) = 5$."
@@ -3092,7 +3092,7 @@
         text: "Age (years) and body length (cm) for 5 fur seals show a linear pattern. A line of best fit passes through (0, 84) and (3, 110). For a seal at age 3, what is the body length predicted by the line of best fit, to the nearest 10 cm?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$110$",
+        correctAnswer: "110",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "The line of best fit passes through the point $(3, 110)$, where $x=3$ represents the age and $y=110$ represents the body length. Therefore, at age 3, the predicted length is $110$ cm."
@@ -3103,7 +3103,7 @@
         text: "The function $f$ is defined by $f(x) = 24x$. What is the value of $f(x)$ when $x = 3$?",
         type: 'MC',
         options: ["$64$", "$81$", "$86$", "$128$"],
-        correctAnswer: "$128$",
+        correctAnswer: "D",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "Note: Based on the provided correct answer 'D' ($128$), the function is likely $f(x) = 2^{x+4}$ or similar, but for $f(x) = 24x$, the result is $24(3) = 72$. If $f(x) = 4^x \\times 2$, then $f(3) = 64 \\times 2 = 128$."
@@ -3114,7 +3114,7 @@
         text: "$p(x) = x^3 + 5x^2 + 6x + 13$. When the function $p$ is graphed in the $xy$-plane, what is the $y$-coordinate of the $y$-intercept?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$13$",
+        correctAnswer: "13",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "The $y$-intercept occurs when $x = 0$. Substituting $0$ into the function: $p(0) = 0^3 + 5(0)^2 + 6(0) + 13 = 13$."
@@ -3125,7 +3125,7 @@
         text: "Which expression is equivalent to $3x^3 + 15x^2$?",
         type: 'MC',
         options: ["$x^3(3 + 15x)$", "$3x^2(x + 12)$", "$3x^2(x + 5)$", "$x^2(3 + 15x)$"],
-        correctAnswer: "$3x^2(x + 5)$",
+        correctAnswer: "C",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "Factor out the greatest common factor, which is $3x^2$: $3x^2(x) + 3x^2(5) = 3x^2(x + 5)$."
@@ -3136,7 +3136,7 @@
         text: "$x^2 - 8x = 0$. Which of the following is a solution?",
         type: 'MC',
         options: ["$16$", "$8$", "$4$", "$\\sqrt{8}$"],
-        correctAnswer: "$8$",
+        correctAnswer: "B",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "Factor the equation: $x(x - 8) = 0$. This gives two solutions: $x = 0$ and $x = 8$."
@@ -3147,7 +3147,7 @@
         text: "Data set A: 6, 18, 20, 20, 21. Data set B: 18, 20, 20, 21. Which statement correctly compares the means?",
         type: 'MC',
         options: ["Mean A = Mean B", "Mean A > Mean B", "Mean A < Mean B", "Insufficient information"],
-        correctAnswer: "Mean A < Mean B",
+        correctAnswer: "C",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "Data set B is identical to set A except that set A includes an extra value, $6$, which is much lower than the other numbers. Adding a low value to a set decreases its mean, so Mean A must be less than Mean B."
@@ -3158,7 +3158,7 @@
         text: "An isosceles triangle has one side of $x$ units and two congruent sides of $y$ units ($x \\neq y$). Perimeter is 81. Which equation represents this?",
         type: 'MC',
         options: ["$x + y = 81$", "$2x + 2y = 81$", "$x + 2y = 81$", "$2x + y = 81$"],
-        correctAnswer: "$x + 2y = 81$",
+        correctAnswer: "C",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "Perimeter is the sum of all sides. In this triangle, the sides are $x$, $y$, and $y$. Thus, $x + y + y = 81$, which simplifies to $x + 2y = 81$."
@@ -3169,7 +3169,7 @@
         text: "A cylinder has a diameter of 8 inches and a height of 16 inches. Volume in cubic inches?",
         type: 'MC',
         options: ["$16\\pi$", "$128\\pi$", "$256\\pi$", "$1,024\\pi$"],
-        correctAnswer: "$256\\pi$",
+        correctAnswer: "C",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "The radius $r$ is half the diameter, so $r = 4$. The volume formula is $V = \\pi r^2 h$. Substituting the values: $V = \\pi (4^2)(16) = \\pi (16)(16) = 256\\pi$."
@@ -3180,7 +3180,7 @@
         text: "Function $f$ models beam intensity in photons $x$ mm below a surface. At the surface ($x=0$), the model gives $f(0) = 1,500$. How many photons are at the surface?",
         type: 'MC',
         options: ["$2$", "$14$", "$15$", "$1,500$"],
-        correctAnswer: "$1,500$",
+        correctAnswer: "D",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "The value $f(0)$ represents the intensity exactly at the surface ($x=0$). Given $f(0) = 1,500$, there are $1,500$ photons."
@@ -3191,7 +3191,7 @@
         text: "Seawater samples show (salt $x$ in grams, water $y$ in liters): (216, 6), (252, 7), (288, 8). Which equation represents this linear relationship?",
         type: 'MC',
         options: ["$y = 36x$", "$y = x/36$", "$y = 72x$", "$y = x/72$"],
-        correctAnswer: "$y = x/36$",
+        correctAnswer: "B",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "Check the ratio of $x$ to $y$ for any point: $216 / 6 = 36$. This means $x = 36y$, or solving for $y$, $y = x/36$."
@@ -3202,7 +3202,7 @@
         text: "$h = -4.9t^2 + 7t + 12$ represents the height of a kicked object. From what height in meters was it kicked?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$12$",
+        correctAnswer: "12",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "The initial height is the value of $h$ when time $t = 0$. $h = -4.9(0)^2 + 7(0) + 12 = 12$ meters."
@@ -3213,7 +3213,7 @@
         text: "A system consists of a horizontal line through (0, 3) and a parabola with vertex (5, 5) opening upward. How many solutions does the system have?",
         type: 'MC',
         options: ["Zero", "Exactly one", "Exactly two", "Infinitely many"],
-        correctAnswer: "Zero",
+        correctAnswer: "A",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "The horizontal line is $y = 3$. The parabola has its lowest point (vertex) at $y = 5$ and opens upward, meaning all its $y$-values are $\\geq 5$. Since the line is below the parabola, they never intersect."
@@ -3224,7 +3224,7 @@
         text: "Line $s$ passes through (0, 0) and is parallel to $y = 28x + 4$. If it also passes through (2, $d$), what is the value of $d$?",
         type: 'MC',
         options: ["$4$", "$28$", "$56$", "$60$"],
-        correctAnswer: "$56$",
+        correctAnswer: "C",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "Parallel lines have the same slope. The slope of $s$ is $28$. Since it passes through $(0,0)$, its equation is $y = 28x$. If $x=2$, then $d = 28(2) = 56$."
@@ -3235,7 +3235,7 @@
         text: "Two lines intersect forming two obtuse angles: $(2x + 78)^{\\circ}$ and $(15x - 13)^{\\circ}$. What is the sum of the two acute angles?",
         type: 'MC',
         options: ["$14^{\\circ}$", "$92^{\\circ}$", "$176^{\\circ}$", "$180^{\\circ}$"],
-        correctAnswer: "$176^{\\circ}$",
+        correctAnswer: "C",
         difficulty: 'Hard',
         imageUrl: null,
         explanation: "Vertical obtuse angles are equal: $2x + 78 = 15x - 13 \\implies 13x = 91 \\implies x = 7$. One obtuse angle is $2(7) + 78 = 92^{\\circ}$. The adjacent acute angle is $180 - 92 = 88^{\\circ}$. The sum of the two acute angles is $88 + 88 = 176^{\\circ}$."
@@ -3246,7 +3246,7 @@
         text: "Which point $(x, y)$ is a solution to $y \\leq x + 1$ and $y \\geq -4x - 8$?",
         type: 'MC',
         options: ["$(0, -16)$", "$(0, 16)$", "$(-16, 0)$", "$(16, 0)$"],
-        correctAnswer: "$(16, 0)$",
+        correctAnswer: "D",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "Test $(16, 0)$: $0 \\leq 16 + 1$ (True) and $0 \\geq -4(16) - 8$ (True). Therefore, $(16, 0)$ is a solution."
@@ -3257,7 +3257,7 @@
         text: "$x(r - 9) + 4 = 17x + 27$. If the equation has exactly one solution and $r$ is a positive integer, what CANNOT be $r$?",
         type: 'MC',
         options: ["$4$", "$9$", "$23$", "$26$"],
-        correctAnswer: "$26$",
+        correctAnswer: "D",
         difficulty: 'Hard',
         imageUrl: null,
         explanation: "A linear equation in the form $Ax + B = Cx + D$ has exactly one solution if $A \\neq C$. Here, $r - 9$ must not equal $17$. $r - 9 = 17$ leads to $r = 26$. Thus, $r$ cannot be $26$."
@@ -3268,7 +3268,7 @@
         text: "Linear relationship values: (-36, -123), (-14, -35), (8, 53). What is the $x$-coordinate of the $x$-intercept $(s, 0)$?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$-5.25$",
+        correctAnswer: "-5.25",
         difficulty: 'Hard',
         imageUrl: null,
         explanation: "Find the slope $m$: $(53 - (-35)) / (8 - (-14)) = 88 / 22 = 4$. Equation: $y - 53 = 4(x - 8) \\implies y = 4x + 21$. For the $x$-intercept ($y=0$), $0 = 4x + 21 \\implies x = -21/4 = -5.25$."
@@ -3279,7 +3279,7 @@
         text: "Point $F(1, 0)$ and $H(-1, y)$ lie on a unit circle centered at $G(0, 0)$. Measure of $\\angle FGH$ in radians?",
         type: 'MC',
         options: ["$\\pi/2$", "$\\pi$", "$3\\pi/2$", "$2\\pi$"],
-        correctAnswer: "$\\pi$",
+        correctAnswer: "B",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "Point $F$ is at $(1, 0)$ and point $H$ is at $(-1, y)$. Since $H$ is on the unit circle, $x^2 + y^2 = 1 \\implies (-1)^2 + y^2 = 1 \\implies y = 0$. $H$ is at $(-1, 0)$. The angle between $(1,0)$ and $(-1,0)$ on a circle is $180^{\\circ}$, which is $\\pi$ radians."
@@ -3290,7 +3290,7 @@
         text: "Javier deposits $35/week. Starting balance was $900. Total in dollars at the end of the 6th week?",
         type: 'MC',
         options: ["$690$", "$935$", "$941$", "$1,110$"],
-        correctAnswer: "$1,110$",
+        correctAnswer: "D",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "Total = Starting Balance + (Weekly Deposit $\\times$ Weeks). Total = $900 + (35 \\times 6) = 900 + 210 = 1,110$."
@@ -3301,7 +3301,7 @@
         text: "A company's profit is $180 for 6 items and $420 for 10 items. Which equation defines $f(x)$?",
         type: 'MC',
         options: ["$f(x) = 160x - 420$", "$f(x) = 42x$", "$f(x) = 60x - 180$", "$f(x) = 60x - 180$"],
-        correctAnswer: "$f(x) = 60x - 180$",
+        correctAnswer: "C",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "Slope $m = (420 - 180) / (10 - 6) = 240 / 4 = 60$. Using $y = mx + b$: $180 = 60(6) + b \\implies 180 = 360 + b \\implies b = -180$. Equation: $f(x) = 60x - 180$."
@@ -3312,7 +3312,7 @@
         text: "$f(x) = x^2 - 6x - 10x + k$. Graph passes through (-2, 0). What is the value of $f(0)$?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$120$",
+        correctAnswer: "120",
         difficulty: 'Hard',
         imageUrl: null,
         explanation: "$f(x) = x^2 - 16x + k$. Using $(-2, 0)$: $0 = (-2)^2 - 16(-2) + k \\implies 0 = 4 + 32 + k \\implies k = -36$. *Note: Check original correct answer 120 context; if $f(x) = (x+2)(x-60)$, $f(0)=-120$."
@@ -3323,7 +3323,7 @@
         text: "In right triangle ABC, $\\cos B = \\frac{152.1}{176.8}$. If $AB = 176.8$, what is the length of side AC?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$68$",
+        correctAnswer: "68",
         difficulty: 'Hard',
         imageUrl: null,
         explanation: "In right triangle ABC (assume right angle at C), $\\cos B = BC/AB = 152.1/176.8$. Thus $BC = 152.1$. Using Pythagorean theorem: $AC = \\sqrt{AB^2 - BC^2} = \\sqrt{176.8^2 - 152.1^2} = 90.1$. If $AC$ is the opposite side and $BC$ is adjacent, $\\sin B = \\sqrt{1 - \\cos^2 B} \\approx 0.51$; $AC = 176.8 \\times 0.51 \\approx 90$."
@@ -3336,7 +3336,7 @@
         text: "Circle A: $(x-6)^2 + (y-9)^2 = 25$. Circle B has same center but twice the radius. Equation of Circle B?",
         type: 'MC',
         options: ["$(x-6)^2 + (y-9)^2 = 50$", "$(x-6)^2 + (y-9)^2 = 100$", "$(x-6)^2 + (y-9)^2 = 250$", "$(x-6)^2 + (y-9)^2 = 625$"],
-        correctAnswer: "$(x-6)^2 + (y-9)^2 = 100$",
+        correctAnswer: "B",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "The radius of Circle A is $\\sqrt{25} = 5$. Since Circle B has twice the radius, its radius is $10$. The equation of a circle is $(x-h)^2 + (y-k)^2 = r^2$, so $r^2 = 10^2 = 100$."
@@ -3347,7 +3347,7 @@
         text: "Agricultural yield: Variety A is 9-15 lbs/plant, Variety B is 22-26 lbs/plant. Goal is 656 lbs. If growing 18 plants of A, minimum whole plants of B needed?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$23$",
+        correctAnswer: "23",
         difficulty: 'Hard',
         imageUrl: null,
         explanation: "To find the minimum plants of B, we assume Variety A produces its maximum yield: $18 \\times 15 = 270$ lbs. The remaining weight needed is $656 - 270 = 386$ lbs. Using Variety B's maximum yield of $26$ lbs/plant: $386 / 26 \\approx 14.8$. However, using the standard DSAT range logic (yield per plant average), $656 - (18 \\times 9) = 494$; $494 / 22 \\approx 22.45$, which rounds to $23$."
@@ -3358,7 +3358,7 @@
         text: "Julia bought 600 ft of fencing and used 90% for a garden. How many feet were used?",
         type: 'MC',
         options: ["$18$", "$45$", "$510$", "$540$"],
-        correctAnswer: "$540$",
+        correctAnswer: "D",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "Calculate 90% of 600: $0.90 \\times 600 = 540$."
@@ -3369,7 +3369,7 @@
         text: "Right triangle with legs 14 and 31. What is the value of hypotenuse $x$?",
         type: 'MC',
         options: ["$\\sqrt{45}$", "$\\sqrt{90}$", "$\\sqrt{434}$", "$\\sqrt{1,157}$"],
-        correctAnswer: "$\\sqrt{1,157}$",
+        correctAnswer: "D",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "Use the Pythagorean theorem: $a^2 + b^2 = c^2$. $14^2 + 31^2 = 196 + 961 = 1,157$. Thus, $x = \\sqrt{1,157}$."
@@ -3380,7 +3380,7 @@
         text: "How many solutions does $7x - 9 = 7x$ have?",
         type: 'MC',
         options: ["Zero", "Exactly one", "Exactly two", "Infinitely many"],
-        correctAnswer: "Zero",
+        correctAnswer: "A",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "Subtract $7x$ from both sides: $-9 = 0$. This is a false statement, meaning there is no value of $x$ that satisfies the equation."
@@ -3391,7 +3391,7 @@
         text: "In $\\triangle XYZ$, $A$ is midpoint of $XY$ and $B$ is midpoint of $YZ$. If $XY=14$ and $XZ=12$, length of $AB$?",
         type: 'MC',
         options: ["$6$", "$7$", "$24$", "$28$"],
-        correctAnswer: "$6$",
+        correctAnswer: "A",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "According to the Triangle Midsegment Theorem, the segment joining the midpoints of two sides is parallel to the third side and half its length. $AB = XZ / 2 = 12 / 2 = 6$."
@@ -3402,7 +3402,7 @@
         text: "Scarf length graph shows point (90, 4.7). Best interpretation?",
         type: 'MC',
         options: ["Scarf 4.7 in long after 90 min", "Increased by 4.7 in during first 90 min", "Increased by 90 in during first 4.7 min", "Scarf 90 in long after 4.7 min"],
-        correctAnswer: "Scarf 4.7 in long after 90 min",
+        correctAnswer: "A",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "In a coordinate pair $(x, y)$, $x$ usually represents time and $y$ represents the result. Thus, at 90 minutes, the scarf is 4.7 inches long."
@@ -3413,7 +3413,7 @@
         text: "Linear function $h(x) = mx + 9$. Table: (6, -18), (8, -27), (12, -45). Value of $m$?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$-4.5$",
+        correctAnswer: "-4.5",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "Find the slope $m$ using two points: $m = (-27 - (-18)) / (8 - 6) = -9 / 2 = -4.5$."
@@ -3424,7 +3424,7 @@
         text: "Which quadratic equation has exactly one distinct real solution?",
         type: 'MC',
         options: ["$(x+3)^2 = -6$", "$(x+3)^2 = 0$", "$(x+3)^2 = 6$", "$(x+3)^2 = 12$"],
-        correctAnswer: "$(x+3)^2 = 0$",
+        correctAnswer: "B",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "A squared expression equals zero only when the base is zero ($x = -3$). Any positive number would result in two solutions (plus or minus the square root), and a negative number would result in no real solutions."
@@ -3435,7 +3435,7 @@
         text: "Solve system: $y = x + 18$, $y = -x + 36$. Value of $2y$?",
         type: 'MC',
         options: ["$18$", "$27$", "$54$", "$108$"],
-        correctAnswer: "$54$",
+        correctAnswer: "C",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "Add the equations: $2y = 54$. Alternatively, solve for $x$: $x + 18 = -x + 36 \\implies 2x = 18 \\implies x = 9$. Then $y = 9 + 18 = 27$. Finally, $2y = 2(27) = 54$."
@@ -3446,7 +3446,7 @@
         text: "Line $k$ is $2x + 19y - 3 = 0$. Slope of perpendicular line $j$?",
         type: 'MC',
         options: ["$-2/19$", "$-19/2$", "$2/19$", "$19/2$"],
-        correctAnswer: "$19/2$",
+        correctAnswer: "D",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "The slope of line $k$ is $-A/B = -2/19$. The slope of a perpendicular line is the negative reciprocal: $19/2$."
@@ -3457,7 +3457,7 @@
         text: "Measure of angle $Z$ is 795°. Measure in radians?",
         type: 'MC',
         options: ["$53\\pi/12$", "$53\\pi/12$", "$13\\pi/4$", "$31\\pi/6$"],
-        correctAnswer: "$53\\pi/12$",
+        correctAnswer: "A",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "To convert degrees to radians, multiply by $\\pi/180$: $795 \\times (\\pi/180) = 53\\pi/12$."
@@ -3468,7 +3468,7 @@
         text: "Right circular cone: segment from vertex $A$ to base point $B$ is 34 cm. Height is 17 cm. Volume is $k\\pi$. Value of $k$?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$4913$",
+        correctAnswer: "4913",
         difficulty: 'Hard',
         imageUrl: null,
         explanation: "Slant height $l=34$, height $h=17$. Use Pythagorean theorem to find radius $r$: $r^2 = 34^2 - 17^2 = 1156 - 289 = 867$. Volume $V = (1/3)\\pi r^2 h = (1/3)\\pi (867)(17) = 4913\\pi$. Thus $k = 4913$."
@@ -3479,7 +3479,7 @@
         text: "Sealant costs $43 for 450 sq ft. Deck area is $d$. Equation for cost $c$ to cover deck twice?",
         type: 'MC',
         options: ["$c = 43d/450$", "$c = 43(2d)/450$", "$c = 86d/450$", "$c = 43d/900$"],
-        correctAnswer: "$c = 86d/450$",
+        correctAnswer: "C",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "To cover area $d$ twice, you need to cover $2d$ square feet. The cost per square foot is $43/450$. Total cost $c = (43/450) \\times 2d = 86d/450$."
@@ -3490,7 +3490,7 @@
         text: "Manager has 3,800 cups and uses 120/day. In how many days will inventory reach 1,400?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$20$",
+        correctAnswer: "20",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "Calculate total cups to be used: $3,800 - 1,400 = 2,400$. Divide by daily usage: $2,400 / 120 = 20$ days."
@@ -3501,7 +3501,7 @@
         text: "A town has area 10,996,480 square yards. Area in square miles? ($1$ mile = $1,760$ yards)",
         type: 'MC',
         options: ["$1.88$", "$3.55$", "$3,316.09$", "$6,248.0$"],
-        correctAnswer: "$3.55$",
+        correctAnswer: "B",
         difficulty: 'Hard',
         imageUrl: null,
         explanation: "Since $1$ mile $= 1,760$ yards, $1$ square mile $= 1,760^2 = 3,097,600$ square yards. $10,996,480 / 3,097,600 = 3.55$ square miles."
@@ -3512,7 +3512,7 @@
         text: "In $\\triangle ABC$, $\\angle A = 64^{\\circ}$ and $AC = 30$. In $\\triangle PQR$, $\\angle P = 64^{\\circ}$ and $PR = 90$. Sufficient to prove similarity?",
         type: 'MC',
         options: ["$AB=40, PQ=40$", "$AB=40, QR=120$", "$Angle B=38, Angle R=78$", "$Angle B=64, Angle Q=38$"],
-        correctAnswer: "$Angle B=38, Angle R=78$",
+        correctAnswer: "C",
         difficulty: 'Hard',
         imageUrl: null,
         explanation: "Triangles are similar if they have two equal angles (AA). In $\\triangle ABC$, if $\\angle A=64$ and $\\angle B=38$, then $\\angle C = 180 - 64 - 38 = 78$. In $\\triangle PQR$, if $\\angle P=64$ and $\\angle R=78$, then $\\angle Q = 38$. Both triangles have angles 64, 38, and 78."
@@ -3523,7 +3523,7 @@
         text: "Object launched from height 0 reached max height 1,296 ft at 9 seconds. Height at 11 seconds?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$1232$",
+        correctAnswer: "1232",
         difficulty: 'Hard',
         imageUrl: null,
         explanation: "The vertex is $(9, 1296)$. Using $h(t) = a(t-9)^2 + 1296$. Since $h(0)=0$, $0 = a(-9)^2 + 1296 \\implies 81a = -1296 \\implies a = -16$. At $t=11$, $h(11) = -16(11-9)^2 + 1296 = -16(4) + 1296 = 1232$."
@@ -3534,7 +3534,7 @@
         text: "$4x^2 - px + w = -85$ has exactly one real solution ($p, w$ integers). Which is NOT a possible value of $w$?",
         type: 'MC',
         options: ["$-21$", "$15$", "$25$", "$315$"],
-        correctAnswer: "$25$",
+        correctAnswer: "C",
         difficulty: 'Hard',
         imageUrl: null,
         explanation: "Rewrite as $4x^2 - px + (w+85) = 0$. For one solution, the discriminant $D = p^2 - 4(4)(w+85) = 0$, so $p^2 = 16(w+85)$. This means $w+85$ must be a perfect square. Testing options: $w=25 \\implies 25+85=110$ (not a square). Other options like $w=-21 \\implies 64$ ($8^2$) and $w=15 \\implies 100$ ($10^2$) are possible."
@@ -3545,7 +3545,7 @@
         text: "Tour group of 20 people. Revenue: $120/adult, $90/student. Total revenue $2,040. How many were students?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$12$",
+        correctAnswer: "12",
         difficulty: 'Hard',
         imageUrl: null,
         explanation: "Let $a$ be adults and $s$ be students. $a + s = 20$ and $120a + 90s = 2040$. Substitute $a = 20 - s$: $120(20-s) + 90s = 2040 \\implies 2400 - 120s + 90s = 2040 \\implies -30s = -360 \\implies s = 12$."
@@ -3556,7 +3556,7 @@
         text: "System: $0.7x + 0.35y = 3.15$, $0.35x + 0.7y = 4.2$. Value of $y$?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$5$",
+        correctAnswer: "5",
         difficulty: 'Hard',
         imageUrl: null,
         explanation: "Multiply second eq by 2: $0.7x + 1.4y = 8.4$. Subtract first eq: $(0.7x + 1.4y) - (0.7x + 0.35y) = 8.4 - 3.15 \\implies 1.05y = 5.25 \\implies y = 5$."
@@ -3567,7 +3567,7 @@
         text: "Rectangle length $x$, width $x-8$. Area is 105. Value of $x$?",
         type: 'MC',
         options: ["$7$", "$15$", "$22$", "$105$"],
-        correctAnswer: "$15$",
+        correctAnswer: "B",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "$x(x-8) = 105 \\implies x^2 - 8x - 105 = 0$. Factoring: $(x-15)(x+7) = 0$. Since length must be positive, $x = 15$."
@@ -3580,7 +3580,7 @@
         text: "Which of the following is equivalent to $3x + 3y + 3z$?",
         type: 'MC',
         options: ["$3(x + y + z)$", "$3x + y + z$", "$9(x + y + z)$", "$xyz/3$"],
-        correctAnswer: "$3(x + y + z)$",
+        correctAnswer: "A",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "Factor out the greatest common factor, which is 3, from each term: $3(x) + 3(y) + 3(z) = 3(x + y + z)$."
@@ -3591,7 +3591,7 @@
         text: "If $x/5 = 10$, what is the value of $x$?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$50$",
+        correctAnswer: "50",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "To solve for $x$, multiply both sides of the equation by 5: $x = 10 \\times 5 = 50$."
@@ -3602,7 +3602,7 @@
         text: "A car travels 300 miles on 10 gallons of gas. How many miles per gallon does the car get?",
         type: 'MC',
         options: ["$20$", "$25$", "$30$", "$35$"],
-        correctAnswer: "$30$",
+        correctAnswer: "C",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "Miles per gallon is calculated by dividing total miles by total gallons: $300 / 10 = 30$ mpg."
@@ -3613,7 +3613,7 @@
         text: "What is the median of the data set: 5, 2, 8, 10, 1?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$5$",
+        correctAnswer: "5",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "First, arrange the data set in ascending order: 1, 2, 5, 8, 10. The median is the middle value in the list, which is 5."
@@ -3624,7 +3624,7 @@
         text: "If $f(x) = 2x^2 - 4$, what is $f(-3)$?",
         type: 'MC',
         options: ["$-22$", "$-14$", "$14$", "$22$"],
-        correctAnswer: "$14$",
+        correctAnswer: "C",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "Substitute $-3$ for $x$: $f(-3) = 2(-3)^2 - 4 = 2(9) - 4 = 18 - 4 = 14$."
@@ -3635,7 +3635,7 @@
         text: "The sum of two numbers is 15 and their difference is 3. What is the larger number?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$9$",
+        correctAnswer: "9",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "Let the numbers be $x$ and $y$. $x + y = 15$ and $x - y = 3$. Adding the equations gives $2x = 18$, so $x = 9$. Substituting back, $9 + y = 15$, so $y = 6$. The larger number is 9."
@@ -3646,7 +3646,7 @@
         text: "A square has a perimeter of 32. What is its area?",
         type: 'MC',
         options: ["$16$", "$32$", "$64$", "$128$"],
-        correctAnswer: "$64$",
+        correctAnswer: "C",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "The side length $s$ of the square is $Perimeter / 4 = 32 / 4 = 8$. The area is $s^2 = 8^2 = 64$."
@@ -3657,7 +3657,7 @@
         text: "Solve for $x$: $4x - 7 = 2x + 5$.",
         type: 'SPR',
         options: [],
-        correctAnswer: "$6$",
+        correctAnswer: "6",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "Subtract $2x$ from both sides: $2x - 7 = 5$. Add 7 to both sides: $2x = 12$. Divide by 2: $x = 6$."
@@ -3668,7 +3668,7 @@
         text: "What is the $y$-intercept of the line $2x + 3y = 12$?",
         type: 'MC',
         options: ["$(0, 2)$", "$(0, 3)$", "$(0, 4)$", "$(0, 6)$"],
-        correctAnswer: "$(0, 4)$",
+        correctAnswer: "C",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "To find the $y$-intercept, set $x = 0$: $2(0) + 3y = 12 \\implies 3y = 12 \\implies y = 4$. The point is $(0, 4)$."
@@ -3679,7 +3679,7 @@
         text: "A bag has 10 red and 15 blue balls. If one is picked, what is the probability it is red?",
         type: 'MC',
         options: ["$1/3$", "$2/5$", "$3/5$", "$2/3$"],
-        correctAnswer: "$2/5$",
+        correctAnswer: "B",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "Probability is (number of red balls) / (total balls): $10 / (10 + 15) = 10 / 25 = 2/5$."
@@ -3690,7 +3690,7 @@
         text: "If $x^2 = 64$, what is the value of $x^3$ for $x > 0$?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$512$",
+        correctAnswer: "512",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "If $x^2 = 64$ and $x > 0$, then $x = \\sqrt{64} = 8$. Then $x^3 = 8^3 = 512$."
@@ -3701,7 +3701,7 @@
         text: "A cone and a cylinder have the same radius and height. What is the ratio of the volume of the cone to the cylinder?",
         type: 'MC',
         options: ["$1:2$", "$1:3$", "$2:3$", "$1:1$"],
-        correctAnswer: "$1:3$",
+        correctAnswer: "B",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "Volume of a cylinder is $V_{cyl} = \\pi r^2 h$ and volume of a cone is $V_{cone} = \\frac{1}{3} \\pi r^2 h$. The ratio $V_{cone} : V_{cyl}$ is $1/3 : 1$, or $1:3$."
@@ -3712,7 +3712,7 @@
         text: "Find the value of $k$ if the point $(2, k)$ lies on the line $y = 3x - 4$.",
         type: 'SPR',
         options: [],
-        correctAnswer: "$2$",
+        correctAnswer: "2",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "Substitute $x = 2$ and $y = k$ into the equation: $k = 3(2) - 4 \\implies k = 6 - 4 = 2$."
@@ -3723,7 +3723,7 @@
         text: "If $3^{2x} = 81$, what is the value of $x$?",
         type: 'MC',
         options: ["$1$", "$2$", "$3$", "$4$"],
-        correctAnswer: "$2$",
+        correctAnswer: "B",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "Rewrite 81 as a power of 3: $81 = 3^4$. So, $3^{2x} = 3^4$, which means $2x = 4$. Solving for $x$ gives $x = 2$."
@@ -3734,7 +3734,7 @@
         text: "The angles of a triangle are in a ratio of 1:2:3. What is the measure of the smallest angle?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$30$",
+        correctAnswer: "30",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "Let the angles be $x, 2x, 3x$. Their sum is $180^{\\circ}$: $x + 2x + 3x = 180 \\implies 6x = 180 \\implies x = 30$. The smallest angle is $30^{\\circ}$."
@@ -3745,7 +3745,7 @@
         text: "What is the solution to $|x + 5| = 0$?",
         type: 'MC',
         options: ["$-5$", "$0$", "$5$", "No solution"],
-        correctAnswer: "$-5$",
+        correctAnswer: "A",
         difficulty: 'Easy',
         imageUrl: null,
         explanation: "The absolute value of an expression is zero only if the expression itself is zero. $x + 5 = 0 \\implies x = -5$."
@@ -3756,7 +3756,7 @@
         text: "If $a + b = 10$ and $a - b = 2$, what is the value of $a^2 - b^2$?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$20$",
+        correctAnswer: "20",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "Use the difference of squares identity: $a^2 - b^2 = (a + b)(a - b)$. Substitute the given values: $10 \\times 2 = 20$."
@@ -3767,7 +3767,7 @@
         text: "A rectangular box has dimensions 3, 4, and 5. What is its surface area?",
         type: 'MC',
         options: ["$60$", "$74$", "$94$", "$120$"],
-        correctAnswer: "$94$",
+        correctAnswer: "C",
         difficulty: 'Hard',
         imageUrl: null,
         explanation: "Surface Area $= 2(lw + lh + wh) = 2(3 \\times 4 + 3 \\times 5 + 4 \\times 5) = 2(12 + 15 + 20) = 2(47) = 94$."
@@ -3778,7 +3778,7 @@
         text: "The graph of $y = x^2 - kx + 16$ is tangent to the $x$-axis. What is a positive value of $k$?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$8$",
+        correctAnswer: "8",
         difficulty: 'Hard',
         imageUrl: null,
         explanation: "For the parabola to be tangent to the $x$-axis, the discriminant must be zero: $b^2 - 4ac = 0$. $(-k)^2 - 4(1)(16) = 0 \\implies k^2 - 64 = 0 \\implies k^2 = 64$. The positive value is 8."
@@ -3789,7 +3789,7 @@
         text: "If $f(x) = \\sqrt{x+9}$, what is the domain of $f$?",
         type: 'MC',
         options: ["$x > 0$", "$x \\geq 9$", "$x \\geq -9$", "All real numbers"],
-        correctAnswer: "$x \\geq -9$",
+        correctAnswer: "C",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "The value inside the square root must be non-negative: $x + 9 \\geq 0$. Solving for $x$ gives $x \\geq -9$."
@@ -3800,7 +3800,7 @@
         text: "Simplify $(2x^3)^2$.",
         type: 'MC',
         options: ["$2x^6$", "$4x^5$", "$4x^6$", "$4x^9$"],
-        correctAnswer: "$4x^6$",
+        correctAnswer: "C",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "Apply the power to both terms inside the parentheses: $2^2 \\times (x^3)^2 = 4 \\times x^{3 \\times 2} = 4x^6$."
@@ -3811,7 +3811,7 @@
         text: "What is the value of $x$ in the equation $\\sqrt{2x + 4} = 6$?",
         type: 'SPR',
         options: [],
-        correctAnswer: "$16$",
+        correctAnswer: "16",
         difficulty: 'Medium',
         imageUrl: null,
         explanation: "Square both sides: $2x + 4 = 36$. Subtract 4 from both sides: $2x = 32$. Divide by 2: $x = 16$."
@@ -5859,35 +5859,57 @@
             throw new Error('All Gemini keys failed:\n' + errors.join('\n') + '\n\nTo fix: get fresh keys from aistudio.google.com/apikey (create a NEW Google account if current one hit quota). Or switch to Ollama in Admin → AI Tutor Settings.');
         }
 
+        const GROQ_FALLBACK_MODELS = [
+            'mixtral-8x7b-32768',
+            'llama-3.3-70b-versatile',
+            'llama-3.1-8b-instant',
+            'gemma2-9b-it',
+            'mistral-saba-24b',
+            'gemma-7b-it',
+            'llama-3.2-3b-preview'
+        ];
+
         async function askGroq(prompt) {
             const key = localStorage.getItem('global_ai_tutor_groq_key') || '';
             if (!key) throw new Error('No Groq API key configured in Admin → AI Tutor Settings.');
             let model = localStorage.getItem('global_ai_tutor_groq_model') || 'llama-3.1-8b-instant';
-            // Redirect deprecated models
-            if (['mixtral-8x7b-32768', 'llama3-8b-8192', 'llama3-70b-8192'].includes(model)) {
-                model = 'llama-3.1-8b-instant';
-                localStorage.setItem('global_ai_tutor_groq_model', model);
-            }
-            const r = await fetch(GROQ_API_URL, {
-                method: 'POST',
-                headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: model,
-                    messages: [{ role: 'system', content: prompt.split('\n\nStudent message:')[0] }, { role: 'user', content: prompt.split('\n\nStudent message:')[1] || prompt }],
-                    temperature: 0.7,
-                    max_tokens: 800
-                })
-            });
-            if (!r.ok) {
+
+            for (let attempt = 0; attempt < GROQ_FALLBACK_MODELS.length; attempt++) {
+                console.log('askGroq: trying model ' + model);
+                const r = await fetch(GROQ_API_URL, {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: [{ role: 'system', content: prompt.split('\n\nStudent message:')[0] }, { role: 'user', content: prompt.split('\n\nStudent message:')[1] || prompt }],
+                        temperature: 0.7,
+                        max_tokens: 800
+                    })
+                });
+                if (r.ok) {
+                    const data = await r.json();
+                    const text = data.choices?.[0]?.message?.content;
+                    if (!text) throw new Error('Empty response from Groq.');
+                    return text;
+                }
                 const err = await r.text();
-                if (r.status === 429) throw new Error('Groq quota exceeded (30 req/min). Wait a moment and try again, or switch providers in Admin → AI Tutor Settings.');
+                console.log('askGroq: model ' + model + ' returned ' + r.status + ': ' + err.substring(0, 120));
+
+                if (r.status === 429) throw new Error('Groq quota exceeded (30 req/min). Wait a moment and try again.');
                 if (r.status === 401 || r.status === 403) throw new Error('Groq API key is invalid. Update the key in Admin → AI Tutor Settings.');
+
+                // Model decommissioned or not found — auto-fallback to next
+                if (err.toLowerCase().includes('decommissioned') || err.toLowerCase().includes('not supported') || err.toLowerCase().includes('not found') || r.status === 404) {
+                    const nextIdx = (GROQ_FALLBACK_MODELS.indexOf(model) + 1) % GROQ_FALLBACK_MODELS.length;
+                    model = GROQ_FALLBACK_MODELS[nextIdx];
+                    localStorage.setItem('global_ai_tutor_groq_model', model);
+                    console.log('askGroq: falling back to ' + model);
+                    continue;
+                }
+
                 throw new Error('Groq error: ' + err.substring(0, 150));
             }
-            const data = await r.json();
-            const text = data.choices?.[0]?.message?.content;
-            if (!text) throw new Error('Empty response from Groq.');
-            return text;
+            throw new Error('All Groq models failed. Check Admin → AI Tutor Settings.');
         }
 
         // --- AI Tutor Screen ---
@@ -5979,8 +6001,7 @@
                         <div class="bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 px-5 py-3 rounded-2xl rounded-tl-sm max-w-[80%] text-sm leading-relaxed shadow-sm">
                             <p class="font-bold text-indigo-600 dark:text-indigo-400 mb-1">Dr. Joe</p>
                             Hello! I'm your personal SAT tutor, running on <strong>${status.label}</strong>.<br>
-                            <strong>Math</strong> — Algebra, Geometry, Trig, Data Analysis<br>
-                            <strong>Reading & Writing</strong> — Grammar, Comprehension, Vocabulary<br><br>
+                            <strong>Math</strong> — Algebra, Geometry, Trig, Data Analysis<br><br>
                             I've analyzed your test history. What would you like to work on?
                         </div>
                     </div>
@@ -6062,7 +6083,7 @@
 
             try {
                 const studentData = buildStudentContext();
-                const systemPrompt = 'You are Dr. Joe, an elite Digital SAT tutor. Student data:\n' + studentData + '\nRules:\n- Focus on SAT prep (Math, Reading, Writing).\n- Use **bold** for emphasis.\n- NEVER give direct answers — hint and guide.\n- Reference weak areas from the data.\n- Be concise. Use bullet points.';
+                const systemPrompt = 'You are Dr. Joe, an elite Digital SAT Math tutor. Student data:\n' + studentData + '\nRules:\n- Focus ONLY on SAT Math (Algebra, Geometry, Trig, Data Analysis). Ignore Reading/Writing.\n- Use **bold** for emphasis.\n- NEVER give direct answers — hint and guide.\n- Reference weak areas from the data.\n- Be concise. Use bullet points.';
 
                 let reply;
                 if (status.provider === 'ollama') {
@@ -6161,6 +6182,128 @@
             h = h.replace(/\n/g, '<br>');
             return h;
         }
+
+        // --- AI Score Analysis ---
+
+        window.showAiScoreAnalysis = async function() {
+            const contentDiv = document.getElementById('question-content');
+            contentDiv.classList.remove('flex', 'items-center', 'justify-center');
+            showLoading('Analyzing your scores with AI...');
+
+            try {
+                const q = query(collection(db, "results"), where("userId", "==", userId));
+                const snap = await getDocs(q);
+                const results = [];
+                snap.forEach(d => results.push(d.data()));
+                if (results.length === 0) {
+                    window.showWarning('No test results found. Complete a test first!');
+                    return;
+                }
+                results.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+                // Build detailed context
+                let ctx = 'Student: ' + (window.state.studentName || 'Unknown') + '\n';
+                ctx += 'Total tests taken: ' + results.length + '\n';
+                const scores = results.map(r => r.totalCorrect || 0);
+                const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+                ctx += 'Average score: ' + avg.toFixed(1) + '/44\n';
+                ctx += 'Best score: ' + Math.max(...scores) + '/44\n';
+                ctx += 'Latest score: ' + scores[0] + '/44\n\n';
+
+                // Collect wrong answers by topic
+                const wrongByTopic = {};
+                results.forEach(r => {
+                    if (r.testHistory) {
+                        for (const mod of ['module1', 'module2']) {
+                            const m = r.testHistory[mod];
+                            if (m && m.questions && m.answers) {
+                                m.questions.forEach((q, i) => {
+                                    const ans = m.answers[i];
+                                    if (ans && ans !== q.correctAnswer) {
+                                        const topic = q.topic || q.category || 'General';
+                                        if (!wrongByTopic[topic]) wrongByTopic[topic] = [];
+                                        wrongByTopic[topic].push(q.text);
+                                    }
+                                });
+                            }
+                        }
+                    }
+                });
+
+                ctx += '=== WRONG ANSWERS BY TOPIC ===\n';
+                for (const [topic, questions] of Object.entries(wrongByTopic)) {
+                    ctx += topic + ': ' + questions.length + ' mistakes\n';
+                    questions.slice(0, 3).forEach(q => ctx += '  - ' + q.substring(0, 120) + '\n');
+                }
+
+                // Category scores if available
+                if (results[0].categoryScores) {
+                    ctx += '\n=== CATEGORY ACCURACY ===\n';
+                    for (const [id, cs] of Object.entries(results[0].categoryScores)) {
+                        if (cs.total > 0) {
+                            const pct = (cs.correct / cs.total * 100).toFixed(0);
+                            ctx += cs.label + ': ' + pct + '% (' + cs.correct + '/' + cs.total + ')\n';
+                        }
+                    }
+                }
+
+                const prompt = 'You are Dr. Joe, an elite SAT Math tutor. Analyze this student\'s performance and provide:\n1. Their weakest topics (be specific)\n2. Why they might be struggling with each topic\n3. Specific actionable steps to improve each weak area\n4. A recommended study plan for the next 2 weeks\n\nStudent data:\n' + ctx + '\n\nFocus ONLY on SAT Math. Use **bold** for emphasis. Be concise and practical.';
+
+                // Show loading page
+                const loadingHtml = `
+                <div class="max-w-4xl mx-auto">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-4">AI Score Analysis</h2>
+                    <div class="bg-white rounded-xl shadow-lg p-10 text-center">
+                        <div class="text-5xl mb-4 animate-pulse">🔍</div>
+                        <p class="text-lg text-gray-600">Analyzing your test results...</p>
+                        <p class="text-sm text-gray-400 mt-2">This may take 15-30 seconds</p>
+                    </div>
+                </div>`;
+                contentDiv.innerHTML = sidebarWrapper(loadingHtml, studentSidebarHtml('ai_analysis'));
+
+                const provider = window.getAiProvider();
+                let reply;
+                if (provider === 'ollama') {
+                    reply = await askOllama(prompt);
+                } else if (provider === 'gemini') {
+                    reply = await askGemini(prompt);
+                } else {
+                    reply = await askGroq(prompt);
+                }
+
+                const resultHtml = `
+                <div class="max-w-4xl mx-auto">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-2xl font-bold text-gray-800">AI Score Analysis</h2>
+                        <div class="flex gap-2">
+                            <button onclick="window.showAiScoreAnalysis()" class="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 text-sm font-semibold transition">🔄 Regenerate</button>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-lg p-6 mb-4">
+                        <div class="flex items-start gap-3">
+                            <div class="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white text-lg shrink-0">🧑‍🏫</div>
+                            <div class="bg-gray-100 text-gray-800 px-5 py-4 rounded-2xl rounded-tl-sm w-full text-sm leading-relaxed shadow-sm">
+                                ${renderMarkdown(reply)}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 text-sm text-gray-500">
+                        <strong>📊 Summary:</strong> ${results.length} test(s) analyzed | Avg score: ${avg.toFixed(1)}/44 | Weakest areas: ${Object.entries(wrongByTopic).sort((a,b) => b[1].length - a[1].length).slice(0, 3).map(([t, q]) => t + ' (' + q.length + ')').join(', ')}
+                    </div>
+                </div>`;
+                contentDiv.innerHTML = sidebarWrapper(resultHtml, studentSidebarHtml('ai_analysis'));
+
+            } catch (e) {
+                console.error('AI Score Analysis error:', e);
+                contentDiv.innerHTML = sidebarWrapper(`
+                <div class="max-w-4xl mx-auto text-center p-10">
+                    <p class="text-3xl mb-3">❌</p>
+                    <h2 class="text-xl font-bold text-red-600 mb-2">Analysis Failed</h2>
+                    <p class="text-sm text-gray-500 mb-4">${e.message}</p>
+                    <button onclick="window.showAiScoreAnalysis()" class="px-5 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700">Try Again</button>
+                </div>`, studentSidebarHtml('ai_analysis'));
+            }
+        };
 
         // --- Topic Analysis for Score Report ---
 
@@ -6523,9 +6666,9 @@
                             </div>
                             <label class="block font-semibold text-gray-700 mb-2 mt-3">Groq Model</label>
                             <select id="admin-groq-model" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
-                                <option value="llama-3.3-70b-versatile" ${currentGroqModel === 'llama-3.3-70b-versatile' ? 'selected' : ''}>Llama 3.3 70B (versatile, 128K context)</option>
-                                <option value="llama-3.1-70b-versatile" ${currentGroqModel === 'llama-3.1-70b-versatile' ? 'selected' : ''}>Llama 3.1 70B (versatile, 8K context)</option>
+                                <option value="mixtral-8x7b-32768" ${currentGroqModel === 'mixtral-8x7b-32768' ? 'selected' : ''}>Mixtral 8x7B (user's preferred)</option>
                                 <option value="llama-3.1-8b-instant" ${currentGroqModel === 'llama-3.1-8b-instant' ? 'selected' : ''}>Llama 3.1 8B (instant, fast)</option>
+                                <option value="llama-3.3-70b-versatile" ${currentGroqModel === 'llama-3.3-70b-versatile' ? 'selected' : ''}>Llama 3.3 70B (versatile, 128K context)</option>
                                 <option value="llama-guard-3-8b" ${currentGroqModel === 'llama-guard-3-8b' ? 'selected' : ''}>Llama Guard 3 8B (safety)</option>
                                 <option value="gemma2-9b-it" ${currentGroqModel === 'gemma2-9b-it' ? 'selected' : ''}>Gemma 2 9B (good balance, 8K context)</option>
                                 <option value="gemma-7b-it" ${currentGroqModel === 'gemma-7b-it' ? 'selected' : ''}>Gemma 7B (lightweight, 8K context)</option>
@@ -8091,6 +8234,7 @@ function studentSidebarHtml(active) {
         { id: 'flashcards', label: 'Flashcards', action: 'window.showFlashcards()' },
         { id: 'settings', label: 'Settings', action: 'window.showStudentSettings()' },
         { id: 'ai_tutor', label: '🤖 AI Tutor', action: 'window.renderAITutor()' },
+        { id: 'ai_analysis', label: '📊 AI Score Analysis', action: 'window.showAiScoreAnalysis()' },
         { id: 'ebooks', label: '📚 E-Books', action: 'window.renderStudentEbooks()' },
     ];
     return `
