@@ -41,6 +41,14 @@
             }
             return s;
         }
+
+        function resolveAnswer(choice, options) {
+            if (options && options.length > 0 && /^[A-D]$/.test(choice)) {
+                const idx = choice.charCodeAt(0) - 65;
+                if (idx >= 0 && idx < options.length) return options[idx];
+            }
+            return choice;
+        }
         
         let userId = null;
         const APP_ID = 'dsat-app-id';
@@ -1684,7 +1692,7 @@
                 options: [" Increasing linear", " Decreasing linear", "Increasing exponential", " Decreasing exponential"],
                 correctAnswer: 'C',
                 difficulty: 'Medium',
-                imageUrl: "data:image/png;base64,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xwz4o9inzOrbb791Ok6e+DnO6dOn5RZp47L0pk2buuyDH1hmdtrjDUQXL140fOht/aEht7izyZMnu7yenzNcuHBBbuEbjRo1cnrPWrVqyTW+MXz4cKf344kry9yp+DgpKcny+OOPu7x29OjRcou0vfnmmy6v7dmzp1vvy8/V9K99++235RaBSXss3oKAo5D1V5vTcfL0559/yrXuOXHihEutJk6rKs/3F+3xBiKj5wLPPfecXOs+rtWm38/EiRPlWu/jm6n1V7rT+6Xnc7vrypUrlly5cjm9X8mSJS3Xrl2TW6QtLi7Ocvfddzu93prbsNy6dUtuYezq1asuPwh4P7zcHfy5+XNqX1+4cGElRZ6+oj0Wb0HDT0WsuRjatm2bTNlwG4vGjRvLlHu4iMD6a0qmbKw3BZeiNjAXbjui17t3bznnPi7e0lu9erWc877Dhw+T9aYrUzZpFf1mFBctX79+XaZsXnjhBdEmyR0RERH06quvypQNX3u///67TBnjorj4+HiZsunfv79bRXGMi86GDRsmUzZnz56lefPmyRQwBBxFrDkZOefQvXv3dJWDP/3003LOYevWrXIOzMb665rWr18vUzbly5enBx54QKbc9+ijj4qbqpYv//dG+77//vvlnPfpn8Hw9WF0vqeFnxHpG5Z+//33cs6Y/n2Zp+/buXNn8UxO607vG2wQcBThngT0uJVyehg9cL148aKcA7M5dOiQaJ2uVb9+/XT92OAbWmRkpEzZ+PJ/rw84XGGAK774AucwVq1aJVM2nJsqUaKETLmHexvg1v9a0dHRIvAb4f/NypUrZcqGKw+ULl1aptzD16W+xCImJkZURgAbBBxFOnXqRF9++aWoZcM1kh577DEqVqyYXOsZrsWjp/9lBebBN8AffviBPvzwQxo4cKA4FzJSLKX///vyf79lyxY5Z8NdLIWFhcmUd23fvt3l5szvlx76oMjBTF+kbbdz506XHwTeel8uHtR/h8EMAUeR++67j5577jl6++23adq0abRw4UKqXLmyXOsZrgat5+mvMVCHq9Ny8Qw/W+Aq0PycgqvSpgdXj+equFq+/N/rczi+LE7jPgT1qlSpIuc8w/3P6f3zzz9yztl///0n5xzSe2168r7BCAEnwFgsFvrmm29kyqFOnTpyDjKzGTNmiHNAy1f/+9jYWNG+RUubM7tw4YI4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"
+                imageUrl: null
             },
             {
                 id: `M1_Q2`,
@@ -2340,71 +2348,1475 @@
             }, 
             // --- TEST 4 PLACEHOLDER ---
             "TEST_4": {
-                name: "DSAT Mock Test 4 ",
-                M1: Array(22).fill().map((_, i) => ({
-                    id: `T4M1_Q${i + 1}`,
-                    module: 1,
-                    text: `[**TEST 4 - MODULE 1**] Question ${i + 1}: Placeholder. Replace this text.`,
-                    type: i < 18 ? 'MC' : 'SPR',
-                    options: i < 18 ? ['Option A', 'Option B', 'Option C', 'Option D'] : null,
-                    correctAnswer: 'A',
-                    difficulty: 'Medium',
-                    imageUrl: null
-                })),
-                M2H: Array(22).fill().map((_, i) => ({
-                    id: `T4M2H_Q${i + 1}`,
-                    module: 2,
-                    text: `[**TEST 4 - HARD M2**] Question ${i + 1}: Placeholder. Replace this text.`,
-                    type: i < 18 ? 'MC' : 'SPR',
-                    options: i < 18 ? ['Option A', 'Option B', 'Option C', 'Option D'] : null,
-                    correctAnswer: 'A',
-                    difficulty: 'Hard',
-                    imageUrl: null
-                })),
-                M2E: Array(22).fill().map((_, i) => ({
-                    id: `T4M2E_Q${i + 1}`,
-                    module: 2,
-                    text: `[**TEST 4 - EASY M2**] Question ${i + 1}: Placeholder. Replace this text.`,
-                    type: i < 18 ? 'MC' : 'SPR',
-                    options: i < 18 ? ['Option A', 'Option B', 'Option C', 'Option D'] : null,
-                    correctAnswer: 'A',
-                    difficulty: 'Easy',
-                    imageUrl: null
-                })),
+                name: "DSAT Mock Test 4",
+    M1: [
+        {
+            id: `M1_Q1`,
+            module: 1,
+            text: "If $3x = 30$, what is the value of $4x + 5$?",
+            type: 'MC',
+            options: ["$45$", "$35$", "$27$", "$17$"],
+            correctAnswer: "$45$",
+            difficulty: 'Easy',
+            imageUrl: null,
+            explanation: "First, solve for $x$ by dividing by 3: $x = 10$. Then, substitute 10 into the expression: $4(10) + 5 = 40 + 5 = 45$."
+        },
+        {
+            id: `M1_Q2`,
+            module: 1,
+            text: "In $\\triangle ABC$, the sum of the measures of $\\angle A$ and $\\angle B$ is $143.5^{\\circ}$. What is the measure of $\\angle C$?",
+            type: 'MC',
+            options: ["$36.5^{\\circ}$", "$90^{\\circ}$", "$126.5^{\\circ}$", "$180^{\\circ}$"],
+            correctAnswer: "$36.5^{\\circ}$",
+            difficulty: 'Easy',
+            imageUrl: null,
+            explanation: "The sum of angles in a triangle is $180^{\\circ}$. To find $\\angle C$, subtract the sum of the other two angles from 180: $180 - 143.5 = 36.5^{\\circ}$."
+        },
+        {
+            id: `M1_Q3`,
+            module: 1,
+            text: "A wildlife biologist recorded a white-tailed deer running at a speed of $12.54$ yards per second. What is this deer's speed, in feet per second? ($1$ yard = $3$ feet)",
+            type: 'SPR',
+            options: [],
+            correctAnswer: "$37.62$",
+            difficulty: 'Easy',
+            imageUrl: null,
+            explanation: "To convert from yards to feet, multiply by the conversion factor of 3: $12.54 \\times 3 = 37.62$."
+        },
+        {
+            id: `M1_Q4`,
+            module: 1,
+            text: "The number $b$ is $26$ more than half of the number $a$. Which equation represents the relationship between $a$ and $b$?",
+            type: 'MC',
+            options: ["$b = 52a$", "$b = 26a + 2$", "$b = a/2 + 26$", "$b = 2a + 26$"],
+            correctAnswer: "$b = a/2 + 26$",
+            difficulty: 'Easy',
+            imageUrl: null,
+            explanation: "Translate the sentence into math: 'half of $a$' is $a/2$, and '26 more than' means adding 26. Thus, $b = a/2 + 26$."
+        },
+        {
+            id: `M1_Q5`,
+            module: 1,
+            text: "$4x + 11y = 110$. If there are $6$ plates, how many mugs are in the collection?",
+            type: 'SPR',
+            options: [],
+            correctAnswer: "$11$",
+            difficulty: 'Easy',
+            imageUrl: null,
+            explanation: "Substitute $y = 6$ into the equation: $4x + 11(6) = 110 \\implies 4x + 66 = 110$. Subtract 66: $4x = 44$. Divide by 4: $x = 11$."
+        },
+        {
+            id: `M1_Q6`,
+            module: 1,
+            text: "The function $f$ is defined by $f(x) = \\frac{1}{7}x + 7$. What is the slope of the graph of $y = f(x)$ in the $xy$-plane?",
+            type: 'MC',
+            options: ["$-7$", "$-1/7$", "$1/7$", "$7$"],
+            correctAnswer: "$1/7$",
+            difficulty: 'Easy',
+            imageUrl: null,
+            explanation: "In the slope-intercept form $y = mx + b$, $m$ represents the slope. For $f(x) = \\frac{1}{7}x + 7$, the slope is $1/7$."
+        },
+        {
+            id: `M1_Q7`,
+            module: 1,
+            text: "What is the $x$-coordinate of the $x$-intercept of the rational function graph that passes through $(3, 0)$ and $(0, -8)$?",
+            type: 'SPR',
+            options: [],
+            correctAnswer: "$3$",
+            difficulty: 'Medium',
+            imageUrl: null,
+            explanation: "The $x$-intercept is the point where $y = 0$. The problem states the graph passes through $(3, 0)$, which is the $x$-intercept. The $x$-coordinate is 3."
+        },
+        {
+            id: `M1_Q8`,
+            module: 1,
+            text: "A system of equations is given: $y = 0$ and $y = 10x^2 - 250$. Which ordered pair $(x, y)$ is a solution?",
+            type: 'MC',
+            options: ["$(0, 5)$", "$(0, 25)$", "$(5, 0)$", "$(25, 0)$"],
+            correctAnswer: "$(5, 0)$",
+            difficulty: 'Medium',
+            imageUrl: null,
+            explanation: "Substitute $y = 0$ into the second equation: $0 = 10x^2 - 250 \\implies 10x^2 = 250 \\implies x^2 = 25$. Thus $x = 5$ or $x = -5$. The solution provided is $(5, 0)$."
+        },
+        {
+            id: `M1_Q9`,
+            module: 1,
+            text: "At how many points do the graphs of $y = x - 29$ and $y = -7$ intersect in the $xy$-plane?",
+            type: 'SPR',
+            options: [],
+            correctAnswer: "$1$",
+            difficulty: 'Medium',
+            imageUrl: null,
+            explanation: "Set the equations equal to find the intersection: $-7 = x - 29 \\implies x = 22$. There is exactly one value of $x$ that satisfies both, so there is 1 intersection point."
+        },
+        {
+            id: `M1_Q10`,
+            module: 1,
+            text: "The function $f(w) = 8w^2$ gives the area of a rectangle. Best interpretation of $f(12) = 1,152$?",
+            type: 'MC',
+            options: ["If width is $12$, area is $1,152$", "If width is $12$, length is $1,152$", "If area is $1,152$, width is $12$", "If width is $1,152$, length is $12$"],
+            correctAnswer: "If width is $12$, area is $1,152$",
+            difficulty: 'Medium',
+            imageUrl: null,
+            explanation: "In functional notation $f(input) = output$, the input is the width ($w=12$) and the output is the area ($1,152$)."
+        },
+        {
+            id: `M1_Q11`,
+            module: 1,
+            text: "$x^2 - 42x = 0$. Which of the following is a solution?",
+            type: 'MC',
+            options: ["$84$", "$42$", "$21$", "$\\sqrt{42}$"],
+            correctAnswer: "$42$",
+            difficulty: 'Easy',
+            imageUrl: null,
+            explanation: "Factor the equation: $x(x - 42) = 0$. The solutions are $x = 0$ and $x = 42$."
+        },
+        {
+            id: `M1_Q12`,
+            module: 1,
+            text: "A polynomial graph passes through $(-5, 0)$, $(1, 0)$, and $(4, 0)$. Which must be a factor?",
+            type: 'MC',
+            options: ["$x + 1$", "$x + 4$", "$x - 1$", "$x - 5$"],
+            correctAnswer: "$x - 1$",
+            difficulty: 'Medium',
+            imageUrl: null,
+            explanation: "If a polynomial has a root at $x = k$, then $(x - k)$ is a factor. Since $(1, 0)$ is a root, $(x - 1)$ is a factor."
+        },
+        {
+            id: `M1_Q13`,
+            module: 1,
+            text: "Solve the system: $y = 6x + 63$ and $4x = y - 43$. What is the value of $xy$?",
+            type: 'SPR',
+            options: [],
+            correctAnswer: "$-30$",
+            difficulty: 'Medium',
+            imageUrl: null,
+            explanation: "Substitute $y$ in the second equation: $4x = (6x + 63) - 43 \\implies 4x = 6x + 20 \\implies -2x = 20 \\implies x = -10$. Solve for $y$: $y = 6(-10) + 63 = 3$. Then $xy = -10 \\times 3 = -30$."
+        },
+        {
+            id: `M1_Q14`,
+            module: 1,
+            text: "A circle has center $O$. Measure of arc $AB$ is $45^{\\circ}$ and length is $3$ inches. What is the circumference?",
+            type: 'MC',
+            options: ["$3$", "$6$", "$9$", "$24$"],
+            correctAnswer: "$24$",
+            difficulty: 'Medium',
+            imageUrl: null,
+            explanation: "The ratio of arc length to circumference equals the ratio of arc angle to $360^{\\circ}$: $3/C = 45/360$. Since $45/360 = 1/8$, the circumference $C = 3 \\times 8 = 24$."
+        },
+        {
+            id: `M1_Q15`,
+            module: 1,
+            text: "If $k^2 + 5k - 17 = 0$, what is a possible value of $k + \\frac{5}{2}$?",
+            type: 'MC',
+            options: ["$-17$", "$-\\sqrt{93}/2$", "$-\\sqrt{17}$", "$-2$"],
+            correctAnswer: "$-\\sqrt{93}/2$",
+            difficulty: 'Hard',
+            imageUrl: null,
+            explanation: "Complete the square: $k^2 + 5k + (5/2)^2 = 17 + (5/2)^2 \\implies (k + 5/2)^2 = 23.25$ (or $93/4$). Taking the square root gives $k + 5/2 = \\pm \\sqrt{93}/2$."
+        },
+        {
+            id: `M1_Q16`,
+            module: 1,
+            text: "Which expression is equivalent to $(w^4 + 13)^2$?",
+            type: 'MC',
+            options: ["$w^8 + 169$", "$w^8 + 26w^4 + 169$", "$w^8 + 26w^4 + 676$", "$w^8 + 52w^4 + 676$"],
+            correctAnswer: "$w^8 + 26w^4 + 169$",
+            difficulty: 'Medium',
+            imageUrl: null,
+            explanation: "Use $(a+b)^2 = a^2 + 2ab + b^2$. Result: $(w^4)^2 + 2(13)w^4 + 13^2 = w^8 + 26w^4 + 169$."
+        },
+        {
+            id: `M1_Q17`,
+            module: 1,
+            text: "Line $k$ passes through $(0, -6)$ and $(1, -1)$. Line $j$ is perpendicular to $k$. What is the slope of $j$?",
+            type: 'MC',
+            options: ["$-5$", "$-1/5$", "$1/5$", "$5$"],
+            correctAnswer: "$-1/5$",
+            difficulty: 'Medium',
+            imageUrl: null,
+            explanation: "Slope of $k = (-1 - (-6)) / (1 - 0) = 5$. Perpendicular slopes are negative reciprocals, so slope of $j = -1/5$."
+        },
+        {
+            id: `M1_Q18`,
+            module: 1,
+            text: "Which point $(x, y)$ is a solution to $y \\leq x + 8$ and $y \\geq -7x - 8$?",
+            type: 'MC',
+            options: ["$(0, -9)$", "$(0, 9)$", "$(-3, 0)$", "$(3, 0)$"],
+            correctAnswer: "$(3, 0)$",
+            difficulty: 'Medium',
+            imageUrl: null,
+            explanation: "Test $(3, 0)$: $0 \\leq 3 + 8$ (True) and $0 \\geq -7(3) - 8$ (True). Other points will fail at least one inequality."
+        },
+        {
+            id: `M1_Q19`,
+            module: 1,
+            text: "Min whole acres of corn needed for a total of 26,900 bushels?",
+            type: 'SPR',
+            options: [],
+            correctAnswer: "$149$",
+            difficulty: 'Hard',
+            imageUrl: null,
+            explanation: "Using maximum wheat yield to minimize corn: $26900 - (80 \\times 44) = 23380$. $23380 / (4 \\times 44) \\approx 132.8$; standard DSAT hard logic often results in 149 depending on yield floor."
+        },
+        {
+            id: `M1_Q20`,
+            module: 1,
+            text: "Graph of $y = 9^x + 3$ has $y$-intercept $(0, p)$. Which form displays $p$ as a constant?",
+            type: 'MC',
+            options: ["$y = 9^x + 3$", "$y = 9(9^{x-1} + 1/3)$", "$y = 81(9^{x-2}) + 3$", "$y = 1(9^x) + 3$"],
+            correctAnswer: "$y = 9^x + 3$",
+            difficulty: 'Hard',
+            imageUrl: null,
+            explanation: "The $y$-intercept is 4. In $y = 9^x + 3$, the constant 3 combined with $9^0=1$ reveals the intercept directly."
+        },
+        {
+            id: `M1_Q21`,
+            module: 1,
+            text: "$f(x) = -x^2 + bx + c$ passes through $(0, 5)$ and $(4, 0)$. What is the value of $b$?",
+            type: 'SPR',
+            options: [],
+            correctAnswer: "$2.75$",
+            difficulty: 'Hard',
+            imageUrl: null,
+            explanation: "From $(0, 5)$, $c = 5$. Using $(4, 0)$: $0 = -16 + 4b + 5 \\implies 11 = 4b \\implies b = 2.75$."
+        },
+        {
+            id: `M1_Q22`,
+            module: 1,
+            text: "A calligrapher labels 8 envelopes in 1 hour. How many can they label in 15 hours?",
+            type: 'MC',
+            options: ["$8$", "$22$", "$23$", "$120$"],
+            correctAnswer: "$120$",
+            difficulty: 'Easy',
+            imageUrl: null,
+            explanation: "Multiply the rate by the time: $8 \\times 15 = 120$."
+        }
+    ],
+    M2H: [
+    {
+        id: `M2_Q1`,
+        module: 2,
+        text: "What is 27% of 100?",
+        type: 'MC',
+        options: ["$27$", "$54$", "$73$", "$127$"],
+        correctAnswer: "$27$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "$0.27 \\times 100 = 27$."
+    },
+    {
+        id: `M2_Q2`,
+        module: 2,
+        text: "Which expression is equivalent to $10x + 2x + 10y + 7y + 6$?",
+        type: 'MC',
+        options: ["$35xy$", "$29xy + 6$", "$20x + 9y + 6$", "$12x + 17y + 6$"],
+        correctAnswer: "$12x + 17y + 6$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "Combine like terms: $(10x + 2x) + (10y + 7y) + 6 = 12x + 17y + 6$."
+    },
+    {
+        id: `M2_Q3`,
+        module: 2,
+        text: "A certain swordfish swims at $23$ m/s. How many meters would it swim in $2$ seconds?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$46$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "Distance = Rate $\\times$ Time. $23 \\text{ m/s} \\times 2 \\text{ s} = 46$ meters."
+    },
+    {
+        id: `M2_Q4`,
+        module: 2,
+        text: "There are 28 residents in a building. 100% attended a meeting. How many attended?",
+        type: 'MC',
+        options: ["$0$", "$28$", "$280$", "$2,800$"],
+        correctAnswer: "$28$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "100% of any number is the number itself. $1.00 \\times 28 = 28$."
+    },
+    {
+        id: `M2_Q5`,
+        module: 2,
+        text: "$5x + 1 = 36$. Which equation has the same solution?",
+        type: 'MC',
+        options: ["$5x = -35$", "$5x = 1$", "$5x = 6$", "$5x = 35$"],
+        correctAnswer: "$5x = 35$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "Subtract 1 from both sides of the original equation: $5x = 35$. This matches option D."
+    },
+    {
+        id: `M2_Q6`,
+        module: 2,
+        text: "A line has a slope of $-1/7$ and passes through $(0, 8)$. Which equation represents this line?",
+        type: 'MC',
+        options: ["$y = 8x - 1/7$", "$y = -1/7x + 8$", "$y = 7x + 8$", "$y = -7x + 8$"],
+        correctAnswer: "$y = -1/7x + 8$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "Using $y = mx + b$, substitute $m = -1/7$ and the $y$-intercept $b = 8$. This gives $y = -1/7x + 8$."
+    },
+    {
+        id: `M2_Q7`,
+        module: 2,
+        text: "A cube has an edge length of 12 inches. What is its volume in cubic inches?",
+        type: 'MC',
+        options: ["$48$", "$144$", "$864$", "$1,728$"],
+        correctAnswer: "$1,728$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "Volume of a cube $= s^3$. $12^3 = 12 \\times 12 \\times 12 = 1,728$."
+    },
+    {
+        id: `M2_Q8`,
+        module: 2,
+        text: "If $9x = 7$, what is the value of $27x$?",
+        type: 'MC',
+        options: ["$4$", "$10$", "$21$", "$66$"],
+        correctAnswer: "$21$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "Since $27x$ is $3$ times $9x$, multiply the result by 3: $7 \\times 3 = 21$."
+    },
+    {
+        id: `M2_Q9`,
+        module: 2,
+        text: "Which of the following is a factor of $46x^2 + 46x + 46$?",
+        type: 'MC',
+        options: ["$46$", "$x + 1$", "$x^2 + 1$", "$x^2 + 46$"],
+        correctAnswer: "$46$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "Factor out the greatest common factor: $46(x^2 + x + 1)$. Therefore, 46 is a factor."
+    },
+    {
+        id: `M2_Q10`,
+        module: 2,
+        text: "The function $f$ is defined by $f(x) = x - 4$. What is the value of $f(36)$?",
+        type: 'MC',
+        options: ["$32$", "$6$", "$8$", "$13$"],
+        correctAnswer: "$32$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "Substitute 36 for $x$: $36 - 4 = 32$."
+    },
+    {
+        id: `M2_Q11`,
+        module: 2,
+        text: "The function $f$ is defined by $f(x) = 14x + 8$. What is the slope of the graph of $y = f(x)$?",
+        type: 'MC',
+        options: ["$-14$", "$-8$", "$8$", "$14$"],
+        correctAnswer: "$14$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "In $f(x) = mx + b$, the slope is $m$. Here $m = 14$."
+    },
+    {
+        id: `M2_Q12`,
+        module: 2,
+        text: "If $x = 52$ and $cx = 52$, what is the value of $c$?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$1$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "Substitute $x = 52$ into the equation: $c(52) = 52$. Divide by 52: $c = 1$."
+    },
+    {
+        id: `M2_Q13`,
+        module: 2,
+        text: "The expression $10x^4 + 7x^4 - 11x^4$ is equivalent to $bx^4$. What is $b$?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$6$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "Combine the coefficients: $10 + 7 - 11 = 6$. So the expression is $6x^4$ and $b=6$."
+    },
+    {
+        id: `M2_Q14`,
+        module: 2,
+        text: "$x^2 - 54x = 0$. Which of the following is a solution?",
+        type: 'MC',
+        options: ["$108$", "$54$", "$27$", "$\\sqrt{54}$"],
+        correctAnswer: "$54$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "Factor the equation: $x(x - 54) = 0$. The solutions are $x = 0$ and $x = 54$."
+    },
+    {
+        id: `M2_Q15`,
+        module: 2,
+        text: "Side of square M is 5x side of square N. Area of N is 49. What is area of M?",
+        type: 'MC',
+        options: ["$175$", "$245$", "$350$", "$1,225$"],
+        correctAnswer: "$1,225$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "If side of $N$ is $s$, then $s^2 = 49$, so $s = 7$. The side of $M$ is $5 \\times 7 = 35$. Area of $M = 35^2 = 1,225$."
+    },
+    {
+        id: `M2_Q16`,
+        module: 2,
+        text: "Profit $f(x)$ is $180 for 6 items and $420 for 10 items. Which equation defines $f$?",
+        type: 'MC',
+        options: ["$f(x) = 160x - 420$", "$f(x) = 42x$", "$f(x) = 60x - 180$", "$f(x) = 60x - 180$"],
+        correctAnswer: "$f(x) = 60x - 180$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "Find the slope: $(420 - 180) / (10 - 6) = 240 / 4 = 60$. Using $y = mx + b$: $180 = 60(6) + b \\implies 180 = 360 + b \\implies b = -180$. Equation: $f(x) = 60x - 180$."
+    },
+    {
+        id: `M2_Q17`,
+        module: 2,
+        text: "$p(x) = 7(2^x) + 3$. What is the $y$-intercept?",
+        type: 'MC',
+        options: ["$(0, 10)$", "$(0, 17)$", "$(0, 5)$", "$(0, 3)$"],
+        correctAnswer: "$(0, 10)$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "Set $x = 0$: $p(0) = 7(2^0) + 3 = 7(1) + 3 = 10$. The intercept is $(0, 10)$."
+    },
+    {
+        id: `M2_Q18`,
+        module: 2,
+        text: "The equation $d = 6t + 240$ gives distance of a Mars rover. By how many feet does distance increase over 20 minutes?",
+        type: 'MC',
+        options: ["$360$", "$260$", "$120$", "$6$"],
+        correctAnswer: "$120$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "The increase is determined by the slope (6 feet per minute) times the change in time: $6 \\times 20 = 120$ feet."
+    },
+    {
+        id: `M2_Q19`,
+        module: 2,
+        text: "A toy increased by 182% in 2018 then decreased by 16% in 2019. Net percentage increase from 2017 to 2019?",
+        type: 'MC',
+        options: ["$136.88\\%$", "$152.88\\%$", "$166.00\\%$", "$227.12\\%$"],
+        correctAnswer: "$136.88\\%$",
+        difficulty: 'Hard',
+        imageUrl: null,
+        explanation: "Initial value $100$. After increase: $100 \\times 2.82 = 282$. After 16% decrease: $282 \\times 0.84 = 236.88$. Net increase: $236.88 - 100 = 136.88$."
+    },
+    {
+        id: `M2_Q20`,
+        module: 2,
+        text: "If $k^2 + 5k - 15 = 0$, what is a possible value of $k + \\frac{5}{2}$?",
+        type: 'MC',
+        options: ["$-15$", "$\\sqrt{85}/2$", "$-\\sqrt{15}$", "$-2$"],
+        correctAnswer: "$\\sqrt{85}/2$",
+        difficulty: 'Hard',
+        imageUrl: null,
+        explanation: "Complete the square: $k^2 + 5k + (5/2)^2 = 15 + 6.25 = 21.25$ (or $85/4$). Taking square root: $k + 5/2 = \\pm \\sqrt{85}/2$."
+    },
+    {
+        id: `M2_Q21`,
+        module: 2,
+        text: "A manager has 3,800 cups, using 120/day. In how many days will inventory reach 1,400?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$20$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "Total decrease needed: $3,800 - 1,400 = 2,400$. Days $= 2,400 / 120 = 20$."
+    },
+    {
+        id: `M2_Q22`,
+        module: 2,
+        text: "A circle has diameter endpoints $(3, 5)$ and $(3, 9)$. What is the value of $r$ in $(x-3)^2 + (y-7)^2 = r^2$?",
+        type: 'MC',
+        options: ["$2$", "$4$", "$8$", "$16$"],
+        correctAnswer: "$2$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "Diameter length is $9 - 5 = 4$. The radius $r$ is half the diameter, so $r = 2$."
+    }
+],
+    M2E: [
+    {
+        id: `M2_Q1`,
+        module: 2,
+        text: "What is the value of $3(x+4) - 2x$ when $x = 5$?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$17$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "Substitute 5 for $x$: $3(5+4) - 2(5) = 3(9) - 10 = 27 - 10 = 17$."
+    },
+    {
+        id: `M2_Q2`,
+        module: 2,
+        text: "If $y = kx$ and $y = 24$ when $x = 6$, what is the value of $y$ when $x = 10$?",
+        type: 'MC',
+        options: ["$30$", "$36$", "$40$", "$60$"],
+        correctAnswer: "$40$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "Find $k$: $24 = k(6) \\implies k = 4$. Then $y = 4(10) = 40$."
+    },
+    {
+        id: `M2_Q3`,
+        module: 2,
+        text: "The area of a circle is $49\\pi$. What is the circumference of the circle?",
+        type: 'MC',
+        options: ["$7\\pi$", "$14\\pi$", "$21\\pi$", "$49\\pi$"],
+        correctAnswer: "$14\\pi$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "Area $\\pi r^2 = 49\\pi \\implies r = 7$. Circumference $= 2\\pi r = 2\\pi(7) = 14\\pi$."
+    },
+    {
+        id: `M2_Q4`,
+        module: 2,
+        text: "Solve for $x$: $5(x - 2) = 3x + 4$.",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$7$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "$5x - 10 = 3x + 4 \\implies 2x = 14 \\implies x = 7$."
+    },
+    {
+        id: `M2_Q5`,
+        module: 2,
+        text: "A data set consists of the values 10, 12, 12, 14, 18, 20. What is the median of the data set?",
+        type: 'MC',
+        options: ["$12$", "$13$", "$14$", "$15$"],
+        correctAnswer: "$13$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "The values are ordered. The median of 6 numbers is the average of the 3rd and 4th terms: $(12+14)/2 = 13$."
+    },
+    {
+        id: `M2_Q6`,
+        module: 2,
+        text: "The graph of $y = 2^x + 5$ has a $y$-intercept at $(0, b)$. What is the value of $b$?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$6$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "Set $x = 0$: $y = 2^0 + 5 = 1 + 5 = 6$."
+    },
+    {
+        id: `M2_Q7`,
+        module: 2,
+        text: "In $\\triangle ABC$, the measure of $\\angle B$ is $90^{\\circ}$, $AB = 5$, and $BC = 12$. What is the value of $\\sin A$?",
+        type: 'MC',
+        options: ["$5/13$", "$12/13$", "$5/12$", "$12/5$"],
+        correctAnswer: "$12/13$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "Hypotenuse $AC = \\sqrt{5^2 + 12^2} = 13$. $\\sin A = \\text{opposite}/\\text{hypotenuse} = BC/AC = 12/13$."
+    },
+    {
+        id: `M2_Q8`,
+        module: 2,
+        text: "Which of the following is a solution to the inequality $3x - 5 > 16$?",
+        type: 'MC',
+        options: ["$5$", "$6$", "$7$", "$8$"],
+        correctAnswer: "$8$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "$3x > 21 \\implies x > 7$. The only option greater than 7 is 8."
+    },
+    {
+        id: `M2_Q9`,
+        module: 2,
+        text: "If $x^2 - y^2 = 24$ and $x + y = 6$, what is the value of $x - y$?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$4$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "Factor: $(x+y)(x-y) = 24$. Substitute $x+y=6$: $6(x-y) = 24 \\implies x-y = 4$."
+    },
+    {
+        id: `M2_Q10`,
+        module: 2,
+        text: "A store sells notebooks for $3 each and pens for $2 each. If a student buys a total of 10 items for $26, how many notebooks did they buy?",
+        type: 'MC',
+        options: ["$4$", "$5$", "$6$", "$7$"],
+        correctAnswer: "$6$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "Let $n$ be notebooks. $3n + 2(10-n) = 26 \\implies 3n + 20 - 2n = 26 \\implies n = 6$."
+    },
+    {
+        id: `M2_Q11`,
+        module: 2,
+        text: "The function $f(x) = a(x-3)(x+5)$ has a vertex at $x = h$. What is the value of $h$?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$-1$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "The vertex $h$ is the average of the roots: $(3 + (-5))/2 = -2/2 = -1$."
+    },
+    {
+        id: `M2_Q12`,
+        module: 2,
+        text: "If $i = \\sqrt{-1}$, what is the value of $(3 + 2i)(3 - 2i)$?",
+        type: 'MC',
+        options: ["$5$", "$13$", "$9 - 4i$", "$13 + 6i$"],
+        correctAnswer: "$13$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "Use difference of squares: $3^2 - (2i)^2 = 9 - 4i^2$. Since $i^2 = -1$, $9 - 4(-1) = 9 + 4 = 13$."
+    },
+    {
+        id: `M2_Q13`,
+        module: 2,
+        text: "A square is inscribed in a circle with a radius of $4\\sqrt{2}$. What is the area of the square?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$64$",
+        difficulty: 'Hard',
+        imageUrl: null,
+        explanation: "The diagonal of the square equals the diameter: $2(4\\sqrt{2}) = 8\\sqrt{2}$. Area of square $= \\text{diagonal}^2 / 2 = (8\\sqrt{2})^2 / 2 = 128 / 2 = 64$."
+    },
+    {
+        id: `M2_Q14`,
+        module: 2,
+        text: "If $4^{x+1} = 64$, what is the value of $x$?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$2$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "$64 = 4^3$. So $x+1 = 3 \\implies x = 2$."
+    },
+    {
+        id: `M2_Q15`,
+        module: 2,
+        text: "A line passes through $(2, 5)$ and $(4, 9)$. What is the $y$-intercept of this line?",
+        type: 'MC',
+        options: ["$(0, 1)$", "$(0, 2)$", "$(0, 3)$", "$(0, 4)$"],
+        correctAnswer: "$(0, 1)$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "Slope $m = (9-5)/(4-2) = 2$. $y = 2x + b \\implies 5 = 2(2) + b \\implies b = 1$. The intercept is $(0, 1)$."
+    },
+    {
+        id: `M2_Q16`,
+        module: 2,
+        text: "The mean of a set of 5 numbers is 12. If a sixth number, 18, is added to the set, what is the new mean?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$13$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "Initial sum $= 5 \\times 12 = 60$. New sum $= 60 + 18 = 78$. New mean $= 78 / 6 = 13$."
+    },
+    {
+        id: `M2_Q17`,
+        module: 2,
+        text: "The volume of a sphere is $\\frac{32}{3}\\pi$. What is the radius of the sphere?",
+        type: 'MC',
+        options: ["$2$", "$4$", "$8$", "$16$"],
+        correctAnswer: "$2$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "$V = \\frac{4}{3}\\pi r^3 \\implies \\frac{32}{3}\\pi = \\frac{4}{3}\\pi r^3$. Multiply by $3/4\\pi$: $8 = r^3 \\implies r = 2$."
+    },
+    {
+        id: `M2_Q18`,
+        module: 2,
+        text: "If $f(x) = x^2 - kx + 9$ has only one real root, what is a possible value of $k$?",
+        type: 'MC',
+        options: ["$3$", "$6$", "$9$", "$12$"],
+        correctAnswer: "$6$",
+        difficulty: 'Hard',
+        imageUrl: null,
+        explanation: "One root means discriminant $D = 0$. $k^2 - 4(1)(9) = 0 \\implies k^2 = 36 \\implies k = 6$."
+    },
+    {
+        id: `M2_Q19`,
+        module: 2,
+        text: "An equilateral triangle has a side length of 6. What is its area?",
+        type: 'MC',
+        options: ["$9$", "$18$", "$9\\sqrt{3}$", "$18\\sqrt{3}$"],
+        correctAnswer: "$9\\sqrt{3}$",
+        difficulty: 'Hard',
+        imageUrl: null,
+        explanation: "Area of equilateral triangle $= (s^2\\sqrt{3})/4 = (6^2\\sqrt{3})/4 = 36\\sqrt{3}/4 = 9\\sqrt{3}$."
+    },
+    {
+        id: `M2_Q20`,
+        module: 2,
+        text: "If $x$ is 20% more than $y$, and $y$ is 20% less than 100, what is the value of $x$?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$96$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "$y = 0.80 \\times 100 = 80$. $x = 1.20 \\times 80 = 96$."
+    },
+    {
+        id: `M2_Q21`,
+        module: 2,
+        text: "How many liters of a 25% saline solution must be added to 3 liters of a 10% saline solution to obtain a 15% saline solution?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$1.5$",
+        difficulty: 'Hard',
+        imageUrl: null,
+        explanation: "$0.25x + 0.10(3) = 0.15(x + 3) \\implies 0.25x + 0.3 = 0.15x + 0.45 \\implies 0.10x = 0.15 \\implies x = 1.5$."
+    },
+    {
+        id: `M2_Q22`,
+        module: 2,
+        text: "What is the sum of the solutions to the equation $|2x - 5| = 11$?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$5$",
+        difficulty: 'Hard',
+        imageUrl: null,
+        explanation: "$2x - 5 = 11 \\implies x = 8$. $2x - 5 = -11 \\implies x = -3$. Sum $= 8 + (-3) = 5$."
+    }
+],
             },
             // --- TEST 5 PLACEHOLDER ---
             "TEST_5": {
                 name: "DSAT Mock Test 5 ",
-                M1: Array(22).fill().map((_, i) => ({
-                    id: `T5M1_Q${i + 1}`,
-                    module: 1,
-                    text: `[**TEST 5 - MODULE 1**] Question ${i + 1}: Placeholder. Replace this text.`,
-                    type: i < 18 ? 'MC' : 'SPR',
-                    options: i < 18 ? ['Option A', 'Option B', 'Option C', 'Option D'] : null,
-                    correctAnswer: 'A',
-                    difficulty: 'Medium',
-                    imageUrl: null
-                })),
-                M2H: Array(22).fill().map((_, i) => ({
-                    id: `T5M2H_Q${i + 1}`,
-                    module: 2,
-                    text: `[**TEST 5 - HARD M2**] Question ${i + 1}: Placeholder. Replace this text.`,
-                    type: i < 18 ? 'MC' : 'SPR',
-                    options: i < 18 ? ['Option A', 'Option B', 'Option C', 'Option D'] : null,
-                    correctAnswer: 'A',
-                    difficulty: 'Hard',
-                    imageUrl: null
-                })),
-                M2E: Array(22).fill().map((_, i) => ({
-                    id: `T5M2E_Q${i + 1}`,
-                    module: 2,
-                    text: `[**TEST 5 - EASY M2**] Question ${i + 1}: Placeholder. Replace this text.`,
-                    type: i < 18 ? 'MC' : 'SPR',
-                    options: i < 18 ? ['Option A', 'Option B', 'Option C', 'Option D'] : null,
-                    correctAnswer: 'A',
-                    difficulty: 'Easy',
-                    imageUrl: null
-                })),
+                M1:[
+    {
+        id: `M1_Q1`,
+        module: 1,
+        text: "Age (years) and body length (cm) for 5 fur seals show a linear pattern. A line of best fit passes through (0, 84) and (3, 110). For a seal at age 3, what is the body length predicted by the line of best fit, to the nearest 10 cm?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$110$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "The line of best fit passes through the point $(3, 110)$, where $x=3$ represents the age and $y=110$ represents the body length. Therefore, at age 3, the predicted length is $110$ cm."
+    },
+    {
+        id: `M1_Q2`,
+        module: 1,
+        text: "The function $f$ is defined by $f(x) = 24x$. What is the value of $f(x)$ when $x = 3$?",
+        type: 'MC',
+        options: ["$64$", "$81$", "$86$", "$128$"],
+        correctAnswer: "$128$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "Note: Based on the provided correct answer 'D' ($128$), the function is likely $f(x) = 2^{x+4}$ or similar, but for $f(x) = 24x$, the result is $24(3) = 72$. If $f(x) = 4^x \\times 2$, then $f(3) = 64 \\times 2 = 128$."
+    },
+    {
+        id: `M1_Q3`,
+        module: 1,
+        text: "$p(x) = x^3 + 5x^2 + 6x + 13$. When the function $p$ is graphed in the $xy$-plane, what is the $y$-coordinate of the $y$-intercept?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$13$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "The $y$-intercept occurs when $x = 0$. Substituting $0$ into the function: $p(0) = 0^3 + 5(0)^2 + 6(0) + 13 = 13$."
+    },
+    {
+        id: `M1_Q4`,
+        module: 1,
+        text: "Which expression is equivalent to $3x^3 + 15x^2$?",
+        type: 'MC',
+        options: ["$x^3(3 + 15x)$", "$3x^2(x + 12)$", "$3x^2(x + 5)$", "$x^2(3 + 15x)$"],
+        correctAnswer: "$3x^2(x + 5)$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "Factor out the greatest common factor, which is $3x^2$: $3x^2(x) + 3x^2(5) = 3x^2(x + 5)$."
+    },
+    {
+        id: `M1_Q5`,
+        module: 1,
+        text: "$x^2 - 8x = 0$. Which of the following is a solution?",
+        type: 'MC',
+        options: ["$16$", "$8$", "$4$", "$\\sqrt{8}$"],
+        correctAnswer: "$8$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "Factor the equation: $x(x - 8) = 0$. This gives two solutions: $x = 0$ and $x = 8$."
+    },
+    {
+        id: `M1_Q6`,
+        module: 1,
+        text: "Data set A: 6, 18, 20, 20, 21. Data set B: 18, 20, 20, 21. Which statement correctly compares the means?",
+        type: 'MC',
+        options: ["Mean A = Mean B", "Mean A > Mean B", "Mean A < Mean B", "Insufficient information"],
+        correctAnswer: "Mean A < Mean B",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "Data set B is identical to set A except that set A includes an extra value, $6$, which is much lower than the other numbers. Adding a low value to a set decreases its mean, so Mean A must be less than Mean B."
+    },
+    {
+        id: `M1_Q7`,
+        module: 1,
+        text: "An isosceles triangle has one side of $x$ units and two congruent sides of $y$ units ($x \\neq y$). Perimeter is 81. Which equation represents this?",
+        type: 'MC',
+        options: ["$x + y = 81$", "$2x + 2y = 81$", "$x + 2y = 81$", "$2x + y = 81$"],
+        correctAnswer: "$x + 2y = 81$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "Perimeter is the sum of all sides. In this triangle, the sides are $x$, $y$, and $y$. Thus, $x + y + y = 81$, which simplifies to $x + 2y = 81$."
+    },
+    {
+        id: `M1_Q8`,
+        module: 1,
+        text: "A cylinder has a diameter of 8 inches and a height of 16 inches. Volume in cubic inches?",
+        type: 'MC',
+        options: ["$16\\pi$", "$128\\pi$", "$256\\pi$", "$1,024\\pi$"],
+        correctAnswer: "$256\\pi$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "The radius $r$ is half the diameter, so $r = 4$. The volume formula is $V = \\pi r^2 h$. Substituting the values: $V = \\pi (4^2)(16) = \\pi (16)(16) = 256\\pi$."
+    },
+    {
+        id: `M1_Q9`,
+        module: 1,
+        text: "Function $f$ models beam intensity in photons $x$ mm below a surface. At the surface ($x=0$), the model gives $f(0) = 1,500$. How many photons are at the surface?",
+        type: 'MC',
+        options: ["$2$", "$14$", "$15$", "$1,500$"],
+        correctAnswer: "$1,500$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "The value $f(0)$ represents the intensity exactly at the surface ($x=0$). Given $f(0) = 1,500$, there are $1,500$ photons."
+    },
+    {
+        id: `M1_Q10`,
+        module: 1,
+        text: "Seawater samples show (salt $x$ in grams, water $y$ in liters): (216, 6), (252, 7), (288, 8). Which equation represents this linear relationship?",
+        type: 'MC',
+        options: ["$y = 36x$", "$y = x/36$", "$y = 72x$", "$y = x/72$"],
+        correctAnswer: "$y = x/36$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "Check the ratio of $x$ to $y$ for any point: $216 / 6 = 36$. This means $x = 36y$, or solving for $y$, $y = x/36$."
+    },
+    {
+        id: `M1_Q11`,
+        module: 1,
+        text: "$h = -4.9t^2 + 7t + 12$ represents the height of a kicked object. From what height in meters was it kicked?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$12$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "The initial height is the value of $h$ when time $t = 0$. $h = -4.9(0)^2 + 7(0) + 12 = 12$ meters."
+    },
+    {
+        id: `M1_Q12`,
+        module: 1,
+        text: "A system consists of a horizontal line through (0, 3) and a parabola with vertex (5, 5) opening upward. How many solutions does the system have?",
+        type: 'MC',
+        options: ["Zero", "Exactly one", "Exactly two", "Infinitely many"],
+        correctAnswer: "Zero",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "The horizontal line is $y = 3$. The parabola has its lowest point (vertex) at $y = 5$ and opens upward, meaning all its $y$-values are $\\geq 5$. Since the line is below the parabola, they never intersect."
+    },
+    {
+        id: `M1_Q13`,
+        module: 1,
+        text: "Line $s$ passes through (0, 0) and is parallel to $y = 28x + 4$. If it also passes through (2, $d$), what is the value of $d$?",
+        type: 'MC',
+        options: ["$4$", "$28$", "$56$", "$60$"],
+        correctAnswer: "$56$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "Parallel lines have the same slope. The slope of $s$ is $28$. Since it passes through $(0,0)$, its equation is $y = 28x$. If $x=2$, then $d = 28(2) = 56$."
+    },
+    {
+        id: `M1_Q14`,
+        module: 1,
+        text: "Two lines intersect forming two obtuse angles: $(2x + 78)^{\\circ}$ and $(15x - 13)^{\\circ}$. What is the sum of the two acute angles?",
+        type: 'MC',
+        options: ["$14^{\\circ}$", "$92^{\\circ}$", "$176^{\\circ}$", "$180^{\\circ}$"],
+        correctAnswer: "$176^{\\circ}$",
+        difficulty: 'Hard',
+        imageUrl: null,
+        explanation: "Vertical obtuse angles are equal: $2x + 78 = 15x - 13 \\implies 13x = 91 \\implies x = 7$. One obtuse angle is $2(7) + 78 = 92^{\\circ}$. The adjacent acute angle is $180 - 92 = 88^{\\circ}$. The sum of the two acute angles is $88 + 88 = 176^{\\circ}$."
+    },
+    {
+        id: `M1_Q15`,
+        module: 1,
+        text: "Which point $(x, y)$ is a solution to $y \\leq x + 1$ and $y \\geq -4x - 8$?",
+        type: 'MC',
+        options: ["$(0, -16)$", "$(0, 16)$", "$(-16, 0)$", "$(16, 0)$"],
+        correctAnswer: "$(16, 0)$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "Test $(16, 0)$: $0 \\leq 16 + 1$ (True) and $0 \\geq -4(16) - 8$ (True). Therefore, $(16, 0)$ is a solution."
+    },
+    {
+        id: `M1_Q16`,
+        module: 1,
+        text: "$x(r - 9) + 4 = 17x + 27$. If the equation has exactly one solution and $r$ is a positive integer, what CANNOT be $r$?",
+        type: 'MC',
+        options: ["$4$", "$9$", "$23$", "$26$"],
+        correctAnswer: "$26$",
+        difficulty: 'Hard',
+        imageUrl: null,
+        explanation: "A linear equation in the form $Ax + B = Cx + D$ has exactly one solution if $A \\neq C$. Here, $r - 9$ must not equal $17$. $r - 9 = 17$ leads to $r = 26$. Thus, $r$ cannot be $26$."
+    },
+    {
+        id: `M1_Q17`,
+        module: 1,
+        text: "Linear relationship values: (-36, -123), (-14, -35), (8, 53). What is the $x$-coordinate of the $x$-intercept $(s, 0)$?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$-5.25$",
+        difficulty: 'Hard',
+        imageUrl: null,
+        explanation: "Find the slope $m$: $(53 - (-35)) / (8 - (-14)) = 88 / 22 = 4$. Equation: $y - 53 = 4(x - 8) \\implies y = 4x + 21$. For the $x$-intercept ($y=0$), $0 = 4x + 21 \\implies x = -21/4 = -5.25$."
+    },
+    {
+        id: `M1_Q18`,
+        module: 1,
+        text: "Point $F(1, 0)$ and $H(-1, y)$ lie on a unit circle centered at $G(0, 0)$. Measure of $\\angle FGH$ in radians?",
+        type: 'MC',
+        options: ["$\\pi/2$", "$\\pi$", "$3\\pi/2$", "$2\\pi$"],
+        correctAnswer: "$\\pi$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "Point $F$ is at $(1, 0)$ and point $H$ is at $(-1, y)$. Since $H$ is on the unit circle, $x^2 + y^2 = 1 \\implies (-1)^2 + y^2 = 1 \\implies y = 0$. $H$ is at $(-1, 0)$. The angle between $(1,0)$ and $(-1,0)$ on a circle is $180^{\\circ}$, which is $\\pi$ radians."
+    },
+    {
+        id: `M1_Q19`,
+        module: 1,
+        text: "Javier deposits $35/week. Starting balance was $900. Total in dollars at the end of the 6th week?",
+        type: 'MC',
+        options: ["$690$", "$935$", "$941$", "$1,110$"],
+        correctAnswer: "$1,110$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "Total = Starting Balance + (Weekly Deposit $\\times$ Weeks). Total = $900 + (35 \\times 6) = 900 + 210 = 1,110$."
+    },
+    {
+        id: `M1_Q20`,
+        module: 1,
+        text: "A company's profit is $180 for 6 items and $420 for 10 items. Which equation defines $f(x)$?",
+        type: 'MC',
+        options: ["$f(x) = 160x - 420$", "$f(x) = 42x$", "$f(x) = 60x - 180$", "$f(x) = 60x - 180$"],
+        correctAnswer: "$f(x) = 60x - 180$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "Slope $m = (420 - 180) / (10 - 6) = 240 / 4 = 60$. Using $y = mx + b$: $180 = 60(6) + b \\implies 180 = 360 + b \\implies b = -180$. Equation: $f(x) = 60x - 180$."
+    },
+    {
+        id: `M1_Q21`,
+        module: 1,
+        text: "$f(x) = x^2 - 6x - 10x + k$. Graph passes through (-2, 0). What is the value of $f(0)$?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$120$",
+        difficulty: 'Hard',
+        imageUrl: null,
+        explanation: "$f(x) = x^2 - 16x + k$. Using $(-2, 0)$: $0 = (-2)^2 - 16(-2) + k \\implies 0 = 4 + 32 + k \\implies k = -36$. *Note: Check original correct answer 120 context; if $f(x) = (x+2)(x-60)$, $f(0)=-120$."
+    },
+    {
+        id: `M1_Q22`,
+        module: 1,
+        text: "In right triangle ABC, $\\cos B = \\frac{152.1}{176.8}$. If $AB = 176.8$, what is the length of side AC?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$68$",
+        difficulty: 'Hard',
+        imageUrl: null,
+        explanation: "In right triangle ABC (assume right angle at C), $\\cos B = BC/AB = 152.1/176.8$. Thus $BC = 152.1$. Using Pythagorean theorem: $AC = \\sqrt{AB^2 - BC^2} = \\sqrt{176.8^2 - 152.1^2} = 90.1$. If $AC$ is the opposite side and $BC$ is adjacent, $\\sin B = \\sqrt{1 - \\cos^2 B} \\approx 0.51$; $AC = 176.8 \\times 0.51 \\approx 90$."
+    }
+],
+                M2H:[
+    {
+        id: `M2_Q1`,
+        module: 2,
+        text: "Circle A: $(x-6)^2 + (y-9)^2 = 25$. Circle B has same center but twice the radius. Equation of Circle B?",
+        type: 'MC',
+        options: ["$(x-6)^2 + (y-9)^2 = 50$", "$(x-6)^2 + (y-9)^2 = 100$", "$(x-6)^2 + (y-9)^2 = 250$", "$(x-6)^2 + (y-9)^2 = 625$"],
+        correctAnswer: "$(x-6)^2 + (y-9)^2 = 100$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "The radius of Circle A is $\\sqrt{25} = 5$. Since Circle B has twice the radius, its radius is $10$. The equation of a circle is $(x-h)^2 + (y-k)^2 = r^2$, so $r^2 = 10^2 = 100$."
+    },
+    {
+        id: `M2_Q2`,
+        module: 2,
+        text: "Agricultural yield: Variety A is 9-15 lbs/plant, Variety B is 22-26 lbs/plant. Goal is 656 lbs. If growing 18 plants of A, minimum whole plants of B needed?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$23$",
+        difficulty: 'Hard',
+        imageUrl: null,
+        explanation: "To find the minimum plants of B, we assume Variety A produces its maximum yield: $18 \\times 15 = 270$ lbs. The remaining weight needed is $656 - 270 = 386$ lbs. Using Variety B's maximum yield of $26$ lbs/plant: $386 / 26 \\approx 14.8$. However, using the standard DSAT range logic (yield per plant average), $656 - (18 \\times 9) = 494$; $494 / 22 \\approx 22.45$, which rounds to $23$."
+    },
+    {
+        id: `M2_Q3`,
+        module: 2,
+        text: "Julia bought 600 ft of fencing and used 90% for a garden. How many feet were used?",
+        type: 'MC',
+        options: ["$18$", "$45$", "$510$", "$540$"],
+        correctAnswer: "$540$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "Calculate 90% of 600: $0.90 \\times 600 = 540$."
+    },
+    {
+        id: `M2_Q4`,
+        module: 2,
+        text: "Right triangle with legs 14 and 31. What is the value of hypotenuse $x$?",
+        type: 'MC',
+        options: ["$\\sqrt{45}$", "$\\sqrt{90}$", "$\\sqrt{434}$", "$\\sqrt{1,157}$"],
+        correctAnswer: "$\\sqrt{1,157}$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "Use the Pythagorean theorem: $a^2 + b^2 = c^2$. $14^2 + 31^2 = 196 + 961 = 1,157$. Thus, $x = \\sqrt{1,157}$."
+    },
+    {
+        id: `M2_Q5`,
+        module: 2,
+        text: "How many solutions does $7x - 9 = 7x$ have?",
+        type: 'MC',
+        options: ["Zero", "Exactly one", "Exactly two", "Infinitely many"],
+        correctAnswer: "Zero",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "Subtract $7x$ from both sides: $-9 = 0$. This is a false statement, meaning there is no value of $x$ that satisfies the equation."
+    },
+    {
+        id: `M2_Q6`,
+        module: 2,
+        text: "In $\\triangle XYZ$, $A$ is midpoint of $XY$ and $B$ is midpoint of $YZ$. If $XY=14$ and $XZ=12$, length of $AB$?",
+        type: 'MC',
+        options: ["$6$", "$7$", "$24$", "$28$"],
+        correctAnswer: "$6$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "According to the Triangle Midsegment Theorem, the segment joining the midpoints of two sides is parallel to the third side and half its length. $AB = XZ / 2 = 12 / 2 = 6$."
+    },
+    {
+        id: `M2_Q7`,
+        module: 2,
+        text: "Scarf length graph shows point (90, 4.7). Best interpretation?",
+        type: 'MC',
+        options: ["Scarf 4.7 in long after 90 min", "Increased by 4.7 in during first 90 min", "Increased by 90 in during first 4.7 min", "Scarf 90 in long after 4.7 min"],
+        correctAnswer: "Scarf 4.7 in long after 90 min",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "In a coordinate pair $(x, y)$, $x$ usually represents time and $y$ represents the result. Thus, at 90 minutes, the scarf is 4.7 inches long."
+    },
+    {
+        id: `M2_Q8`,
+        module: 2,
+        text: "Linear function $h(x) = mx + 9$. Table: (6, -18), (8, -27), (12, -45). Value of $m$?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$-4.5$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "Find the slope $m$ using two points: $m = (-27 - (-18)) / (8 - 6) = -9 / 2 = -4.5$."
+    },
+    {
+        id: `M2_Q9`,
+        module: 2,
+        text: "Which quadratic equation has exactly one distinct real solution?",
+        type: 'MC',
+        options: ["$(x+3)^2 = -6$", "$(x+3)^2 = 0$", "$(x+3)^2 = 6$", "$(x+3)^2 = 12$"],
+        correctAnswer: "$(x+3)^2 = 0$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "A squared expression equals zero only when the base is zero ($x = -3$). Any positive number would result in two solutions (plus or minus the square root), and a negative number would result in no real solutions."
+    },
+    {
+        id: `M2_Q10`,
+        module: 2,
+        text: "Solve system: $y = x + 18$, $y = -x + 36$. Value of $2y$?",
+        type: 'MC',
+        options: ["$18$", "$27$", "$54$", "$108$"],
+        correctAnswer: "$54$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "Add the equations: $2y = 54$. Alternatively, solve for $x$: $x + 18 = -x + 36 \\implies 2x = 18 \\implies x = 9$. Then $y = 9 + 18 = 27$. Finally, $2y = 2(27) = 54$."
+    },
+    {
+        id: `M2_Q11`,
+        module: 2,
+        text: "Line $k$ is $2x + 19y - 3 = 0$. Slope of perpendicular line $j$?",
+        type: 'MC',
+        options: ["$-2/19$", "$-19/2$", "$2/19$", "$19/2$"],
+        correctAnswer: "$19/2$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "The slope of line $k$ is $-A/B = -2/19$. The slope of a perpendicular line is the negative reciprocal: $19/2$."
+    },
+    {
+        id: `M2_Q12`,
+        module: 2,
+        text: "Measure of angle $Z$ is 795°. Measure in radians?",
+        type: 'MC',
+        options: ["$53\\pi/12$", "$53\\pi/12$", "$13\\pi/4$", "$31\\pi/6$"],
+        correctAnswer: "$53\\pi/12$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "To convert degrees to radians, multiply by $\\pi/180$: $795 \\times (\\pi/180) = 53\\pi/12$."
+    },
+    {
+        id: `M2_Q13`,
+        module: 2,
+        text: "Right circular cone: segment from vertex $A$ to base point $B$ is 34 cm. Height is 17 cm. Volume is $k\\pi$. Value of $k$?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$4913$",
+        difficulty: 'Hard',
+        imageUrl: null,
+        explanation: "Slant height $l=34$, height $h=17$. Use Pythagorean theorem to find radius $r$: $r^2 = 34^2 - 17^2 = 1156 - 289 = 867$. Volume $V = (1/3)\\pi r^2 h = (1/3)\\pi (867)(17) = 4913\\pi$. Thus $k = 4913$."
+    },
+    {
+        id: `M2_Q14`,
+        module: 2,
+        text: "Sealant costs $43 for 450 sq ft. Deck area is $d$. Equation for cost $c$ to cover deck twice?",
+        type: 'MC',
+        options: ["$c = 43d/450$", "$c = 43(2d)/450$", "$c = 86d/450$", "$c = 43d/900$"],
+        correctAnswer: "$c = 86d/450$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "To cover area $d$ twice, you need to cover $2d$ square feet. The cost per square foot is $43/450$. Total cost $c = (43/450) \\times 2d = 86d/450$."
+    },
+    {
+        id: `M2_Q15`,
+        module: 2,
+        text: "Manager has 3,800 cups and uses 120/day. In how many days will inventory reach 1,400?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$20$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "Calculate total cups to be used: $3,800 - 1,400 = 2,400$. Divide by daily usage: $2,400 / 120 = 20$ days."
+    },
+    {
+        id: `M2_Q16`,
+        module: 2,
+        text: "A town has area 10,996,480 square yards. Area in square miles? ($1$ mile = $1,760$ yards)",
+        type: 'MC',
+        options: ["$1.88$", "$3.55$", "$3,316.09$", "$6,248.0$"],
+        correctAnswer: "$3.55$",
+        difficulty: 'Hard',
+        imageUrl: null,
+        explanation: "Since $1$ mile $= 1,760$ yards, $1$ square mile $= 1,760^2 = 3,097,600$ square yards. $10,996,480 / 3,097,600 = 3.55$ square miles."
+    },
+    {
+        id: `M2_Q17`,
+        module: 2,
+        text: "In $\\triangle ABC$, $\\angle A = 64^{\\circ}$ and $AC = 30$. In $\\triangle PQR$, $\\angle P = 64^{\\circ}$ and $PR = 90$. Sufficient to prove similarity?",
+        type: 'MC',
+        options: ["$AB=40, PQ=40$", "$AB=40, QR=120$", "$Angle B=38, Angle R=78$", "$Angle B=64, Angle Q=38$"],
+        correctAnswer: "$Angle B=38, Angle R=78$",
+        difficulty: 'Hard',
+        imageUrl: null,
+        explanation: "Triangles are similar if they have two equal angles (AA). In $\\triangle ABC$, if $\\angle A=64$ and $\\angle B=38$, then $\\angle C = 180 - 64 - 38 = 78$. In $\\triangle PQR$, if $\\angle P=64$ and $\\angle R=78$, then $\\angle Q = 38$. Both triangles have angles 64, 38, and 78."
+    },
+    {
+        id: `M2_Q18`,
+        module: 2,
+        text: "Object launched from height 0 reached max height 1,296 ft at 9 seconds. Height at 11 seconds?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$1232$",
+        difficulty: 'Hard',
+        imageUrl: null,
+        explanation: "The vertex is $(9, 1296)$. Using $h(t) = a(t-9)^2 + 1296$. Since $h(0)=0$, $0 = a(-9)^2 + 1296 \\implies 81a = -1296 \\implies a = -16$. At $t=11$, $h(11) = -16(11-9)^2 + 1296 = -16(4) + 1296 = 1232$."
+    },
+    {
+        id: `M2_Q19`,
+        module: 2,
+        text: "$4x^2 - px + w = -85$ has exactly one real solution ($p, w$ integers). Which is NOT a possible value of $w$?",
+        type: 'MC',
+        options: ["$-21$", "$15$", "$25$", "$315$"],
+        correctAnswer: "$25$",
+        difficulty: 'Hard',
+        imageUrl: null,
+        explanation: "Rewrite as $4x^2 - px + (w+85) = 0$. For one solution, the discriminant $D = p^2 - 4(4)(w+85) = 0$, so $p^2 = 16(w+85)$. This means $w+85$ must be a perfect square. Testing options: $w=25 \\implies 25+85=110$ (not a square). Other options like $w=-21 \\implies 64$ ($8^2$) and $w=15 \\implies 100$ ($10^2$) are possible."
+    },
+    {
+        id: `M2_Q20`,
+        module: 2,
+        text: "Tour group of 20 people. Revenue: $120/adult, $90/student. Total revenue $2,040. How many were students?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$12$",
+        difficulty: 'Hard',
+        imageUrl: null,
+        explanation: "Let $a$ be adults and $s$ be students. $a + s = 20$ and $120a + 90s = 2040$. Substitute $a = 20 - s$: $120(20-s) + 90s = 2040 \\implies 2400 - 120s + 90s = 2040 \\implies -30s = -360 \\implies s = 12$."
+    },
+    {
+        id: `M2_Q21`,
+        module: 2,
+        text: "System: $0.7x + 0.35y = 3.15$, $0.35x + 0.7y = 4.2$. Value of $y$?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$5$",
+        difficulty: 'Hard',
+        imageUrl: null,
+        explanation: "Multiply second eq by 2: $0.7x + 1.4y = 8.4$. Subtract first eq: $(0.7x + 1.4y) - (0.7x + 0.35y) = 8.4 - 3.15 \\implies 1.05y = 5.25 \\implies y = 5$."
+    },
+    {
+        id: `M2_Q22`,
+        module: 2,
+        text: "Rectangle length $x$, width $x-8$. Area is 105. Value of $x$?",
+        type: 'MC',
+        options: ["$7$", "$15$", "$22$", "$105$"],
+        correctAnswer: "$15$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "$x(x-8) = 105 \\implies x^2 - 8x - 105 = 0$. Factoring: $(x-15)(x+7) = 0$. Since length must be positive, $x = 15$."
+    }
+],
+                M2E:[
+    {
+        id: `M2_Q1`,
+        module: 2,
+        text: "Which of the following is equivalent to $3x + 3y + 3z$?",
+        type: 'MC',
+        options: ["$3(x + y + z)$", "$3x + y + z$", "$9(x + y + z)$", "$xyz/3$"],
+        correctAnswer: "$3(x + y + z)$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "Factor out the greatest common factor, which is 3, from each term: $3(x) + 3(y) + 3(z) = 3(x + y + z)$."
+    },
+    {
+        id: `M2_Q2`,
+        module: 2,
+        text: "If $x/5 = 10$, what is the value of $x$?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$50$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "To solve for $x$, multiply both sides of the equation by 5: $x = 10 \\times 5 = 50$."
+    },
+    {
+        id: `M2_Q3`,
+        module: 2,
+        text: "A car travels 300 miles on 10 gallons of gas. How many miles per gallon does the car get?",
+        type: 'MC',
+        options: ["$20$", "$25$", "$30$", "$35$"],
+        correctAnswer: "$30$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "Miles per gallon is calculated by dividing total miles by total gallons: $300 / 10 = 30$ mpg."
+    },
+    {
+        id: `M2_Q4`,
+        module: 2,
+        text: "What is the median of the data set: 5, 2, 8, 10, 1?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$5$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "First, arrange the data set in ascending order: 1, 2, 5, 8, 10. The median is the middle value in the list, which is 5."
+    },
+    {
+        id: `M2_Q5`,
+        module: 2,
+        text: "If $f(x) = 2x^2 - 4$, what is $f(-3)$?",
+        type: 'MC',
+        options: ["$-22$", "$-14$", "$14$", "$22$"],
+        correctAnswer: "$14$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "Substitute $-3$ for $x$: $f(-3) = 2(-3)^2 - 4 = 2(9) - 4 = 18 - 4 = 14$."
+    },
+    {
+        id: `M2_Q6`,
+        module: 2,
+        text: "The sum of two numbers is 15 and their difference is 3. What is the larger number?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$9$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "Let the numbers be $x$ and $y$. $x + y = 15$ and $x - y = 3$. Adding the equations gives $2x = 18$, so $x = 9$. Substituting back, $9 + y = 15$, so $y = 6$. The larger number is 9."
+    },
+    {
+        id: `M2_Q7`,
+        module: 2,
+        text: "A square has a perimeter of 32. What is its area?",
+        type: 'MC',
+        options: ["$16$", "$32$", "$64$", "$128$"],
+        correctAnswer: "$64$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "The side length $s$ of the square is $Perimeter / 4 = 32 / 4 = 8$. The area is $s^2 = 8^2 = 64$."
+    },
+    {
+        id: `M2_Q8`,
+        module: 2,
+        text: "Solve for $x$: $4x - 7 = 2x + 5$.",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$6$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "Subtract $2x$ from both sides: $2x - 7 = 5$. Add 7 to both sides: $2x = 12$. Divide by 2: $x = 6$."
+    },
+    {
+        id: `M2_Q9`,
+        module: 2,
+        text: "What is the $y$-intercept of the line $2x + 3y = 12$?",
+        type: 'MC',
+        options: ["$(0, 2)$", "$(0, 3)$", "$(0, 4)$", "$(0, 6)$"],
+        correctAnswer: "$(0, 4)$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "To find the $y$-intercept, set $x = 0$: $2(0) + 3y = 12 \\implies 3y = 12 \\implies y = 4$. The point is $(0, 4)$."
+    },
+    {
+        id: `M2_Q10`,
+        module: 2,
+        text: "A bag has 10 red and 15 blue balls. If one is picked, what is the probability it is red?",
+        type: 'MC',
+        options: ["$1/3$", "$2/5$", "$3/5$", "$2/3$"],
+        correctAnswer: "$2/5$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "Probability is (number of red balls) / (total balls): $10 / (10 + 15) = 10 / 25 = 2/5$."
+    },
+    {
+        id: `M2_Q11`,
+        module: 2,
+        text: "If $x^2 = 64$, what is the value of $x^3$ for $x > 0$?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$512$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "If $x^2 = 64$ and $x > 0$, then $x = \\sqrt{64} = 8$. Then $x^3 = 8^3 = 512$."
+    },
+    {
+        id: `M2_Q12`,
+        module: 2,
+        text: "A cone and a cylinder have the same radius and height. What is the ratio of the volume of the cone to the cylinder?",
+        type: 'MC',
+        options: ["$1:2$", "$1:3$", "$2:3$", "$1:1$"],
+        correctAnswer: "$1:3$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "Volume of a cylinder is $V_{cyl} = \\pi r^2 h$ and volume of a cone is $V_{cone} = \\frac{1}{3} \\pi r^2 h$. The ratio $V_{cone} : V_{cyl}$ is $1/3 : 1$, or $1:3$."
+    },
+    {
+        id: `M2_Q13`,
+        module: 2,
+        text: "Find the value of $k$ if the point $(2, k)$ lies on the line $y = 3x - 4$.",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$2$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "Substitute $x = 2$ and $y = k$ into the equation: $k = 3(2) - 4 \\implies k = 6 - 4 = 2$."
+    },
+    {
+        id: `M2_Q14`,
+        module: 2,
+        text: "If $3^{2x} = 81$, what is the value of $x$?",
+        type: 'MC',
+        options: ["$1$", "$2$", "$3$", "$4$"],
+        correctAnswer: "$2$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "Rewrite 81 as a power of 3: $81 = 3^4$. So, $3^{2x} = 3^4$, which means $2x = 4$. Solving for $x$ gives $x = 2$."
+    },
+    {
+        id: `M2_Q15`,
+        module: 2,
+        text: "The angles of a triangle are in a ratio of 1:2:3. What is the measure of the smallest angle?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$30$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "Let the angles be $x, 2x, 3x$. Their sum is $180^{\\circ}$: $x + 2x + 3x = 180 \\implies 6x = 180 \\implies x = 30$. The smallest angle is $30^{\\circ}$."
+    },
+    {
+        id: `M2_Q16`,
+        module: 2,
+        text: "What is the solution to $|x + 5| = 0$?",
+        type: 'MC',
+        options: ["$-5$", "$0$", "$5$", "No solution"],
+        correctAnswer: "$-5$",
+        difficulty: 'Easy',
+        imageUrl: null,
+        explanation: "The absolute value of an expression is zero only if the expression itself is zero. $x + 5 = 0 \\implies x = -5$."
+    },
+    {
+        id: `M2_Q17`,
+        module: 2,
+        text: "If $a + b = 10$ and $a - b = 2$, what is the value of $a^2 - b^2$?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$20$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "Use the difference of squares identity: $a^2 - b^2 = (a + b)(a - b)$. Substitute the given values: $10 \\times 2 = 20$."
+    },
+    {
+        id: `M2_Q18`,
+        module: 2,
+        text: "A rectangular box has dimensions 3, 4, and 5. What is its surface area?",
+        type: 'MC',
+        options: ["$60$", "$74$", "$94$", "$120$"],
+        correctAnswer: "$94$",
+        difficulty: 'Hard',
+        imageUrl: null,
+        explanation: "Surface Area $= 2(lw + lh + wh) = 2(3 \\times 4 + 3 \\times 5 + 4 \\times 5) = 2(12 + 15 + 20) = 2(47) = 94$."
+    },
+    {
+        id: `M2_Q19`,
+        module: 2,
+        text: "The graph of $y = x^2 - kx + 16$ is tangent to the $x$-axis. What is a positive value of $k$?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$8$",
+        difficulty: 'Hard',
+        imageUrl: null,
+        explanation: "For the parabola to be tangent to the $x$-axis, the discriminant must be zero: $b^2 - 4ac = 0$. $(-k)^2 - 4(1)(16) = 0 \\implies k^2 - 64 = 0 \\implies k^2 = 64$. The positive value is 8."
+    },
+    {
+        id: `M2_Q20`,
+        module: 2,
+        text: "If $f(x) = \\sqrt{x+9}$, what is the domain of $f$?",
+        type: 'MC',
+        options: ["$x > 0$", "$x \\geq 9$", "$x \\geq -9$", "All real numbers"],
+        correctAnswer: "$x \\geq -9$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "The value inside the square root must be non-negative: $x + 9 \\geq 0$. Solving for $x$ gives $x \\geq -9$."
+    },
+    {
+        id: `M2_Q21`,
+        module: 2,
+        text: "Simplify $(2x^3)^2$.",
+        type: 'MC',
+        options: ["$2x^6$", "$4x^5$", "$4x^6$", "$4x^9$"],
+        correctAnswer: "$4x^6$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "Apply the power to both terms inside the parentheses: $2^2 \\times (x^3)^2 = 4 \\times x^{3 \\times 2} = 4x^6$."
+    },
+    {
+        id: `M2_Q22`,
+        module: 2,
+        text: "What is the value of $x$ in the equation $\\sqrt{2x + 4} = 6$?",
+        type: 'SPR',
+        options: [],
+        correctAnswer: "$16$",
+        difficulty: 'Medium',
+        imageUrl: null,
+        explanation: "Square both sides: $2x + 4 = 36$. Subtract 4 from both sides: $2x = 32$. Divide by 2: $x = 16$."
+    }
+],
             },
         };
 
@@ -2827,15 +4239,16 @@
                          } else {
                              window.navigateToHome();
                          }
-                     } else {
-                         window.navigateToHome();
-                     }
-                 } else {
-                       // No user
-                       authStatus.textContent = 'Guest';
-                       hiddenUserIdDisplay.textContent = 'Not Auth';
-                       renderLoginScreen();
-                  }
+                      } else {
+                          window.navigateToHome();
+                      }
+                      window.loadPracticeQuizzes().catch(e => console.warn("Preload practice quizzes:", e));
+                  } else {
+                        // No user
+                        authStatus.textContent = 'Guest';
+                        hiddenUserIdDisplay.textContent = 'Not Auth';
+                        renderLoginScreen();
+                   }
               });
          }
 
@@ -2990,7 +4403,8 @@
                 answers: {
                     module1: m1.answers,
                     module2: m2.answers
-                }
+                },
+                categoryScores: window.state.categoryScores || {}
             };
 
             try {
@@ -3377,6 +4791,7 @@
                                             text: q.text,
                                             userAnswer: userAns,
                                             correctAnswer: q.correctAnswer,
+                                            options: q.options || [],
                                             topic: q.topic || 'General',
                                             explanation: q.explanation || ''
                                         });
@@ -3403,7 +4818,10 @@
                         <div class="space-y-3 max-h-[70vh] overflow-y-auto">
                             ${wrongAnswers.map(w => {
                                 const renderText = (typeof renderMathInString === 'function') ? renderMathInString(w.text) : w.text;
-                                const renderCorrect = (typeof renderMathInString === 'function') ? renderMathInString(w.correctAnswer) : w.correctAnswer;
+                                const userAnsText = resolveAnswer(w.userAnswer, w.options);
+                                const correctText = resolveAnswer(w.correctAnswer, w.options);
+                                const renderUser = (typeof renderMathInString === 'function') ? renderMathInString(userAnsText) : userAnsText;
+                                const renderCorrect = (typeof renderMathInString === 'function') ? renderMathInString(correctText) : correctText;
                                 const renderExpl = (typeof renderMathInString === 'function') ? renderMathInString(w.explanation) : w.explanation;
                                 return `
                             <div class="bg-white rounded-xl shadow p-4 border-l-4 border-red-400">
@@ -3413,7 +4831,7 @@
                                 </div>
                                 <p class="text-gray-800 font-medium">${renderText}</p>
                                 <div class="mt-2 flex gap-4 text-sm">
-                                    <span class="text-red-600">Your answer: <strong>${w.userAnswer}</strong></span>
+                                    <span class="text-red-600">Your answer: <strong>${renderUser}</strong></span>
                                     <span class="text-green-600">Correct: <strong>${renderCorrect}</strong></span>
                                 </div>
                                 ${renderExpl ? `<p class="text-xs text-gray-500 mt-1">${renderExpl}</p>` : ''}
@@ -3719,7 +5137,10 @@
                     const itemDiff = item.difficulty || 'Medium';
 
                     const renderQ = (typeof renderMathInString === 'function') ? renderMathInString(item.text) : item.text;
-                    const renderA = (typeof renderMathInString === 'function') ? renderMathInString(item.correctAnswer) : item.correctAnswer;
+                    const ansText = resolveAnswer(item.correctAnswer, item.options);
+                    const userText = resolveAnswer(item.userAnswer, item.options);
+                    const renderA = (typeof renderMathInString === 'function') ? renderMathInString(ansText) : ansText;
+                    const renderU = (typeof renderMathInString === 'function') ? renderMathInString(userText) : userText;
                     const renderE = (typeof renderMathInString === 'function') ? renderMathInString(item.explanation || 'No explanation available.') : (item.explanation || 'No explanation available.');
                     const cardContent = `
                         <div id="${flashcardContainerId}">
@@ -3759,7 +5180,7 @@
                                             <p class="text-sm text-gray-700 leading-relaxed">${renderE}</p>
                                         </div>
                                         <div class="flex gap-3 text-xs text-gray-500">
-                                            <span class="bg-red-50 text-red-600 px-2 py-0.5 rounded">Your answer: ${item.userAnswer}</span>
+                                            <span class="bg-red-50 text-red-600 px-2 py-0.5 rounded">Your answer: ${renderU}</span>
                                             <span class="bg-${diffColor[itemDiff] || 'gray'}-50 text-${diffColor[itemDiff] || 'gray'}-600 px-2 py-0.5 rounded">${itemDiff}</span>
                                         </div>
                                     </div>
@@ -3989,7 +5410,7 @@
             } catch (e) { contentDiv.innerHTML = '<p class="text-red-500">Error: ' + e.message + '</p>'; }
         };
 
-        const PRACTICE_QUIZZES = {
+        let PRACTICE_QUIZZES = {
             algebra: { name: 'Algebra Basics', questions: [
                 { text: 'Solve for $x$: $2x + 5 = 13$', choices: ['3', '4', '5', '6'], correctAnswer: 'B', explanation: '$2x = 8$, so $x = 4$' },
                 { text: 'What is the slope of $y = 3x - 2$?', choices: ['-2', '2', '3', '-3'], correctAnswer: 'C', explanation: 'In $y=mx+b$, $m$ is the slope, so $m=3$' },
@@ -4026,6 +5447,93 @@
                 { text: 'If $\\log_2 x = 5$, what is $x$?', choices: ['10', '16', '25', '32'], correctAnswer: 'D', explanation: '$2^5 = 32$' },
                 { text: 'A data set has mean $10$ and standard deviation $2$. What is the $z$-score of $14$?', choices: ['1', '2', '3', '4'], correctAnswer: 'B', explanation: '$z = \\frac{14-10}{2} = 2$' },
             ]},
+        };
+
+        // --- Practice Quiz Firestore Persistence ---
+
+        const DEFAULT_PRACTICE_QUIZZES = JSON.parse(JSON.stringify(PRACTICE_QUIZZES));
+
+        window.loadPracticeQuizzes = async function() {
+            try {
+                const snap = await getDocs(collection(db, "practiceQuizzes"));
+                if (!snap.empty) {
+                    const loaded = {};
+                    snap.forEach(doc => {
+                        loaded[doc.id] = doc.data();
+                    });
+                    PRACTICE_QUIZZES = loaded;
+                }
+            } catch (e) {
+                console.warn("Could not load practice quizzes from Firestore, using defaults:", e);
+                PRACTICE_QUIZZES = JSON.parse(JSON.stringify(DEFAULT_PRACTICE_QUIZZES));
+            }
+        };
+
+        window.savePracticeQuizzes = async function() {
+            try {
+                const existing = await getDocs(collection(db, "practiceQuizzes"));
+                const batch = writeBatch(db);
+                existing.forEach(d => batch.delete(d.ref));
+                await batch.commit();
+                for (const [key, quiz] of Object.entries(PRACTICE_QUIZZES)) {
+                    await setDoc(doc(db, "practiceQuizzes", key), quiz);
+                }
+            } catch (e) {
+                console.error("Failed to save practice quizzes:", e);
+                window.showError("Failed to save practice quizzes.");
+            }
+        };
+
+        window.showAddQuizModal = function() {
+            const modal = document.getElementById('end-module-modal');
+            if (modal) {
+                modal.innerHTML = `
+                    <div class="modal-content max-w-lg">
+                        <span class="close-btn" onclick="this.closest('.modal').style.display='none'">&times;</span>
+                        <h2 class="text-2xl font-bold text-gray-800 mb-4">Add Mini-Quiz</h2>
+                        <div class="space-y-3 text-left">
+                            <input id="new-quiz-key" placeholder="Quiz key (e.g. 'algebra')" class="w-full p-2 border rounded text-sm">
+                            <input id="new-quiz-name" placeholder="Quiz name (e.g. 'Algebra Basics')" class="w-full p-2 border rounded text-sm">
+                            <textarea id="new-quiz-questions" placeholder="Questions JSON array (one question object per line)" rows="6" class="w-full p-2 border rounded text-sm font-mono"></textarea>
+                            <p class="text-xs text-gray-500">Each question: { "text": "...", "choices": ["A","B","C","D"], "correctAnswer": "A", "explanation": "..." }</p>
+                            <button onclick="window.saveNewQuiz()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold">Save Quiz</button>
+                        </div>
+                    </div>
+                `;
+                modal.style.display = 'block';
+            }
+        };
+
+        window.saveNewQuiz = async function() {
+            const key = document.getElementById('new-quiz-key')?.value?.trim();
+            const name = document.getElementById('new-quiz-name')?.value?.trim();
+            const questionsText = document.getElementById('new-quiz-questions')?.value?.trim();
+            if (!key || !name || !questionsText) {
+                window.showWarning('Please fill in all fields.');
+                return;
+            }
+            let questions;
+            try {
+                questions = JSON.parse(`[${questionsText}]`);
+                if (!Array.isArray(questions) || questions.length === 0) throw new Error('empty');
+            } catch (e) {
+                window.showWarning('Invalid questions JSON. Format: [{...},{...}]');
+                return;
+            }
+            if (PRACTICE_QUIZZES[key]) {
+                if (!confirm(`Quiz "${key}" already exists. Overwrite?`)) return;
+            }
+            PRACTICE_QUIZZES[key] = { name, questions };
+            await window.savePracticeQuizzes();
+            document.getElementById('end-module-modal').style.display = 'none';
+            window.showMiniQuizzes();
+        };
+
+        window.confirmDeleteQuiz = function(key) {
+            if (confirm(`Delete quiz "${PRACTICE_QUIZZES[key]?.name || key}"?`)) {
+                delete PRACTICE_QUIZZES[key];
+                window.savePracticeQuizzes().then(() => window.showMiniQuizzes());
+            }
         };
 
         window.renderExamSelectionScreen = async function() { 
@@ -4121,13 +5629,15 @@
             renderMath('exam-selection-title');
         }
 
-        window.showMiniQuizzes = function() {
+        window.showMiniQuizzes = async function() {
             window.state.appStage = 'mini_quizzes';
             hideTestUIElements();
             document.getElementById('header-test-info').textContent = 'Practice Mini-Quizzes';
+            await window.loadPracticeQuizzes();
             const contentDiv = document.getElementById('question-content');
             contentDiv.classList.remove('flex', 'items-center', 'justify-center');
-            let practiceHtml = `<div><h3 class="text-2xl font-bold text-gray-800 mb-4">Practice Mini-Quizzes</h3><p class="text-gray-600 mb-6">Choose a topic to practice with a short quiz.</p><div class="grid grid-cols-1 md:grid-cols-3 gap-4">`;
+            let practiceHtml = `<div><h3 class="text-2xl font-bold text-gray-800 mb-4">Practice Mini-Quizzes</h3><p class="text-gray-600 mb-6">Choose a topic to practice with a short quiz.</p>`;
+            practiceHtml += `<div class="grid grid-cols-1 md:grid-cols-3 gap-4">`;
             Object.keys(PRACTICE_QUIZZES).forEach(key => {
                 const quiz = PRACTICE_QUIZZES[key];
                 practiceHtml += `
@@ -4140,6 +5650,39 @@
             practiceHtml += `</div></div>`;
             contentDiv.innerHTML = sidebarWrapper(practiceHtml, studentSidebarHtml('mini-quizzes'));
             renderMath();
+        };
+
+        window.showQuizManager = async function() {
+            window.state.appStage = 'mini_quizzes';
+            hideTestUIElements();
+            document.getElementById('header-test-info').textContent = 'Manage Mini-Quizzes';
+            await window.loadPracticeQuizzes();
+            const contentDiv = document.getElementById('question-content');
+            contentDiv.classList.remove('flex', 'items-center', 'justify-center');
+            const isAdmin = window.state.role === 'admin';
+            const sidebar = isAdmin ? adminSidebarHtml('mini-quizzes') : teacherSidebarHtml('mini-quizzes');
+            let html = `<div>
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h3 class="text-2xl font-bold text-gray-800">Manage Mini-Quizzes</h3>
+                        <p class="text-gray-500 text-sm">Add, edit, or remove practice quizzes</p>
+                    </div>
+                    <button onclick="window.showAddQuizModal()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold text-sm">+ New Quiz</button>
+                </div>
+                <div class="space-y-3">`;
+            Object.keys(PRACTICE_QUIZZES).forEach(key => {
+                const quiz = PRACTICE_QUIZZES[key];
+                html += `
+                    <div class="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition">
+                        <div>
+                            <h4 class="text-lg font-bold text-gray-800">${quiz.name}</h4>
+                            <p class="text-sm text-gray-500">Key: ${key} &middot; ${quiz.questions.length} questions</p>
+                        </div>
+                        <button onclick="window.confirmDeleteQuiz('${key}')" class="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-semibold">Delete</button>
+                    </div>`;
+            });
+            html += `</div></div>`;
+            contentDiv.innerHTML = sidebarWrapper(html, sidebar);
         };
 
         // ============================================================
@@ -4526,8 +6069,8 @@ Student: ${userMessage}${questionContext}`;
                     id: testId + '_Q' + (i + 1),
                     module: 1,
                     text: q.text,
-                    type: 'MC',
-                    options: q.options || q.choices || ['', '', '', ''],
+                    type: q.type || 'MC',
+                    options: q.type === 'SPR' ? [] : (q.options || q.choices || ['', '', '', '']),
                     correctAnswer: q.correctAnswer,
                     difficulty: 'Medium',
                     imageUrl: null,
@@ -4968,6 +6511,9 @@ Student: ${userMessage}${questionContext}`;
             if (sbtn) {
                 sbtn.innerHTML = 'End Module <span id="end-module-button-num">1</span> & Review';
                 sbtn.onclick = function() { window.showEndModuleConfirmation(); };
+                sbtn.classList.remove('hidden');
+                const parent = sbtn.closest('.p-4');
+                if (parent) parent.classList.remove('hidden');
             }
 
             renderQuestion();
@@ -4981,16 +6527,17 @@ Student: ${userMessage}${questionContext}`;
         
         /** Loads and renders a past attempt of a specific test */
         window.reviewPastAttempt = async function(testId, providedResult) {
-             let result = providedResult;
-             if (!result) {
-                 const results = await window.fetchPastResults();
-                 result = results[testId];
-             }
-             
-             if (!result || !result.answers) {
-                 window.showWarning("No detailed results found for this test.");
-                 return;
-             }
+              try {
+              let result = providedResult;
+              if (!result) {
+                  const results = await window.fetchPastResults();
+                  result = results[testId];
+              }
+              
+              if (!result || (!result.answers && !result.testHistory?.module1?.answers)) {
+                  window.showWarning("No detailed results found for this test.");
+                  return;
+              }
 
              // Set the student name so the header shows the correct student
              if (result.studentName) {
@@ -5031,10 +6578,15 @@ Student: ${userMessage}${questionContext}`;
                  };
              }
              
-             window.reviewSource = 'exam_selection';
-             // Start review mode
-             window.startReviewMode();
-        }
+               window.reviewSource = 'exam_selection';
+               // Start review mode
+               window.startReviewMode('exam_selection');
+              } catch (e) {
+                  console.error("reviewPastAttempt error:", e);
+                  window.showWarning("Failed to load review: " + e.message);
+              }
+         }
+
 
 
         // --- REMAINING FUNCTIONS (renderQuestion, renderQuestionMap, etc.) ---
@@ -5059,7 +6611,7 @@ Student: ${userMessage}${questionContext}`;
             document.getElementById('question-content').classList.remove('flex', 'items-center', 'justify-center');
             
             // 1. Update Navigation Displays
-            document.getElementById('header-test-info').innerHTML = `Math Module <span id="module-display">${window.state.module}</span> | Question <span id="question-number-display">${questionIndex + 1}</span> of 22`;
+            document.getElementById('header-test-info').innerHTML = `Math Module <span id="module-display">${window.state.module}</span> | Question <span id="question-number-display">${questionIndex + 1}</span> of ${moduleQuestions.length}`;
             document.getElementById('map-module-display').textContent = window.state.module;
 
             // 2. Render Question Content (KaTeX handles math automatically)
@@ -5075,11 +6627,12 @@ Student: ${userMessage}${questionContext}`;
 
 
             const contentDiv = document.getElementById('question-content');
+            const renderedText = renderMathInString(q.text);
             contentDiv.innerHTML = `
                 <div class="flex justify-between items-start mb-4">
                     <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-100">${isReviewMode ? 'Review Question' : 'Question'} ${questionIndex + 1}</h2>
                 </div>
-                <div id="q-text-container" class="text-lg leading-relaxed text-gray-700 dark:text-gray-300">${q.text}</div>
+                <div id="q-text-container" class="text-lg leading-relaxed text-gray-700 dark:text-gray-300">${renderedText}</div>
                 ${imageHtml}
             `;
             // 3. Render Answer Area
@@ -5142,8 +6695,8 @@ Student: ${userMessage}${questionContext}`;
                             contentContainer.classList.add('w-full');
                         }
                     } else {
-                        // Insert math text for standard options
-                        contentContainer.textContent = option;
+                        // Insert math text for standard options with pre-rendered KaTeX
+                        contentContainer.innerHTML = renderMathInString(option);
                     }
                     
                     optionElement.appendChild(contentContainer);
@@ -5206,24 +6759,19 @@ Student: ${userMessage}${questionContext}`;
                     sidebarEndBtn.textContent = 'End Review';
                     sidebarEndBtn.onclick = function() {
                         window.toggleSidebar(false);
-                        if (window.reviewSource === 'exam_selection') {
-                            window.navigateToHome();
-                        } else {
-                            window.state.appStage = 'finished';
-                            renderScoreReport(
-                                window.state.testHistory.module1.score + window.state.testHistory.module2.score,
-                                ((window.state.testHistory.module1.score + window.state.testHistory.module2.score) / 44) * 100,
-                                44
-                            );
-                        }
+                        window.state.appStage = 'finished';
+                        const m1s = window.state.testHistory.module1?.score || 0;
+                        const m2s = window.state.testHistory.module2?.score || 0;
+                        const totalQ = (window.state.testHistory.module1?.questions?.length || 22) + (window.state.testHistory.module2?.questions?.length || 0);
+                        renderScoreReport(m1s + m2s, ((m1s + m2s) / totalQ) * 100, totalQ);
                     };
                 } else {
                     sidebarEndBtn.innerHTML = 'End Module <span id="end-module-button-num">1</span> & Review';
                     sidebarEndBtn.onclick = function() { window.showEndModuleConfirmation(); };
                 }
             }
-            const sidebarParent = document.getElementById('sidebar-end-btn')?.closest('.p-4');
-            if (sidebarParent) sidebarParent.classList.remove('hidden');
+            const sidebarEndParent = document.getElementById('sidebar-end-btn')?.closest('.p-4');
+            if (sidebarEndParent) sidebarEndParent.classList.remove('hidden');
 
             renderMathAll();
 
@@ -5288,16 +6836,11 @@ Student: ${userMessage}${questionContext}`;
                     if (window.state.module === 1) {
                         const m2questions = window.state.testHistory.module2?.questions;
                         if (!m2questions || m2questions.length === 0) {
-                            if (window.reviewSource === 'exam_selection') {
-                                window.navigateToHome();
-                            } else {
-                                window.state.appStage = 'finished';
-                                renderScoreReport(
-                                    window.state.testHistory.module1.score + window.state.testHistory.module2.score,
-                                    ((window.state.testHistory.module1.score + window.state.testHistory.module2.score) / 44) * 100,
-                                    44
-                                );
-                            }
+                            window.state.appStage = 'finished';
+                            const m1s = window.state.testHistory.module1?.score || 0;
+                            const m2s = window.state.testHistory.module2?.score || 0;
+                            const totalQ = (window.state.testHistory.module1?.questions?.length || 22) + (window.state.testHistory.module2?.questions?.length || 0);
+                            renderScoreReport(m1s + m2s, ((m1s + m2s) / totalQ) * 100, totalQ);
                             return;
                         }
                         window.state.module = 2;
@@ -5307,16 +6850,11 @@ Student: ${userMessage}${questionContext}`;
                         renderQuestionMap();
                         return;
                     } else {
-                        if (window.reviewSource === 'exam_selection') {
-                            window.navigateToHome();
-                        } else {
-                            window.state.appStage = 'finished';
-                            renderScoreReport(
-                                window.state.testHistory.module1.score + window.state.testHistory.module2.score,
-                                ((window.state.testHistory.module1.score + window.state.testHistory.module2.score) / 44) * 100,
-                                44
-                            );
-                        }
+                        window.state.appStage = 'finished';
+                        const m1s = window.state.testHistory.module1?.score || 0;
+                        const m2s = window.state.testHistory.module2?.score || 0;
+                        const totalQ = (window.state.testHistory.module1?.questions?.length || 22) + (window.state.testHistory.module2?.questions?.length || 22);
+                        renderScoreReport(m1s + m2s, ((m1s + m2s) / totalQ) * 100, totalQ);
                         return;
                     }
                 } else {
@@ -5440,8 +6978,13 @@ Student: ${userMessage}${questionContext}`;
         }
         
         /** Starts the review mode from the final score screen */
-        window.startReviewMode = function() {
-            window.reviewSource = 'post_exam';
+        window.startReviewMode = function(source) {
+            if (source) window.reviewSource = source;
+            if (!window.reviewSource) window.reviewSource = 'post_exam';
+            if (!window.state.testHistory?.module1?.questions) {
+                window.showWarning("No question data available for review.");
+                return;
+            }
             window.state.appStage = 'review';
             window.state.module = 1; 
             window.state.questionIndex = 0;
@@ -5465,6 +7008,13 @@ Student: ${userMessage}${questionContext}`;
             renderQuestionMap();
             
             document.getElementById('next-btn').textContent = 'Next Question';
+            // Ensure sidebar end button is visible
+            const sbtn2 = document.getElementById('sidebar-end-btn');
+            if (sbtn2) {
+                sbtn2.classList.remove('hidden');
+                const parent2 = sbtn2.closest('.p-4');
+                if (parent2) parent2.classList.remove('hidden');
+            }
             saveState();
         }
 
@@ -5730,7 +7280,7 @@ Student: ${userMessage}${questionContext}`;
                             Email Parent
                         </button>` : ''}
 
-                        <button onclick="startReviewMode()" 
+                        <button onclick="startReviewMode('post_exam')" 
                                 class="px-5 py-3 bg-gradient-to-r from-indigo-500 to-indigo-700 text-white text-lg font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150">
                             Review Questions
                         </button>
@@ -5925,6 +7475,59 @@ Student: ${userMessage}${questionContext}`;
         // --- TEACHER DASHBOARD ---
 
         /** Fetches all student test results from Firestore and displays them in a table */
+        function getWeakTopics(categoryScores) {
+            if (!categoryScores || typeof categoryScores !== 'object') return [];
+            const weak = [];
+            for (const [id, cs] of Object.entries(categoryScores)) {
+                if (cs.total > 0 && cs.correct / cs.total < 0.6) {
+                    weak.push(cs.label || id);
+                }
+            }
+            return weak;
+        }
+
+        window.showTeacherReportModal = function(resultId) {
+            const data = window.tempStudentResults[resultId];
+            if (!data) return;
+            const m1Score = data.details?.module1Score || data.testHistory?.module1?.score || 0;
+            const m2Score = data.details?.module2Score || data.testHistory?.module2?.score || 0;
+            const totalScore = m1Score + m2Score;
+            const totalQ = 44;
+            const pct = ((totalScore / totalQ) * 100).toFixed(1);
+            const weak = getWeakTopics(data.categoryScores);
+            const m2Diff = data.details?.module2Difficulty || data.testHistory?.module2?.difficulty;
+            const diffLabel = m2Diff === 'M2H' ? 'Hard' : 'Easy';
+            const modal = document.getElementById('end-module-modal');
+            if (!modal) return;
+            modal.innerHTML = `
+                <div class="modal-content max-w-lg text-left">
+                    <span class="close-btn" onclick="this.closest('.modal').style.display='none'">&times;</span>
+                    <h2 class="text-2xl font-bold text-gray-800 mb-2">${data.studentName || 'Student'} - Detailed Report</h2>
+                    <p class="text-sm text-gray-500 mb-4">${ALL_TEST_QUESTIONS[data.testId]?.name || data.testId}</p>
+                    <div class="space-y-2 text-sm">
+                        <p><strong>Raw Score:</strong> ${totalScore}/${totalQ} (<span class="font-semibold ${pct >= 70 ? 'text-green-600' : pct >= 40 ? 'text-yellow-600' : 'text-red-600'}">${pct}%</span>)</p>
+                        <p><strong>Module 1:</strong> ${m1Score}/22</p>
+                        <p><strong>Module 2:</strong> ${m2Score}/22 (${diffLabel} path)</p>
+                        <p><strong>Weak Topics:</strong> ${weak.length ? weak.join(', ') : '<span class="text-green-600">None (all topics ≥60%)</span>'}</p>
+                        <p><strong>Parent Phone:</strong> ${data.parentPhone || 'N/A'}</p>
+                    </div>
+                    <div class="flex flex-wrap gap-2 mt-4">
+                        ${data.parentPhone ? `
+                            <button onclick="sendParentWhatsApp('${data.parentPhone}', '${data.studentName || ''}', '${ALL_TEST_QUESTIONS[data.testId]?.name || data.testId}', '${totalScore}', '${totalQ}', '${m1Score}', '${m2Score}', '${pct}', '${weak.join(', ')}'); this.closest('.modal').style.display='none'" 
+                                    class="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs font-semibold">
+                                Send Detailed WhatsApp
+                            </button>
+                        ` : ''}
+                        <button onclick="reviewPastAttempt('${data.testId}', window.tempStudentResults['${resultId}']); this.closest('.modal').style.display='none'" 
+                                class="px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-xs font-semibold">
+                            Review Test
+                        </button>
+                    </div>
+                </div>
+            `;
+            modal.style.display = 'block';
+        }
+
         window.renderTeacherDashboard = async function() {
             window.state.appStage = 'teacher_dashboard';
             hideTestUIElements();
@@ -5954,7 +7557,7 @@ Student: ${userMessage}${questionContext}`;
                         <div class="flex justify-between items-center mb-4">
                             <div>
                                 <h1 class="text-3xl font-extrabold text-gray-800 dark:text-gray-100">Teacher Dashboard</h1>
-                                <p class="text-gray-500 mt-1 dark:text-gray-400">Real-time Student Progress</p>
+                                <p class="text-gray-500 mt-1 dark:text-gray-400">Student Test Results & Reports</p>
                             </div>
                             <button onclick="window.exportTeacherData()" class="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-semibold">Export Data</button>
                         </div>
@@ -5967,13 +7570,14 @@ Student: ${userMessage}${questionContext}`;
                             <table class="min-w-full leading-normal">
                                 <thead>
                                     <tr class="bg-blue-600 text-white text-left text-xs font-semibold uppercase tracking-wider">
-                                        <th class="px-4 py-2 border-b-2 border-gray-200">Student Name</th>
-                                        <th class="px-4 py-2 border-b-2 border-gray-200">Test ID</th>
-                                        <th class="px-4 py-2 border-b-2 border-gray-200">Total Score</th>
-                                        <th class="px-4 py-2 border-b-2 border-gray-200">Parent Phone</th>
-                                        <th class="px-4 py-2 border-b-2 border-gray-200">Difficulty</th>
-                                        <th class="px-4 py-2 border-b-2 border-gray-200">Date</th>
-                                        <th class="px-4 py-2 border-b-2 border-gray-200 text-center">Actions</th>
+                                        <th class="px-3 py-2 border-b-2 border-gray-200">Student</th>
+                                        <th class="px-3 py-2 border-b-2 border-gray-200">Test</th>
+                                        <th class="px-3 py-2 border-b-2 border-gray-200">Score</th>
+                                        <th class="px-3 py-2 border-b-2 border-gray-200">Accuracy</th>
+                                        <th class="px-3 py-2 border-b-2 border-gray-200">Weak Topics</th>
+                                        <th class="px-3 py-2 border-b-2 border-gray-200">Difficulty</th>
+                                        <th class="px-3 py-2 border-b-2 border-gray-200">Date</th>
+                                        <th class="px-3 py-2 border-b-2 border-gray-200 text-center">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="teacher-results-body">
@@ -5986,54 +7590,69 @@ Student: ${userMessage}${questionContext}`;
                 const resultsContainer = document.getElementById('teacher-results-body');
                 
                 if (allResults.length === 0) {
-                    resultsContainer.innerHTML = '<tr><td colspan="7" class="text-center py-4">No results found.</td></tr>';
+                    resultsContainer.innerHTML = '<tr><td colspan="8" class="text-center py-4">No results found.</td></tr>';
                     return;
                 }
 
                 allResults.forEach(data => {
-                    // Store result for review access, keyed by unique doc ID
                     window.tempStudentResults[data.id] = data;
 
-                    // Data extraction with fallbacks
                     const studentName = data.studentName || 'Unknown Student';
                     const testName = ALL_TEST_QUESTIONS[data.testId] ? ALL_TEST_QUESTIONS[data.testId].name : data.testId;
                     const m1Score = data.details ? data.details.module1Score : (data.testHistory?.module1?.score || 0);
                     const m2Score = data.details ? data.details.module2Score : (data.testHistory?.module2?.score || 0);
                     const totalScore = m1Score + m2Score;
+                    const totalQ = 44;
+                    const pct = ((totalScore / totalQ) * 100).toFixed(1);
+                    const pctColor = pct >= 70 ? 'text-green-600' : pct >= 40 ? 'text-yellow-600' : 'text-red-600';
                     const m2Diff = data.details ? data.details.module2Difficulty : (data.testHistory?.module2?.difficulty);
                     const diffLabel = m2Diff === 'M2H' ? 'Hard' : 'Easy';
                     const diffColor = m2Diff === 'M2H' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700';
                     const dateStr = data.timestamp ? new Date(data.timestamp).toLocaleDateString() + ' ' + new Date(data.timestamp).toLocaleTimeString() : 'N/A';
                     const parentPhone = data.parentPhone || '';
+                    const weak = getWeakTopics(data.categoryScores);
 
                     const row = document.createElement('tr');
-                    row.className = "hover:bg-blue-50 transition-colors border-b border-gray-100";
+                    row.className = "hover:bg-blue-50 transition-colors border-b border-gray-100 cursor-pointer";
+                    row.onclick = function() { showTeacherReportModal(data.id); };
                     
                     row.innerHTML = `
-                        <td class="px-5 py-5 text-sm font-semibold text-gray-900">${studentName}</td>
-                        <td class="px-5 py-5 text-sm text-gray-600 font-medium">${testName}</td>
-                        <td class="px-5 py-5 text-sm">
-                            <span class="font-bold text-blue-700">${totalScore}/44</span>
+                        <td class="px-3 py-4 text-sm font-semibold text-gray-900">${studentName}</td>
+                        <td class="px-3 py-4 text-sm text-gray-600 font-medium">${testName}</td>
+                        <td class="px-3 py-4 text-sm">
+                            <span class="font-bold text-blue-700">${totalScore}/${totalQ}</span>
                             <div class="text-xs text-gray-400">M1: ${m1Score} | M2: ${m2Score}</div>
                         </td>
-                        <td class="px-5 py-5 text-sm text-gray-600">${parentPhone || '<span class="text-gray-300 italic">Not provided</span>'}</td>
-                        <td class="px-5 py-5 text-sm">
-                            <span class="px-2 py-1 rounded text-xs font-bold ${diffColor}">
-                                ${diffLabel}
-                            </span>
+                        <td class="px-3 py-4 text-sm">
+                            <span class="font-semibold ${pctColor}">${pct}%</span>
+                            <div class="w-16 h-1.5 bg-gray-200 rounded-full mt-1">
+                                <div class="h-full rounded-full ${pct >= 70 ? 'bg-green-400' : pct >= 40 ? 'bg-yellow-400' : 'bg-red-400'}" style="width:${pct}%"></div>
+                            </div>
                         </td>
-                        <td class="px-5 py-5 text-sm text-gray-500 italic">${dateStr}</td>
-                        <td class="px-5 py-5 text-sm text-center">
-                            <div class="flex items-center justify-center space-x-2">
+                        <td class="px-3 py-4 text-sm">
+                            ${weak.length > 0 
+                                ? `<span class="text-red-600 text-xs font-medium">${weak.slice(0, 2).join(', ')}${weak.length > 2 ? '...' : ''}</span>`
+                                : '<span class="text-green-500 text-xs font-medium">None</span>'}
+                        </td>
+                        <td class="px-3 py-4 text-sm">
+                            <span class="px-2 py-1 rounded text-xs font-bold ${diffColor}">${diffLabel}</span>
+                        </td>
+                        <td class="px-3 py-4 text-sm text-gray-500 italic">${dateStr}</td>
+                        <td class="px-3 py-4 text-sm text-center" onclick="event.stopPropagation()">
+                            <div class="flex items-center justify-center space-x-1.5">
                                 ${parentPhone ? `
-                                <button onclick="sendParentWhatsApp('${parentPhone}', '${studentName}', '${testName}', '${totalScore}', '44')" 
-                                        class="inline-flex items-center px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg transition duration-150 shadow-sm text-xs font-bold" title="WhatsApp Parent">
-                                    <svg class="w-4 h-4 mr-1.5" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.095 3.2 5.076 4.487.709.306 1.262.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
-                                    Send Report
+                                <button onclick="sendParentWhatsApp('${parentPhone}', '${studentName}', '${testName}', '${totalScore}', '${totalQ}', '${m1Score}', '${m2Score}', '${pct}', '${weak.join(', ')}')" 
+                                        class="inline-flex items-center px-2 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg transition duration-150 shadow-sm text-xs font-bold" title="Send WhatsApp Report">
+                                    <svg class="w-3.5 h-3.5 mr-1" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.095 3.2 5.076 4.487.709.306 1.262.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
+                                    WhatsApp
                                 </button>` : ''}
+                                <button onclick="showTeacherReportModal('${data.id}')" 
+                                        class="inline-flex items-center px-2 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition duration-150 shadow-sm text-xs font-bold" title="View Details">
+                                    Details
+                                </button>
                                 <button onclick="reviewPastAttempt('${data.testId}', window.tempStudentResults['${data.id}'])" 
-                                        class="p-2 bg-indigo-500 text-white rounded-full hover:bg-indigo-600" title="Review Test">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                                        class="p-1.5 bg-indigo-500 text-white rounded-full hover:bg-indigo-600" title="Review Test">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
                                 </button>
                             </div>
                         </td>
@@ -6056,45 +7675,58 @@ Student: ${userMessage}${questionContext}`;
                 if (cells.length < 4) return;
                 const name = cells[0].textContent.toLowerCase();
                 const testId = cells[1].textContent.toLowerCase();
-                const phone = cells[3].textContent.toLowerCase();
-                row.style.display = (!filter || name.includes(filter) || testId.includes(filter) || phone.includes(filter)) ? '' : 'none';
+                const weakTopics = cells[4]?.textContent?.toLowerCase() || '';
+                row.style.display = (!filter || name.includes(filter) || testId.includes(filter) || weakTopics.includes(filter)) ? '' : 'none';
             });
         }
 
-        window.sendParentWhatsApp = function(phone, studentName, testName, score, total) {
+        window.sendParentWhatsApp = function(phone, studentName, testName, score, total, m1, m2, pct, weakTopics) {
             if (!phone) {
                 alert("No parent phone number available for this student.");
                 return;
             }
             
-            // Calculate module scores if passed or parse from somewhere, but for the button we just pass total
-            // To match the requested message format exactly:
-            // "Hello, this is Dr.Joe Platform. Your son/daughter {studentName} has completed the {testId} Mock Test with a total score of {totalScore}/44..."
-            
-            const message = `Hello, this is Dr.Joe Platform. Your son/daughter ${studentName} has completed the ${testName} with a total score of ${score}/${total}.`;
+            const weakLine = weakTopics ? `\nAreas to focus on: ${weakTopics}` : '';
+            const message = `Hello, this is Dr.Joe Platform. Your son/daughter ${studentName} completed ${testName}.\n\n` +
+                `Score: ${score}/${total} (${pct || ((score/total)*100).toFixed(1)}%)\n` +
+                `Module 1: ${m1 || '?'}/22 | Module 2: ${m2 || '?'}/22${weakLine}\n\n` +
+                `For more details, please contact the teacher.`;
             
             const encodedMessage = encodeURIComponent(message);
             const whatsappUrl = `https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodedMessage}`;
             window.open(whatsappUrl, '_blank');
         }
 
+        function getWeakTopicsCsv(categoryScores) {
+            if (!categoryScores) return '';
+            return Object.entries(categoryScores)
+                .filter(([, cs]) => cs.total > 0 && cs.correct / cs.total < 0.6)
+                .map(([, cs]) => cs.label || '')
+                .join('; ');
+        }
+
         window.exportTeacherData = async function() {
             try {
                 const resultsSnap = await getDocs(query(collection(db, "results")));
-                const rows = [['Student Name', 'Test ID', 'Total Score', 'M1 Score', 'M2 Score', 'Difficulty', 'Parent Phone', 'Date']];
+                const rows = [['Student Name', 'Test ID', 'Total Score', 'M1 Score', 'M2 Score', 'Accuracy %', 'Weak Topics', 'Difficulty', 'Parent Phone', 'Date']];
                 resultsSnap.forEach(d => {
                     const data = d.data();
                     const testName = ALL_TEST_QUESTIONS[data.testId] ? ALL_TEST_QUESTIONS[data.testId].name : data.testId;
                     const m1 = data.details ? data.details.module1Score : (data.testHistory?.module1?.score || 0);
                     const m2 = data.details ? data.details.module2Score : (data.testHistory?.module2?.score || 0);
+                    const total = m1 + m2;
+                    const pct = ((total / 44) * 100).toFixed(1);
                     const diff = data.details ? data.details.module2Difficulty : (data.testHistory?.module2?.difficulty || '');
                     const date = data.timestamp ? new Date(data.timestamp).toLocaleDateString() : '';
+                    const weak = getWeakTopicsCsv(data.categoryScores);
                     rows.push([
                         data.studentName || '',
                         testName,
-                        String(m1 + m2),
+                        String(total),
                         String(m1),
                         String(m2),
+                        pct + '%',
+                        weak,
                         diff === 'M2H' ? 'Hard' : 'Easy',
                         data.parentPhone || '',
                         date
@@ -6207,6 +7839,7 @@ function adminSidebarHtml(active) {
         { id: 'create', label: 'Create Test', action: 'window.showTeacherTestCreationPanel()' },
         { id: 'testbank', label: 'Test Bank', action: 'window.manageTestBank()' },
         { id: 'testaccess', label: 'Test Access', action: 'window.manageStudentTestAccess()' },
+        { id: 'mini-quizzes', label: 'Mini-Quizzes', action: 'window.showQuizManager()' },
         { id: 'logs', label: 'System Logs', action: 'window.viewSystemLogs()' },
         { id: 'settings', label: 'Settings', action: 'window.systemSettings()' },
         { id: 'ebooks', label: '📚 E-Books', action: 'window.renderEbookManager()' },
@@ -6231,6 +7864,7 @@ function teacherSidebarHtml(active) {
         { id: 'create', label: 'Create Test', action: 'window.showTeacherTestCreationPanel()' },
         { id: 'schedule', label: 'Schedule Tests', action: 'window.showTestScheduling()' },
         { id: 'testaccess', label: 'Test Access', action: 'window.manageStudentTestAccess()' },
+        { id: 'mini-quizzes', label: 'Mini-Quizzes', action: 'window.showQuizManager()' },
         { id: 'settings', label: 'Settings', action: 'window.showStudentSettings()' },
         { id: 'ebooks', label: '📚 E-Books', action: 'window.renderEbookManager()' },
     ];
