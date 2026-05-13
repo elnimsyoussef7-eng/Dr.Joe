@@ -5686,321 +5686,502 @@
         };
 
         // ============================================================
-        // AI TUTOR SYSTEM — Chat, advice, topic analysis & weak-topic quizzes
+        // AI TUTOR SYSTEM — Ollama (local, free) with Gemini fallback
         // ============================================================
 
-        const AI_TUTOR = {
-            mascot: { name: 'Dr. Dot', emoji: '🧑‍🏫', avatar: '🧑‍🏫' },
-            topics: {
-                algebra: {
-                    keywords: ['algebra', 'equation', 'slope', 'intercept', 'linear', 'quadratic', 'factor', 'expression', 'solve for', 'variable', 'inequality', 'function', 'polynomial'],
-                    explanation: 'Algebra covers equations, functions, slopes, factoring, and working with variables.',
-                    commonMistakes: [
-                        'Forgetting to distribute the negative sign when subtracting expressions',
-                        'Mixing up slope and y-intercept in y=mx+b',
-                        'Not checking solutions in the original equation'
-                    ]
-                },
-                geometry: {
-                    keywords: ['geometry', 'triangle', 'circle', 'area', 'volume', 'angle', 'perimeter', 'rectangle', 'sphere', 'cylinder', 'cone', 'cube', 'polygon', 'similar', 'congruent', 'pythagorean', 'hypotenuse'],
-                    explanation: 'Geometry involves shapes, their properties, area, volume, and angle relationships.',
-                    commonMistakes: [
-                        'Forgetting to use the correct formula (area vs. circumference)',
-                        'Mixing up radius and diameter',
-                        'Not converting units before calculating'
-                    ]
-                },
-                trig: {
-                    keywords: ['trig', 'sin', 'cos', 'tan', 'sine', 'cosine', 'tangent', 'angle', 'radian', 'degree', 'unit circle', 'identity', 'period', 'amplitude', 'log', 'logarithm', 'exponent', 'imaginary', 'complex', 'i '],
-                    explanation: 'Trigonometry covers sine, cosine, tangent, logarithms, and complex numbers.',
-                    commonMistakes: [
-                        'Using degrees instead of radians (or vice versa) in calculations',
-                        'Forgetting the reciprocal trig identities',
-                        'Not checking the domain when solving logarithmic equations'
-                    ]
-                },
-                data: {
-                    keywords: ['data', 'mean', 'median', 'mode', 'range', 'standard deviation', 'probability', 'percent', 'statistics', 'average', 'chart', 'graph', 'table', 'scatter', 'correlation', 'z-score'],
-                    explanation: 'Data analysis includes mean, median, probability, standard deviation, and interpreting charts.',
-                    commonMistakes: [
-                        'Confusing mean and median',
-                        'Forgetting to divide by the total when calculating probability',
-                        'Misreading graph scales and axes'
-                    ]
-                }
-            },
-            advice: [
-                '💡 Read every question twice before answering — it saves mistakes!',
-                '💡 Eliminate wrong answers first when you are unsure of the correct one.',
-                '💡 Remember: the DSAT Math section tests reasoning, not just memorization.',
-                '💡 Draw diagrams for geometry problems — it makes everything clearer.',
-                '💡 Check your answer by plugging it back into the original equation.',
-                '💡 Skip hard questions and return to them — don\'t get stuck!',
-                '💡 Use the Desmos calculator strategically — not every problem needs it.',
-                '💡 Pay attention to units: feet vs. inches, minutes vs. hours.',
-                '💡 The quadratic formula is your friend — memorize it!',
-                '💡 A 10-second break and deep breath can refocus your brain.',
-                '💡 Estimate before calculating to catch unreasonable answers.',
-                '💡 For "which is true" questions, test each option one at a time.',
-                '💡 Word problems: underline the key numbers and what is being asked.',
-                '💡 Fraction answers? Simplify fully unless told otherwise.',
-                '💡 You\'ve practiced hard — trust your preparation!'
-            ],
-            chatResponses: [
-                { keywords: ['hello', 'hi', 'hey', 'good morning', 'good evening'], response: 'Hey there! 👋 I\'m Dr. Dot, your SAT Math buddy. Ask me anything about the problems you\'re solving!' },
-                { keywords: ['how are you'], response: 'I\'m doing great, ready to help you ace the SAT! 🎯 How can I help?' },
-                { keywords: ['thank', 'thanks', 'appreciate'], response: 'You\'re welcome! 🌟 Keep up the great work — every question makes you stronger.' },
-                { keywords: ['slope', 'y=mx+b', 'linear equation'], response: 'The slope-intercept form is $y = mx + b$ where $m$ is the slope (rise/run) and $b$ is the y-intercept. For example, $y = 2x + 3$ has slope 2 and crosses the y-axis at (0,3).' },
-                { keywords: ['quadratic', 'factor', 'x²', 'x^2', 'parabola'], response: 'Quadratic equations have the form $ax^2 + bx + c = 0$. You can factor them, use the quadratic formula $x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$, or complete the square. The graph is a parabola! 📈' },
-                { keywords: ['pythagorean', 'hypotenuse', 'right triangle'], response: 'The Pythagorean Theorem says $a^2 + b^2 = c^2$, where $c$ is the hypotenuse (longest side). For a 3-4-5 triangle: $3^2 + 4^2 = 9 + 16 = 25 = 5^2$ ✅' },
-                { keywords: ['circle', 'area', 'circumference'], response: 'Circle formulas: Area = $\\pi r^2$, Circumference = $2\\pi r$ (or $\\pi d$). Remember: radius is half the diameter! 🎯' },
-                { keywords: ['triangle', 'area of triangle'], response: 'Area of a triangle = $\\frac{1}{2} \\times \\text{base} \\times \\text{height}$. The sum of all three interior angles is always $180^\\circ$! 📐' },
-                { keywords: ['volume', 'cylinder', 'sphere', 'cone'], response: 'Key volume formulas: Cylinder: $V = \\pi r^2 h$, Sphere: $V = \\frac{4}{3}\\pi r^3$, Cone: $V = \\frac{1}{3}\\pi r^2 h$, Rectangular prism: $V = lwh$ 📦' },
-                { keywords: ['mean', 'average', 'median', 'mode'], response: 'Mean = sum of values ÷ number of values. Median = middle value when sorted. Mode = most frequent value. For the SAT, know how outliers affect the mean vs. median! 📊' },
-                { keywords: ['probability'], response: 'Probability = (favorable outcomes) ÷ (total possible outcomes). For multiple events, multiply the probabilities. Example: rolling a 6 on a die is 1/6. 🎲' },
-                { keywords: ['function', 'f(x)', 'f of x'], response: 'A function $f(x)$ takes an input $x$ and gives an output. For $f(x) = 2x + 1$, $f(3) = 2(3) + 1 = 7$. Think of it as a machine: number in → rule applied → number out! ⚙️' },
-                { keywords: ['inequality', 'greater than', 'less than'], response: 'Inequalities work like equations but with <, >, ≤, ≥. Flip the sign when multiplying/dividing by a negative! Example: $-2x > 6$ → $x < -3$ ⚠️' },
-                { keywords: ['exponent', 'power', 'x^2', 'x^3'], response: 'Exponent rules: $x^a \\cdot x^b = x^{a+b}$, $(x^a)^b = x^{ab}$, $x^{-a} = \\frac{1}{x^a}$. Memorize these — they appear a lot on the SAT! 🚀' },
-                { keywords: ['log', 'logarithm'], response: 'Logarithms are the inverse of exponents: $\\log_b a = c$ means $b^c = a$. For the SAT, focus on $\\log_{10}$ and natural log $\\ln$. Example: $\\log_2 8 = 3$ because $2^3 = 8$ 🧮' },
-                { keywords: ['trig', 'sin', 'cos', 'tan', 'sine', 'cosine', 'tangent'], response: 'SOH-CAH-TOA: $\\sin \\theta = \\frac{\\text{opposite}}{\\text{hypotenuse}}$, $\\cos \\theta = \\frac{\\text{adjacent}}{\\text{hypotenuse}}$, $\\tan \\theta = \\frac{\\text{opposite}}{\\text{adjacent}}$. Unit circle values for 30°, 45°, 60° are essential! 📐' },
-                { keywords: ['desmos', 'calculator'], response: 'Desmos is a powerful tool on the DSAT! Use it for graphing, solving equations, and checking work. But don\'t rely on it for everything — mental math saves time! 🧮' },
-                { keywords: ['stuck', 'difficult', 'hard', 'confused', 'don\'t understand'], response: 'No worries — getting stuck is part of learning! Try these: 1) Rewrite the problem in your own words 2) Eliminate obviously wrong answers 3) Take a deep breath. You\'ve got this! 💪' },
-                { keywords: ['tip', 'advice', 'strategy', 'how to improve'], response: 'Great question! Here\'s my top advice: Practice consistently (15 min/day > 3 hours once a week), review every mistake, and focus on your weak topics. Would you like me to analyze your strengths and weaknesses? 🎯' },
-                { keywords: ['weak', 'improve', 'practice', 'mistake'], response: 'The best way to improve is targeted practice. I can suggest mini-quizzes on specific topics! Click "Practice Quiz" on the main menu and pick a topic, or check your score report for personalized recommendations. 📈' },
-                { keywords: ['bored', 'tired', 'break', 'rest'], response: 'Taking breaks is super important! Your brain needs rest to learn effectively. Stand up, stretch, drink water, and come back refreshed. You\'ll do better after a short break! 🌟' },
-                { keywords: ['nervous', 'anxious', 'stress', 'scared', 'worried'], response: 'It\'s totally normal to feel nervous! Remember: you\'ve prepared, you know the material, and this is just one step in your journey. Take a deep breath — you are capable and ready! 🧘‍♂️💪' },
-                { keywords: ['time', 'speed', 'fast', 'slow'], response: 'Time management tip: Aim for about 90 seconds per question on average. Flag hard ones and come back. With practice, your speed will naturally increase! ⏱️' },
-            ],
-            fallback: 'That\'s an interesting question! 🤔 I\'m a focused SAT Math tutor, so I specialize in algebra, geometry, trigonometry, and data analysis. Could you ask me about one of those topics? Or try asking about a specific problem you\'re working on!'
+        function getAiDailyLimit() {
+            return parseInt(localStorage.getItem('global_ai_tutor_daily_limit') || '50', 10);
+        }
+        const OLLAMA_URL = 'http://localhost:11434';
+        const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+
+        // Which provider to use: 'ollama', 'gemini', or 'groq' — globally set by admin
+        window.getAiProvider = function() {
+            return localStorage.getItem('global_ai_tutor_provider') || 'groq';
         };
 
-        // --- AI Chat Panel ---
-
-        window.toggleAIChat = function() {
-            const panel = document.getElementById('ai-chat-panel');
-            if (panel) {
-                const isHidden = panel.classList.contains('hidden');
-                panel.classList.toggle('hidden');
-                if (isHidden) {
-                    const msg = document.getElementById('ai-chat-messages');
-                    if (msg && msg.children.length <= 1) {
-                        msg.innerHTML = '';
-                        addAIChatMessage('Hey there! 👋 I\'m Dr. Dot, your SAT Math buddy. Ask me anything about math problems, get tips, or just say hi!');
-                    }
+        // Per-student rate limiting
+        function getAiUsage() {
+            try {
+                const key = 'ai_tutor_usage_' + (window.state.studentName || 'default');
+                const raw = localStorage.getItem(key);
+                if (raw) {
+                    const data = JSON.parse(raw);
+                    const today = new Date().toDateString();
+                    if (data.date === today) return data.count;
                 }
+            } catch (e) {}
+            return 0;
+        }
+        function incrementAiUsage() {
+            const key = 'ai_tutor_usage_' + (window.state.studentName || 'default');
+            const today = new Date().toDateString();
+            let count = 0;
+            try {
+                const raw = localStorage.getItem(key);
+                if (raw) {
+                    const data = JSON.parse(raw);
+                    if (data.date === today) count = data.count;
+                }
+            } catch (e) {}
+            count++;
+            localStorage.setItem(key, JSON.stringify({ date: today, count: count }));
+            return count;
+        }
+        function getAiUsageInfo() {
+            const used = getAiUsage();
+            const limit = getAiDailyLimit();
+            const remaining = Math.max(0, limit - used);
+            const resetAt = new Date();
+            resetAt.setHours(23, 59, 59, 999);
+            const hoursLeft = Math.round((resetAt - new Date()) / 3600000);
+            return { used, remaining, total: limit, hoursLeft };
+        }
+
+        function buildStudentContext() {
+            const s = window.state;
+            const th = s.testHistory;
+            let ctx = 'Student Name: ' + (s.studentName || 'Unknown') + '\n';
+            if (th.module1?.questions?.length > 0) {
+                ctx += 'Module 1: ' + th.module1.score + '/' + th.module1.questions.length + ' correct (' + Math.round(th.module1.percentage || 0) + '%)\n';
+            }
+            if (th.module2?.questions?.length > 0) {
+                ctx += 'Module 2 (' + (th.module2.difficulty || 'N/A') + '): ' + th.module2.score + '/' + th.module2.questions.length + ' correct (' + Math.round(th.module2.percentage || 0) + '%)\n';
+            }
+            const totalScore = (th.module1?.score || 0) + (th.module2?.score || 0);
+            const totalQ = (th.module1?.questions?.length || 0) + (th.module2?.questions?.length || 0);
+            if (totalQ > 0) {
+                ctx += 'Overall: ' + totalScore + '/' + totalQ + ' correct (' + Math.round(totalScore/totalQ*100) + '%)\n';
+                ctx += 'Estimated SAT Math Score: ' + Math.round(Math.min(totalScore, 44) * 600 / 44 + 200) + '/800\n';
+            }
+            if (s.categoryScores) {
+                const weak = Object.entries(s.categoryScores)
+                    .filter(([, cs]) => cs.total > 0 && cs.correct / cs.total < 0.6)
+                    .map(([id, cs]) => cs.label || id);
+                if (weak.length > 0) ctx += 'Weak Areas: ' + weak.join(', ') + '\n';
+            }
+            return ctx;
+        }
+
+        // --- Ollama helpers ---
+        async function checkOllama() {
+            try {
+                const r = await fetch(OLLAMA_URL, { method: 'GET', signal: AbortSignal.timeout(2000) });
+                return r.ok;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        async function askOllama(prompt) {
+            const r = await fetch(OLLAMA_URL + '/api/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: localStorage.getItem('global_ai_ollama_model') || 'llama3.2:1b',
+                    prompt: prompt,
+                    stream: false,
+                    options: { temperature: 0.7, num_predict: 1024 }
+                })
+            });
+            if (!r.ok) throw new Error('Ollama error: ' + r.status);
+            const data = await r.json();
+            return data.response || '';
+        }
+
+        const FALLBACK_GEMINI_KEY = 'AIzaSyCo3axdfXvqxDQHdnwBuk-s-8APW5311ng';
+
+        function getGeminiKeys() {
+            const raw = localStorage.getItem('global_ai_tutor_gemini_keys');
+            let keys = [];
+            if (raw) keys = raw.split(',').map(k => k.trim()).filter(Boolean);
+            // Seed fallback if none configured
+            if (!keys.length) {
+                keys = [FALLBACK_GEMINI_KEY];
+                localStorage.setItem('global_ai_tutor_gemini_keys', FALLBACK_GEMINI_KEY);
+            }
+            return keys;
+        }
+
+        function getCurrentGeminiKey() {
+            const keys = getGeminiKeys();
+            let idx = parseInt(localStorage.getItem('global_ai_tutor_key_index') || '0', 10);
+            if (isNaN(idx) || idx >= keys.length) idx = 0;
+            return keys[idx];
+        }
+
+        function rotateGeminiKey() {
+            const keys = getGeminiKeys();
+            let idx = parseInt(localStorage.getItem('global_ai_tutor_key_index') || '0', 10);
+            if (isNaN(idx) || idx >= keys.length) idx = 0;
+            const nextIdx = (idx + 1) % keys.length;
+            localStorage.setItem('global_ai_tutor_key_index', String(nextIdx));
+            return keys[nextIdx];
+        }
+
+        async function askGemini(prompt) {
+            const keys = getGeminiKeys();
+            let idx = parseInt(localStorage.getItem('global_ai_tutor_key_index') || '0', 10);
+            if (isNaN(idx) || idx >= keys.length) idx = 0;
+
+            const errors = [];
+            for (let attempt = 0; attempt < keys.length; attempt++) {
+                const key = keys[idx];
+                console.log('askGemini: trying key #' + (idx + 1) + ' of ' + keys.length + ' (masked: ' + key.substring(0, 12) + '...' + key.slice(-4) + ')');
+                try {
+                    const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + key, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: prompt }] }],
+                            generationConfig: { temperature: 0.7, maxOutputTokens: 800 }
+                        })
+                    });
+                    if (r.ok) {
+                        console.log('askGemini: key #' + (idx + 1) + ' succeeded');
+                        localStorage.setItem('global_ai_tutor_key_index', String(idx));
+                        const data = await r.json();
+                        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                        if (!text) throw new Error('Empty response from Gemini.');
+                        return text;
+                    }
+                    const err = await r.text();
+                    console.log('askGemini: key #' + (idx + 1) + ' returned ' + r.status + ': ' + err.substring(0, 200));
+                    errors.push('Key #' + (idx + 1) + ' (' + r.status + '): ' + err.substring(0, 120));
+                } catch (fetchErr) {
+                    if (fetchErr.message && fetchErr.message.includes('Empty response')) throw fetchErr;
+                    console.log('askGemini: key #' + (idx + 1) + ' fetch error: ' + fetchErr.message);
+                    errors.push('Key #' + (idx + 1) + ' (network): ' + fetchErr.message.substring(0, 120));
+                }
+                idx = (idx + 1) % keys.length;
+                localStorage.setItem('global_ai_tutor_key_index', String(idx));
+            }
+            throw new Error('All Gemini keys failed:\n' + errors.join('\n') + '\n\nTo fix: get fresh keys from aistudio.google.com/apikey (create a NEW Google account if current one hit quota). Or switch to Ollama in Admin → AI Tutor Settings.');
+        }
+
+        async function askGroq(prompt) {
+            const key = localStorage.getItem('global_ai_tutor_groq_key') || '';
+            if (!key) throw new Error('No Groq API key configured in Admin → AI Tutor Settings.');
+            let model = localStorage.getItem('global_ai_tutor_groq_model') || 'llama-3.1-8b-instant';
+            // Redirect deprecated models
+            if (['mixtral-8x7b-32768', 'llama3-8b-8192', 'llama3-70b-8192'].includes(model)) {
+                model = 'llama-3.1-8b-instant';
+                localStorage.setItem('global_ai_tutor_groq_model', model);
+            }
+            const r = await fetch(GROQ_API_URL, {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: model,
+                    messages: [{ role: 'system', content: prompt.split('\n\nStudent message:')[0] }, { role: 'user', content: prompt.split('\n\nStudent message:')[1] || prompt }],
+                    temperature: 0.7,
+                    max_tokens: 800
+                })
+            });
+            if (!r.ok) {
+                const err = await r.text();
+                if (r.status === 429) throw new Error('Groq quota exceeded (30 req/min). Wait a moment and try again, or switch providers in Admin → AI Tutor Settings.');
+                if (r.status === 401 || r.status === 403) throw new Error('Groq API key is invalid. Update the key in Admin → AI Tutor Settings.');
+                throw new Error('Groq error: ' + err.substring(0, 150));
+            }
+            const data = await r.json();
+            const text = data.choices?.[0]?.message?.content;
+            if (!text) throw new Error('Empty response from Groq.');
+            return text;
+        }
+
+        // --- AI Tutor Screen ---
+
+        async function getAiStatus() {
+            const provider = window.getAiProvider();
+            if (provider === 'ollama') {
+                const running = await checkOllama();
+                const model = localStorage.getItem('global_ai_ollama_model') || 'llama3.2:1b';
+                return { provider: 'ollama', running: running, model: model, label: 'Local AI (Ollama)' };
+            } else if (provider === 'gemini') {
+                const keys = getGeminiKeys();
+                const hasKey = keys.length > 0;
+                const keyInfo = keys.length + ' key' + (keys.length > 1 ? 's' : '');
+                return { provider: 'gemini', running: hasKey, model: 'gemini-2.0-flash', label: 'Gemini AI (' + keyInfo + ')' };
+            } else {
+                const hasKey = !!localStorage.getItem('global_ai_tutor_groq_key');
+                const model = localStorage.getItem('global_ai_tutor_groq_model') || 'llama-3.1-8b-instant';
+                return { provider: 'groq', running: hasKey, model: model, label: 'Groq AI (' + model + ')' };
+            }
+        }
+
+        window.renderAITutor = async function() {
+            window.state.appStage = 'ai_tutor';
+            hideTestUIElements();
+            document.getElementById('header-test-info').textContent = 'AI SAT Tutor';
+
+            const contentDiv = document.getElementById('question-content');
+            contentDiv.classList.remove('flex', 'items-center', 'justify-center');
+
+            const status = await getAiStatus();
+            const usage = getAiUsageInfo();
+
+            let bodyHtml = '';
+
+            if (!status.running) {
+                if (status.provider === 'ollama') {
+                    bodyHtml = `
+                    <div class="text-center p-10 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl mb-4">
+                        <p class="text-3xl mb-3">🦙</p>
+                        <p class="text-lg font-bold text-amber-700 dark:text-amber-400 mb-2">Ollama Not Running</p>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 max-w-lg mx-auto mb-4">
+                            The AI Tutor uses <strong>Ollama</strong> — a free local AI that runs on your computer.<br><br>
+                            1. Download & install: <strong>ollama.com</strong><br>
+                            2. Open Terminal/CMD and run:<br>
+                            <code class="block bg-gray-200 dark:bg-gray-700 px-4 py-2 rounded-lg my-2 text-sm font-mono">ollama pull llama3.2:1b</code>
+                            3. Run: <code class="bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded font-mono">ollama serve</code><br>
+                            4. Refresh this page
+                        </p>
+                        <div class="flex gap-3 justify-center">
+                            <button onclick="window.renderAITutor()" class="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition">Refresh Status</button>
+                            <button onclick="window.showStudentSettings()" class="px-5 py-2.5 bg-gray-500 hover:bg-gray-600 text-white font-bold rounded-xl transition">Settings</button>
+                        </div>
+                    </div>
+                    <div id="ai-tutor-messages" class="flex-1"></div>`;
+                } else if (status.provider === 'gemini') {
+                    bodyHtml = `
+                    <div class="text-center p-10 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl mb-4">
+                        <p class="text-lg font-bold text-amber-700 dark:text-amber-400 mb-2">Gemini Key Required</p>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 max-w-md mx-auto mb-4">
+                            To use Gemini AI, add your API key in Settings. Or switch to <strong>Ollama</strong> (local AI, no key needed).
+                        </p>
+                        <button onclick="window.showStudentSettings()" class="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition">Settings</button>
+                    </div>
+                    <div id="ai-tutor-messages" class="flex-1"></div>`;
+                } else {
+                    bodyHtml = `
+                    <div class="text-center p-10 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl mb-4">
+                        <p class="text-lg font-bold text-amber-700 dark:text-amber-400 mb-2">Groq Key Required</p>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 max-w-md mx-auto mb-4">
+                            To use Groq AI, add your API key in Admin → AI Tutor Settings.
+                        </p>
+                        <button onclick="window.showStudentSettings()" class="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition">Settings</button>
+                    </div>
+                    <div id="ai-tutor-messages" class="flex-1"></div>`;
+                }
+            } else if (usage.remaining <= 0) {
+                bodyHtml = `
+                <div class="text-center p-8 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl">
+                    <p class="text-lg font-bold text-red-600 dark:text-red-400">Daily Limit Reached</p>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">You've used all ${getAiDailyLimit()} questions for today.</p>
+                </div>
+                <div id="ai-tutor-messages" class="flex-1"></div>`;
+            } else {
+                bodyHtml = `
+                <div id="ai-tutor-messages" class="flex-1 overflow-y-auto space-y-4 p-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-inner mb-4">
+                    <div class="flex items-start gap-3">
+                        <div class="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white text-lg shrink-0">🧑‍🏫</div>
+                        <div class="bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 px-5 py-3 rounded-2xl rounded-tl-sm max-w-[80%] text-sm leading-relaxed shadow-sm">
+                            <p class="font-bold text-indigo-600 dark:text-indigo-400 mb-1">Dr. Joe</p>
+                            Hello! I'm your personal SAT tutor, running on <strong>${status.label}</strong>.<br>
+                            <strong>Math</strong> — Algebra, Geometry, Trig, Data Analysis<br>
+                            <strong>Reading & Writing</strong> — Grammar, Comprehension, Vocabulary<br><br>
+                            I've analyzed your test history. What would you like to work on?
+                        </div>
+                    </div>
+                </div>
+                <div class="flex gap-3">
+                    <textarea id="ai-tutor-input" placeholder="Ask me anything about the SAT..." rows="2" class="flex-1 p-4 border border-gray-300 dark:border-gray-600 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-gray-100 text-sm"></textarea>
+                    <button id="ai-tutor-send-btn" onclick="window.sendAiTutorMessage()" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-2xl shadow-md transition flex items-center gap-2 self-end">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+                        Send
+                    </button>
+                </div>
+                <p class="text-[10px] text-gray-400 mt-2 text-center">${usage.remaining} / ${usage.total} questions remaining today (${status.label}). AI can make mistakes — verify critical facts.</p>`;
+            }
+
+            contentDiv.innerHTML = sidebarWrapper(`
+                <div class="max-w-4xl mx-auto h-[calc(100vh-12rem)] flex flex-col">
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <h2 class="text-2xl font-bold text-gray-800 dark:text-gray-100">Dr. Joe AI Tutor</h2>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Powered by ${status.label}</p>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="text-xs px-2 py-1 rounded-full font-bold ${status.running ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">${status.running ? 'Online' : 'Offline'}</span>
+                            <div class="text-right">
+                                <div class="text-xs font-bold text-gray-400 uppercase">Usage</div>
+                                <div class="text-lg font-black ${usage.remaining < 10 ? 'text-red-500' : 'text-green-500'}">${usage.used}/${usage.total}</div>
+                            </div>
+                            <button onclick="window.showStudentSettings()" class="px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 border rounded-xl hover:bg-gray-200 transition">⚙️</button>
+                            <button onclick="window.clearChatHistory()" class="px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 border rounded-xl hover:bg-red-200 transition">🗑️ Clear</button>
+                        </div>
+                    </div>
+                    ${bodyHtml}
+                </div>
+            `, studentSidebarHtml('ai_tutor'));
+
+            loadChatHistory();
+
+            const input = document.getElementById('ai-tutor-input');
+            if (input) {
+                input.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        window.sendAiTutorMessage();
+                    }
+                });
             }
         };
 
-        function addAIChatMessage(text, isUser) {
-            const container = document.getElementById('ai-chat-messages');
-            if (!container) return;
-            const div = document.createElement('div');
-            div.className = 'flex items-start gap-2 ' + (isUser ? 'justify-end' : '');
-            div.innerHTML = isUser ? `
-                <div class="bg-blue-500 text-white px-3 py-2 rounded-2xl rounded-br-sm max-w-[80%] text-sm shadow">${text}</div>
-                <div class="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0">👤</div>
-            ` : `
-                <div class="bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 px-3 py-2 rounded-2xl rounded-bl-sm max-w-[80%] text-sm shadow">${text}</div>
-            `;
-            container.appendChild(div);
-            container.scrollTop = container.scrollHeight;
-            if (typeof renderMath === 'function') renderMath('ai-chat-messages');
-        }
+        window.sendAiTutorMessage = async function() {
+            const input = document.getElementById('ai-tutor-input');
+            const sendBtn = document.getElementById('ai-tutor-send-btn');
+            const container = document.getElementById('ai-tutor-messages');
+            if (!input || !input.value.trim() || !container) return;
 
-        window.sendAIChatMessage = async function() {
-            const input = document.getElementById('ai-chat-input');
-            if (!input || !input.value.trim()) return;
+            const status = await getAiStatus();
+            if (!status.running) {
+                window.showToast(status.provider === 'ollama' ? 'Ollama is not running. See instructions on screen.' : 'Gemini not configured. Check Settings.', 'error');
+                return;
+            }
+
+            const usage = getAiUsageInfo();
+            if (usage.remaining <= 0) {
+                window.showToast('Daily limit reached!', 'warning');
+                return;
+            }
+
             const msg = input.value.trim();
             input.value = '';
-            addAIChatMessage(msg, true);
+            if (sendBtn) sendBtn.disabled = true;
 
-            showTypingIndicator();
+            addAiTutorMessage(msg, true);
 
-            const response = await generateWithGemini(msg);
-
-            removeTypingIndicator();
-            addAIChatMessage(response);
-        };
-
-        window.handleAIChatKey = function(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                window.sendAIChatMessage();
-            }
-        };
-
-        // ============================================================
-        // Gemini AI Integration (replaces rule-based responses)
-        // ============================================================
-        const GEMINI_API_KEY = 'AIzaSyBA1At3Tg1zGg2krdsVNvrpzaaHnT5yjxw';
-        const GEMINI_MODEL = 'gemini-1.5-flash';
-        const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
-
-        async function generateWithGemini(userMessage) {
-            let questionContext = '';
-            const mq = window.state.moduleQuestions;
-            const qi = window.state.questionIndex;
-            if (mq && mq[qi] && window.state.appStage === 'active') {
-                const q = mq[qi];
-                questionContext = `\n[Current question] ${q.text || ''}\nOptions: ${(q.options || []).join(', ')}`;
-            }
-
-            const fullMsg = `System: You are Dr. Dot, a friendly SAT Math tutor. ONLY help with SAT Math (algebra, geometry, trig, data). Be concise (1-3 sentences). Use $$...$$ for math. NEVER give the answer — hint and guide. Be warm.
-
-Student: ${userMessage}${questionContext}`;
+            const typingDiv = document.createElement('div');
+            typingDiv.id = 'ai-typing-indicator';
+            typingDiv.className = 'flex items-start gap-3';
+            typingDiv.innerHTML = '<div class="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white text-lg shrink-0">🧑‍🏫</div><div class="bg-gray-100 dark:bg-gray-700 px-5 py-3 rounded-2xl rounded-tl-sm shadow-sm"><div class="flex gap-1.5"><span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0s"></span><span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0.15s"></span><span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0.3s"></span></div></div>';
+            container.appendChild(typingDiv);
+            container.scrollTop = container.scrollHeight;
 
             try {
-                const response = await fetch(GEMINI_API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: fullMsg }] }],
-                        generationConfig: { temperature: 0.7, maxOutputTokens: 500 }
-                    })
-                });
+                const studentData = buildStudentContext();
+                const systemPrompt = 'You are Dr. Joe, an elite Digital SAT tutor. Student data:\n' + studentData + '\nRules:\n- Focus on SAT prep (Math, Reading, Writing).\n- Use **bold** for emphasis.\n- NEVER give direct answers — hint and guide.\n- Reference weak areas from the data.\n- Be concise. Use bullet points.';
 
-                if (!response.ok) {
-                    const err = await response.text();
-                    console.error('Gemini API error:', response.status, err.substr(0, 300));
-                    throw new Error(`Gemini ${response.status}`);
+                let reply;
+                if (status.provider === 'ollama') {
+                    reply = await askOllama(systemPrompt + '\n\nStudent: ' + msg + '\n\nDr. Joe:');
+                } else if (status.provider === 'gemini') {
+                    reply = await askGemini(systemPrompt + '\n\nStudent message: ' + msg);
+                } else {
+                    reply = await askGroq(systemPrompt + '\n\nStudent message: ' + msg);
                 }
 
-                const data = await response.json();
-                const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (text) return text;
+                incrementAiUsage();
+                removeAiTyping();
+                addAiTutorMessage(reply, false);
 
-                console.warn('Gemini empty response');
-                return smartFallback(userMessage);
-            } catch (error) {
-                console.error('Gemini failed:', error.message);
-                return smartFallback(userMessage);
+            } catch (err) {
+                console.error('AI error:', err);
+                removeAiTyping();
+                addAiTutorMessage('_Error: ' + err.message + '_', false);
             }
+
+            if (sendBtn) sendBtn.disabled = false;
+        };
+
+        // Chat history: in-memory + localStorage per student
+        let aiChatMessages = [];
+
+        function getChatHistoryKey() {
+            return 'ai_chat_' + (window.state.studentName || 'default');
         }
 
-        function smartFallback(input) {
-            const lower = input.toLowerCase();
-
-            // Check topic keywords
-            for (const [, topic] of Object.entries(AI_TUTOR.topics)) {
-                if (topic.keywords.some(kw => lower.includes(kw))) {
-                    const mistake = topic.commonMistakes[Math.floor(Math.random() * topic.commonMistakes.length)];
-                    return `${topic.explanation} ⭐ ${mistake}`;
-                }
-            }
-
-            // Check chat responses
-            for (const entry of AI_TUTOR.chatResponses) {
-                if (entry.keywords.some(kw => lower.includes(kw))) return entry.response;
-            }
-
-            // Try to detect if it looks like a math question and give generic help
-            if (/\d/.test(lower) || lower.includes('what') || lower.includes('how') || lower.includes('find') || lower.includes('solve') || lower.includes('calculate') || lower.includes('value')) {
-                const strategies = [
-                    'Try breaking the problem into smaller steps. What information are you given, and what are you trying to find?',
-                    'Think about which SAT Math topic this falls under — algebra, geometry, trig, or data analysis. That will guide your approach.',
-                    'Start by eliminating obviously wrong answer choices, then work through the remaining ones carefully.',
-                    'Write down the key numbers and what the question is asking. Sometimes just organizing the information helps!',
-                    'Check if you can plug the answer choices back into the problem to verify which one works.'
-                ];
-                return strategies[Math.floor(Math.random() * strategies.length)] + ' 🤖 Need more help? Tell me the specific topic!';
-            }
-
-            return AI_TUTOR.fallback;
-        }
-
-        function showTypingIndicator() {
-            const container = document.getElementById('ai-chat-messages');
+        function loadChatHistory() {
+            const container = document.getElementById('ai-tutor-messages');
             if (!container) return;
+            aiChatMessages = [];
+            try {
+                const raw = localStorage.getItem(getChatHistoryKey());
+                if (raw) aiChatMessages = JSON.parse(raw);
+            } catch (e) {}
+            if (!Array.isArray(aiChatMessages)) aiChatMessages = [];
+            container.innerHTML = '';
+            aiChatMessages.forEach(function(m) {
+                const div = document.createElement('div');
+                div.className = 'flex items-start gap-3 ' + (m.role === 'user' ? 'flex-row-reverse' : '');
+                div.innerHTML = m.role === 'user'
+                    ? '<div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white text-base shrink-0">👤</div><div class="bg-blue-500 text-white px-5 py-3 rounded-2xl rounded-tr-sm max-w-[80%] text-sm leading-relaxed shadow-sm">' + escapeHtml(m.text) + '</div>'
+                    : '<div class="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white text-lg shrink-0">🧑‍🏫</div><div class="bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 px-5 py-3 rounded-2xl rounded-tl-sm max-w-[80%] text-sm leading-relaxed shadow-sm">' + renderMarkdown(m.text) + '</div>';
+                container.appendChild(div);
+            });
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function saveChatHistory() {
+            try {
+                localStorage.setItem(getChatHistoryKey(), JSON.stringify(aiChatMessages));
+            } catch (e) {}
+        }
+
+        function clearChatHistory() {
+            aiChatMessages = [];
+            saveChatHistory();
+            const container = document.getElementById('ai-tutor-messages');
+            if (container) container.innerHTML = '';
+        }
+
+        function addAiTutorMessage(text, isUser) {
+            const container = document.getElementById('ai-tutor-messages');
+            if (!container) return;
+            aiChatMessages.push({ role: isUser ? 'user' : 'ai', text: text });
+            saveChatHistory();
             const div = document.createElement('div');
-            div.id = 'ai-typing-indicator';
-            div.className = 'flex items-start gap-2';
-            div.innerHTML = `
-                <div class="bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 px-4 py-3 rounded-2xl rounded-bl-sm shadow">
-                    <div class="flex gap-1">
-                        <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0s"></span>
-                        <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0.15s"></span>
-                        <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0.3s"></span>
-                    </div>
-                </div>`;
+            div.className = 'flex items-start gap-3 ' + (isUser ? 'flex-row-reverse' : '');
+            div.innerHTML = isUser
+                ? '<div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white text-base shrink-0">👤</div><div class="bg-blue-500 text-white px-5 py-3 rounded-2xl rounded-tr-sm max-w-[80%] text-sm leading-relaxed shadow-sm">' + escapeHtml(text) + '</div>'
+                : '<div class="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white text-lg shrink-0">🧑‍🏫</div><div class="bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 px-5 py-3 rounded-2xl rounded-tl-sm max-w-[80%] text-sm leading-relaxed shadow-sm">' + renderMarkdown(text) + '</div>';
             container.appendChild(div);
             container.scrollTop = container.scrollHeight;
         }
 
-        function removeTypingIndicator() {
+        function removeAiTyping() {
             const el = document.getElementById('ai-typing-indicator');
             if (el) el.remove();
         }
 
-        // --- Advice Timer (every 10 minutes during tests) ---
-
-        let adviceTimerInterval = null;
-
-        window.startAdviceTimer = function() {
-            window.stopAdviceTimer();
-            // Show first advice after 10 minutes (600 seconds)
-            // For testing, we use 10 minutes
-            adviceTimerInterval = setInterval(() => {
-                const advice = AI_TUTOR.advice[Math.floor(Math.random() * AI_TUTOR.advice.length)];
-                showAdvicePopup(advice);
-            }, 10 * 60 * 1000);
-        };
-
-        window.stopAdviceTimer = function() {
-            if (adviceTimerInterval) {
-                clearInterval(adviceTimerInterval);
-                adviceTimerInterval = null;
-            }
-        };
-
-        function showAdvicePopup(text) {
-            const existing = document.getElementById('advice-popup');
-            if (existing) existing.remove();
-
-            const popup = document.createElement('div');
-            popup.id = 'advice-popup';
-            popup.className = 'fixed bottom-20 right-4 z-50 animate-bounce-in';
-            popup.style.animation = 'slideUpFade 0.4s ease-out';
-            popup.innerHTML = `
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border-2 border-blue-300 p-4 max-w-xs">
-                    <div class="flex items-start gap-3">
-                        <div>
-                            <p class="text-sm font-bold text-blue-600 dark:text-blue-400 mb-1">Dr. Dot says:</p>
-                            <p class="text-sm text-gray-700 dark:text-gray-200">${text}</p>
-                        </div>
-                        <button onclick="this.closest('#advice-popup').remove()" class="text-gray-400 hover:text-gray-600 text-lg leading-none ml-1">&times;</button>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(popup);
-            setTimeout(() => { if (popup.parentNode) popup.remove(); }, 8000);
+        function escapeHtml(str) {
+            const d = document.createElement('div');
+            d.textContent = str;
+            return d.innerHTML;
         }
 
-// Add CSS animation for advice popup
-        const adviceStyle = document.createElement('style');
-        adviceStyle.textContent = `
-            @keyframes slideUpFade {
-                from { opacity: 0; transform: translateY(20px); }
-                to { opacity: 1; transform: translateY(0); }
-            }
-            #ai-chat-panel { scrollbar-width: thin; }
-            #ai-chat-panel::-webkit-scrollbar { width: 4px; }
-            #ai-chat-panel::-webkit-scrollbar-thumb { background: #ccc; border-radius: 2px; }
-        `;
-        document.head.appendChild(adviceStyle);
+        function renderMarkdown(text) {
+            let h = escapeHtml(text);
+            h = h.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            h = h.replace(/__(.+?)__/g, '<strong>$1</strong>');
+            h = h.replace(/\*(.+?)\*/g, '<em>$1</em>');
+            h = h.replace(/`(.+?)`/g, '<code class="bg-gray-200 dark:bg-gray-600 px-1 rounded text-xs">$1</code>');
+            h = h.replace(/\n/g, '<br>');
+            return h;
+        }
 
         // --- Topic Analysis for Score Report ---
 
+        const AI_TOPICS = {
+            algebra: { name: 'Algebra', keywords: ['algebra', 'equation', 'slope', 'intercept', 'linear', 'quadratic', 'factor', 'expression', 'solve for', 'variable', 'inequality', 'function', 'polynomial'] },
+            geometry: { name: 'Geometry', keywords: ['geometry', 'triangle', 'circle', 'area', 'volume', 'angle', 'perimeter', 'rectangle', 'sphere', 'cylinder', 'cone', 'cube', 'polygon', 'similar', 'congruent', 'pythagorean', 'hypotenuse'] },
+            trig: { name: 'Trig/Log', keywords: ['trig', 'sin', 'cos', 'tan', 'sine', 'cosine', 'tangent', 'radian', 'log', 'logarithm', 'exponent', 'imaginary', 'complex'] },
+            data: { name: 'Data Analysis', keywords: ['data', 'mean', 'median', 'mode', 'range', 'standard deviation', 'probability', 'percent', 'statistics', 'average', 'chart', 'graph', 'table', 'scatter', 'correlation'] }
+        };
+
         function analyzeWeakTopics(moduleQuestions, userAnswers) {
             const topicScores = {};
-            for (const [key, topic] of Object.entries(AI_TUTOR.topics)) {
-                topicScores[key] = { name: topic.explanation.split('.')[0], correct: 0, total: 0, questions: [] };
+            for (const [key, topic] of Object.entries(AI_TOPICS)) {
+                topicScores[key] = { name: topic.name, correct: 0, total: 0, questions: [] };
             }
             topicScores.other = { name: 'Other', correct: 0, total: 0, questions: [] };
 
             moduleQuestions.forEach((q, i) => {
                 const text = (q.text || '').toLowerCase();
                 let matched = false;
-                for (const [key, topic] of Object.entries(AI_TUTOR.topics)) {
+                for (const [key, topic] of Object.entries(AI_TOPICS)) {
                     if (topic.keywords.some(kw => text.includes(kw))) {
                         topicScores[key].total++;
                         if (userAnswers[i] && normalizeAnswer(userAnswers[i]) === normalizeAnswer(q.correctAnswer)) {
@@ -6036,13 +6217,15 @@ Student: ${userMessage}${questionContext}`;
             return { topicScores, weak };
         }
 
+        window.stopAdviceTimer = function() {};
+
         // --- Weak-Topic Quiz Generator ---
 
         function generateWeakTopicQuiz(weakTopics) {
             const questions = [];
             weakTopics.forEach(topic => {
-                if (topic.key === 'other' || !AI_TUTOR.topics[topic.key]) return;
-                const t = AI_TUTOR.topics[topic.key];
+                if (topic.key === 'other' || !AI_TOPICS[topic.key]) return;
+                const t = AI_TOPICS[topic.key];
                 // Generate up to 5 questions from the topic's missed questions, plus generic ones
                 const missed = topic.questions || [];
                 missed.slice(0, 5).forEach(q => {
@@ -6086,100 +6269,23 @@ Student: ${userMessage}${questionContext}`;
         // --- Inject AI Chat Panel into DOM ---
         // Called once during initialization
         // ============================================================
-        // Hint system (5 hints per session)
+        // Hint system (5 hints per session — uses AI Tutor screen)
         // ============================================================
         window.hintPoints = 5;
 
-        function resetHintPoints() {
-            window.hintPoints = 5;
-            updateHintBadge();
-        }
-
-        function updateHintBadge() {
-            const btnCount = document.getElementById('hint-btn-count');
-            if (btnCount) btnCount.textContent = window.hintPoints;
-        }
-
         window.useHint = function() {
             if (window.hintPoints <= 0) {
-                addAIChatMessage('You\'ve used all 5 hints for this session! 🎯 Try solving the problem step by step, or ask me a general question in the chat.', false);
-                window.toggleAIChat();
+                window.showToast('You\'ve used all 5 hints for this session!', 'warning');
                 return;
             }
             if (window.state.appStage !== 'active') return;
-
             const q = window.state.moduleQuestions[window.state.questionIndex];
             if (!q) return;
-
             window.hintPoints--;
-            updateHintBadge();
-
-            const text = q.text || '';
-            const options = q.options || [];
-            const hint = generateMathHint(text, options);
-            addAIChatMessage(hint, false);
-            window.toggleAIChat();
+            window.showToast('Hint used! ' + window.hintPoints + ' remaining. Ask Dr. Joe AI Tutor for a hint!', 'info');
         };
 
-        function generateMathHint(questionText, options) {
-            const lower = questionText.toLowerCase();
-
-            let topicHint = '';
-            for (const [key, topic] of Object.entries(AI_TUTOR.topics)) {
-                if (topic.keywords.some(kw => lower.includes(kw))) {
-                    const mistake = topic.commonMistakes[Math.floor(Math.random() * topic.commonMistakes.length)];
-                    topicHint = `This looks like a **${topic.explanation.split('.')[0]}** problem. ⚠️ ${mistake}. `;
-                    break;
-                }
-            }
-
-            const strategyHints = [
-                'Try rewriting the problem in your own words.',
-                'Eliminate obviously wrong answers first.',
-                'Plug the answer choices back into the equation to check.',
-                'Draw a diagram or picture to visualize the problem.',
-                'Look for keywords that tell you which formula to use.',
-                'Break the problem into smaller steps.',
-                'Check your units — are they consistent?',
-                'Estimate the answer first, then look for a close match.'
-            ];
-            const strategy = strategyHints[Math.floor(Math.random() * strategyHints.length)];
-
-            return `🧑‍🏫 **Dr. Dot's Hint** (${window.hintPoints} left)\n\n${topicHint}💡 ${strategy}\n\nTry solving now, and if you need more help, just ask me a specific question in the chat!`;
-        }
-
-        function injectAIChatPanel() {
-            if (document.getElementById('ai-chat-panel')) return;
-
-            // --- Chat panel ---
-            const panel = document.createElement('div');
-            panel.id = 'ai-chat-panel';
-            panel.className = 'hidden fixed bottom-20 right-4 z-50 w-80 h-96 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border-2 border-blue-300 flex flex-col overflow-hidden';
-            panel.innerHTML = `
-                <div class="bg-gradient-to-r from-blue-500 to-blue-700 text-white px-4 py-3 flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                        <div>
-                            <p class="font-bold text-sm">Dr. Dot</p>
-                            <p class="text-xs text-white/80">SAT Math Tutor</p>
-                        </div>
-                    </div>
-                    <button onclick="toggleAIChat()" class="text-white/80 hover:text-white text-xl leading-none">&times;</button>
-                </div>
-                <div id="ai-chat-messages" class="flex-1 overflow-y-auto p-3 space-y-3 bg-gray-50 dark:bg-gray-900">
-                    <div class="flex items-start">
-                        <div class="bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 px-3 py-2 rounded-2xl rounded-bl-sm max-w-[80%] text-sm shadow">Hey there! 👋 I\'m Dr. Dot, your SAT Math buddy. Ask me anything about math problems, get tips, or just say hi!</div>
-                    </div>
-                </div>
-                <div class="p-2 border-t border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 flex gap-2">
-                    <textarea id="ai-chat-input" placeholder="Ask Dr. Dot..." rows="1" onkeydown="window.handleAIChatKey(event)" class="flex-1 text-sm p-2 border border-gray-300 dark:border-gray-500 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"></textarea>
-                    <button onclick="window.sendAIChatMessage()" class="px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-bold text-sm transition">Send</button>
-                </div>
-            `;
-            document.body.appendChild(panel);
-        }
-
         // --- Score Report Integration: Add weak-topic analysis ---
-        // Called from renderScoreReport to add the analysis section
         function injectTopicAnalysis() {
             const m1q = window.state.testHistory.module1?.questions || [];
             const m1a = window.state.testHistory.module1?.answers || [];
@@ -6211,7 +6317,6 @@ Student: ${userMessage}${questionContext}`;
                 </button>
             `;
 
-            // Insert after the scaled score card (first child)
             const scoreCard = container.querySelector('.bg-indigo-50');
             if (scoreCard) {
                 scoreCard.after(analysisDiv);
@@ -6224,28 +6329,8 @@ Student: ${userMessage}${questionContext}`;
         const origRenderScoreReport = renderScoreReport;
         renderScoreReport = function(totalCorrect, finalScorePercentage, totalQuestions) {
             origRenderScoreReport(totalCorrect, finalScorePercentage, totalQuestions);
-            // Use setTimeout to ensure DOM is rendered before injecting
             setTimeout(injectTopicAnalysis, 100);
-            // Show chat button during score review
-            const toggle = document.getElementById('ai-chat-toggle');
-            if (toggle) toggle.classList.remove('hidden');
         };
-
-        // Patch startTest to add advice timer and hide chat during test
-        const origStartTest = window.startTest;
-        window.startTest = function() {
-            origStartTest();
-            window.startAdviceTimer();
-            const toggle = document.getElementById('ai-chat-toggle');
-            if (toggle) toggle.classList.remove('hidden');
-        };
-
-        // Inject the chat panel on first interaction
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', injectAIChatPanel);
-        } else {
-            injectAIChatPanel();
-        }
 
         window.startPracticeQuiz = function(quizKey) {
             const quiz = PRACTICE_QUIZZES[quizKey];
@@ -6342,7 +6427,8 @@ Student: ${userMessage}${questionContext}`;
                             <label class="block font-semibold text-gray-700 mb-2">Phone Number</label>
                             <input type="tel" id="settings-phone" value="${currentPhone}" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                         </div>
-                        <div>
+
+                        <div class="border-t pt-4 mt-2">
                             <label class="block font-semibold text-gray-700 mb-2">Change Password</label>
                             <input type="password" id="settings-current-password" placeholder="Current password" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2">
                             <input type="password" id="settings-new-password" placeholder="New password" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -6357,12 +6443,13 @@ Student: ${userMessage}${questionContext}`;
         window.saveStudentSettings = async function() {
             const name = document.getElementById('settings-name').value.trim();
             const phone = document.getElementById('settings-phone').value.trim();
+
             const currentPassword = document.getElementById('settings-current-password').value;
             const newPassword = document.getElementById('settings-new-password').value;
 
             let msg = 'Save the following changes?\n';
-            if (name) msg += `\n- Name: ${name}`;
-            if (phone) msg += `\n- Phone: ${phone}`;
+            if (name) msg += '\n- Name: ' + name;
+            if (phone) msg += '\n- Phone: ' + phone;
             if (currentPassword && newPassword) msg += '\n- Password (changed)';
             if (!name && !phone && !(currentPassword && newPassword)) {
                 window.showInfo('No changes to save.');
@@ -6391,6 +6478,114 @@ Student: ${userMessage}${questionContext}`;
                 window.showError('Error saving settings: ' + e.message);
             }
         }
+
+        window.showAiTutorAdminSettings = function() {
+            const contentDiv = document.getElementById('question-content');
+            const currentProvider = window.getAiProvider();
+            const currentKeys = getGeminiKeys();
+            const currentKeysText = currentKeys.join('\n');
+            const currentOllamaModel = localStorage.getItem('global_ai_ollama_model') || 'llama3.2:1b';
+            const keyCount = currentKeys.length;
+            const keyIndex = parseInt(localStorage.getItem('global_ai_tutor_key_index') || '0', 10);
+            const currentGroqKey = localStorage.getItem('global_ai_tutor_groq_key') || '';
+            const currentGroqModel = localStorage.getItem('global_ai_tutor_groq_model') || 'llama-3.1-8b-instant';
+            const currentDailyLimit = getAiDailyLimit();
+
+            const content = `
+                <div class="max-w-2xl">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-4">AI Tutor Settings</h2>
+                    <div class="bg-white rounded-xl shadow-lg p-6 space-y-4">
+
+                        <div>
+                            <label class="block font-semibold text-gray-700 mb-2">Provider</label>
+                            <select id="admin-ai-provider" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                                <option value="groq" ${currentProvider === 'groq' ? 'selected' : ''}>⚡ Groq AI (Cloud — free, 14400 req/day, no setup for students)</option>
+                                <option value="gemini" ${currentProvider === 'gemini' ? 'selected' : ''}>🔮 Gemini AI (Cloud — free, 1500 req/day, no setup for students)</option>
+                                <option value="ollama" ${currentProvider === 'ollama' ? 'selected' : ''}>🦙 Ollama (Local AI — requires install on each device)</option>
+                            </select>
+                            <p class="text-xs text-gray-400 mt-1">Groq is recommended — fastest free tier with 14400 requests/day.</p>
+                        </div>
+
+                        <div class="border-t pt-4">
+                            <label class="block font-semibold text-gray-700 mb-2">Per-Student Daily Limit</label>
+                            <div class="flex items-center gap-3">
+                                <input type="number" id="admin-daily-limit" value="${currentDailyLimit}" min="1" max="1000" class="w-24 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm text-center">
+                                <span class="text-sm text-gray-500">questions per day per student</span>
+                            </div>
+                            <p class="text-xs text-gray-400 mt-1">Set to a high number (e.g. 999) for unlimited, or a low number like 10 to conserve API quota.</p>
+                        </div>
+
+                        <div id="admin-groq-section" class="${currentProvider !== 'groq' ? 'hidden' : ''}">
+                            <label class="block font-semibold text-gray-700 mb-2">Groq API Key</label>
+                            <div class="flex gap-2">
+                                <input type="password" id="admin-groq-key" value="${currentGroqKey}" class="flex-1 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-mono">
+                                <button onclick="document.getElementById('admin-groq-key').type = document.getElementById('admin-groq-key').type === 'password' ? 'text' : 'password'" class="px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 text-sm">👁</button>
+                            </div>
+                            <label class="block font-semibold text-gray-700 mb-2 mt-3">Groq Model</label>
+                            <select id="admin-groq-model" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                                <option value="llama-3.3-70b-versatile" ${currentGroqModel === 'llama-3.3-70b-versatile' ? 'selected' : ''}>Llama 3.3 70B (versatile, 128K context)</option>
+                                <option value="llama-3.1-70b-versatile" ${currentGroqModel === 'llama-3.1-70b-versatile' ? 'selected' : ''}>Llama 3.1 70B (versatile, 8K context)</option>
+                                <option value="llama-3.1-8b-instant" ${currentGroqModel === 'llama-3.1-8b-instant' ? 'selected' : ''}>Llama 3.1 8B (instant, fast)</option>
+                                <option value="llama-guard-3-8b" ${currentGroqModel === 'llama-guard-3-8b' ? 'selected' : ''}>Llama Guard 3 8B (safety)</option>
+                                <option value="gemma2-9b-it" ${currentGroqModel === 'gemma2-9b-it' ? 'selected' : ''}>Gemma 2 9B (good balance, 8K context)</option>
+                                <option value="gemma-7b-it" ${currentGroqModel === 'gemma-7b-it' ? 'selected' : ''}>Gemma 7B (lightweight, 8K context)</option>
+                                <option value="mistral-saba-24b" ${currentGroqModel === 'mistral-saba-24b' ? 'selected' : ''}>Mistral Saba 24B (multilingual, 32K context)</option>
+                                <option value="llama-3.2-3b-preview" ${currentGroqModel === 'llama-3.2-3b-preview' ? 'selected' : ''}>Llama 3.2 3B (preview, tiny)</option>
+                                <option value="llama-3.2-11b-vision-preview" ${currentGroqModel === 'llama-3.2-11b-vision-preview' ? 'selected' : ''}>Llama 3.2 11B Vision (preview)</option>
+                                <option value="llama-3.2-90b-vision-preview" ${currentGroqModel === 'llama-3.2-90b-vision-preview' ? 'selected' : ''}>Llama 3.2 90B Vision (preview)</option>
+                            </select>
+                            <p class="text-xs text-gray-400 mt-1">Get a free API key at <strong>console.groq.com/keys</strong> (no credit card needed).</p>
+                        </div>
+
+                        <div id="admin-gemini-section" class="${currentProvider !== 'gemini' ? 'hidden' : ''}">
+                            <label class="block font-semibold text-gray-700 mb-2">Gemini API Keys <span class="text-xs text-gray-400 font-normal">(one per line — auto-rotates when quota exhausted)</span></label>
+                            <textarea id="admin-gemini-keys" rows="4" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-mono" placeholder="AIzaSy...&#10;AIzaSy...&#10;AIzaSy...">${currentKeysText}</textarea>
+                            <p class="text-xs text-gray-500 mt-1">${keyCount} key(s) configured${keyCount > 0 ? ', currently using key #' + (keyIndex + 1) : ''}. Get free keys at <strong>aistudio.google.com/apikey</strong>.</p>
+                            <p class="text-xs text-amber-600 mt-1">⚠️ <strong>Important:</strong> Google's free quota (1500 requests/day) is shared across all keys in the same Google account. For rotation to work, use keys from <strong>different Google accounts</strong>. Keys from the same account will all stop working together once the daily quota is used up.</p>
+                        </div>
+
+                        <div id="admin-ollama-section" class="${currentProvider !== 'ollama' ? 'hidden' : ''}">
+                            <label class="block font-semibold text-gray-700 mb-2">Ollama Model</label>
+                            <input type="text" id="admin-ollama-model" value="${currentOllamaModel}" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                            <p class="text-xs text-gray-400 mt-1">Recommended: <strong>llama3.2:1b</strong> (fast) or <strong>gemma2:2b</strong> (smarter)</p>
+                        </div>
+
+                        <button onclick="window.saveAiTutorAdminSettings()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold">Save</button>
+                    </div>
+                </div>`;
+            const sidebar = window.state.role === 'admin' ? adminSidebarHtml('ai_tutor') : teacherSidebarHtml('ai_tutor');
+            contentDiv.innerHTML = sidebarWrapper(content, sidebar);
+
+            document.getElementById('admin-ai-provider').addEventListener('change', function() {
+                document.getElementById('admin-groq-section').classList.toggle('hidden', this.value !== 'groq');
+                document.getElementById('admin-gemini-section').classList.toggle('hidden', this.value !== 'gemini');
+                document.getElementById('admin-ollama-section').classList.toggle('hidden', this.value !== 'ollama');
+            });
+        };
+
+        window.saveAiTutorAdminSettings = function() {
+            const provider = document.getElementById('admin-ai-provider').value;
+            const keysRaw = document.getElementById('admin-gemini-keys')?.value || '';
+            const keys = keysRaw.split('\n').map(k => k.trim()).filter(Boolean);
+            const ollamaModel = document.getElementById('admin-ollama-model').value.trim() || 'llama3.2:1b';
+            const groqKey = document.getElementById('admin-groq-key')?.value.trim() || '';
+            const groqModel = document.getElementById('admin-groq-model')?.value || 'llama-3.1-8b-instant';
+            const dailyLimit = parseInt(document.getElementById('admin-daily-limit')?.value || '50', 10);
+
+            localStorage.setItem('global_ai_tutor_provider', provider);
+            if (keys.length) {
+                localStorage.setItem('global_ai_tutor_gemini_keys', keys.join(','));
+                const idx = parseInt(localStorage.getItem('global_ai_tutor_key_index') || '0', 10);
+                if (isNaN(idx) || idx >= keys.length) localStorage.setItem('global_ai_tutor_key_index', '0');
+            }
+            localStorage.setItem('global_ai_ollama_model', ollamaModel);
+            if (groqKey) localStorage.setItem('global_ai_tutor_groq_key', groqKey);
+            localStorage.setItem('global_ai_tutor_groq_model', groqModel);
+            localStorage.setItem('global_ai_tutor_daily_limit', String(dailyLimit));
+
+            window.showSuccess('AI Tutor settings saved!');
+            window.navigateToHome();
+        };
         
         /** Loads the questions for the selected test and transitions to the welcome screen. */
         window.loadTestQuestions = function(testId) {
@@ -7841,6 +8036,7 @@ function adminSidebarHtml(active) {
         { id: 'testaccess', label: 'Test Access', action: 'window.manageStudentTestAccess()' },
         { id: 'mini-quizzes', label: 'Mini-Quizzes', action: 'window.showQuizManager()' },
         { id: 'logs', label: 'System Logs', action: 'window.viewSystemLogs()' },
+        { id: 'ai_tutor', label: '🤖 AI Tutor Settings', action: 'window.showAiTutorAdminSettings()' },
         { id: 'settings', label: 'Settings', action: 'window.systemSettings()' },
         { id: 'ebooks', label: '📚 E-Books', action: 'window.renderEbookManager()' },
     ];
@@ -7865,6 +8061,7 @@ function teacherSidebarHtml(active) {
         { id: 'schedule', label: 'Schedule Tests', action: 'window.showTestScheduling()' },
         { id: 'testaccess', label: 'Test Access', action: 'window.manageStudentTestAccess()' },
         { id: 'mini-quizzes', label: 'Mini-Quizzes', action: 'window.showQuizManager()' },
+        { id: 'ai_tutor', label: '🤖 AI Tutor Settings', action: 'window.showAiTutorAdminSettings()' },
         { id: 'settings', label: 'Settings', action: 'window.showStudentSettings()' },
         { id: 'ebooks', label: '📚 E-Books', action: 'window.renderEbookManager()' },
     ];
@@ -7893,6 +8090,7 @@ function studentSidebarHtml(active) {
         { id: 'analytics', label: 'Analytics', action: 'window.showTestAnalytics()' },
         { id: 'flashcards', label: 'Flashcards', action: 'window.showFlashcards()' },
         { id: 'settings', label: 'Settings', action: 'window.showStudentSettings()' },
+        { id: 'ai_tutor', label: '🤖 AI Tutor', action: 'window.renderAITutor()' },
         { id: 'ebooks', label: '📚 E-Books', action: 'window.renderStudentEbooks()' },
     ];
     return `
