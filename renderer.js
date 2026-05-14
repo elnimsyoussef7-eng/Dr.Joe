@@ -56,20 +56,21 @@
         // --- Core Test State ---
         // Default state if no data is loaded from localStorage
         const DEFAULT_STATE = {
-            appStage: 'login',  
-            currentTestId: null,  
+            appStage: 'login',
+            currentTestId: null,
             module: 1,
-            questionIndex: 0,  
-            moduleQuestions: [],  
+            questionIndex: 0,
+            moduleQuestions: [],
             userAnswers: [],
             flags: [],
-            timeLeft: 33 * 60,  
+            timeLeft: 33 * 60,
             timerInterval: null,
             testActive: true,
             isAuthReady: true,
             studentName: '',
             isCalculatorOpen: false,
-            role: null,  // 'student', 'teacher', 'admin'
+            role: null,
+            cheatingWarnings: 0,
             testHistory: {
                 module1: { questions: [], answers: [], score: 0, percentage: 0 },
                 module2: { questions: [], answers: [], score: 0, percentage: 0, difficulty: null }
@@ -182,6 +183,7 @@
 
         function toggleGlobalNav(show) {
             document.getElementById('global-home-btn')?.classList.toggle('hidden', !show);
+            document.getElementById('global-notif-btn')?.classList.toggle('hidden', !show);
             document.getElementById('dashboard-menu-btn')?.classList.toggle('hidden', !show);
         }
 
@@ -3837,9 +3839,15 @@
             } catch (e) { return html; }
         }
 
+        let _katexWarned = false;
+
         /** Renders math elements in a given container. */
         function renderMath(elementId) {
             if (typeof renderMathInElement === 'undefined' && typeof katex === 'undefined') {
+                if (!_katexWarned) {
+                    _katexWarned = true;
+                    console.warn('KaTeX not loaded. Math expressions will show raw $...$ delimiters. Check your internet connection for CDN loading.');
+                }
                 return;
             }
             const container = elementId ? document.getElementById(elementId) : document.body;
@@ -3942,6 +3950,131 @@
             renderQuestionMap();
         };
 
+        // ── Bookmark System ──
+        const BOOKMARKS_KEY = 'dsat_bookmarks';
+
+        function getBookmarks() {
+            try {
+                return JSON.parse(localStorage.getItem(BOOKMARKS_KEY) || '{}');
+            } catch (e) { return {}; }
+        }
+
+        function saveBookmarks(bookmarks) {
+            localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(bookmarks));
+        }
+
+        window.toggleBookmark = function(testId, module, qIndex) {
+            const key = testId + '_m' + module + '_q' + qIndex;
+            const bookmarks = getBookmarks();
+            if (bookmarks[key]) {
+                delete bookmarks[key];
+            } else {
+                const mq = window.state.moduleQuestions[qIndex];
+                bookmarks[key] = {
+                    testId, module, qIndex,
+                    text: mq ? mq.text : '',
+                    timestamp: Date.now()
+                };
+            }
+            saveBookmarks(bookmarks);
+            renderQuestion();
+        }
+
+        window.isBookmarked = function(testId, module, qIndex) {
+            const key = testId + '_m' + module + '_q' + qIndex;
+            return !!getBookmarks()[key];
+        }
+
+        window.retryIncorrectQuestions = function() {
+            if (typeof window.toggleSidebar === 'function') window.toggleSidebar(false);
+            const historyKey = window.state.module === 1 ? 'module1' : 'module2';
+            const history = window.state.testHistory[historyKey];
+            if (!history || !history.questions) return;
+
+            const incorrect = [];
+            history.questions.forEach((q, i) => {
+                const ans = history.answers[i];
+                if (!ans || normalizeAnswer(ans) !== normalizeAnswer(q.correctAnswer)) {
+                    incorrect.push({
+                        text: q.text,
+                        choices: q.options || [],
+                        correctAnswer: q.correctAnswer,
+                        type: q.type || 'MC',
+                        explanation: q.explanation || ''
+                    });
+                }
+            });
+
+            if (incorrect.length === 0) {
+                window.showWarning('No incorrect questions to retry!');
+                return;
+            }
+
+            const quizKey = '_retry_' + Date.now();
+            PRACTICE_QUIZZES[quizKey] = {
+                name: 'Retry Incorrect (' + incorrect.length + ' questions)',
+                questions: incorrect
+            };
+            window.startPracticeQuiz(quizKey);
+        }
+
+        window.generateWeakTopicPractice = function() {
+            if (typeof window.toggleSidebar === 'function') window.toggleSidebar(false);
+            const uid = userId || window.state?.userId;
+            if (!uid) {
+                window.showWarning('Please log in to generate practice.');
+                return;
+            }
+
+            const seen = new Set();
+            const wrongByTopic = {};
+
+            getDocs(query(collection(db, "results"), where("userId", "==", uid))).then(snap => {
+                snap.forEach(d => {
+                    const data = d.data();
+                    if (!data.testHistory) return;
+                    for (const mod of ['module1', 'module2']) {
+                        const m = data.testHistory[mod];
+                        if (!m || !m.questions || !m.answers) continue;
+                        m.questions.forEach((q, i) => {
+                            const ans = m.answers[i];
+                            if (!ans || normalizeAnswer(ans) !== normalizeAnswer(q.correctAnswer)) {
+                                const topic = q.category || q.topic || 'General';
+                                const qKey = q.id || q.text || (q.correctAnswer + i);
+                                if (seen.has(qKey)) return;
+                                seen.add(qKey);
+                                if (!wrongByTopic[topic]) wrongByTopic[topic] = [];
+                                wrongByTopic[topic].push({
+                                    text: q.text,
+                                    choices: q.options || [],
+                                    correctAnswer: q.correctAnswer,
+                                    type: q.type || 'MC',
+                                    explanation: q.explanation || ''
+                                });
+                            }
+                        });
+                    }
+                });
+
+                const sorted = Object.entries(wrongByTopic).sort((a, b) => b[1].length - a[1].length);
+                if (sorted.length === 0) {
+                    window.showWarning('No wrong answers found to generate practice.');
+                    return;
+                }
+
+                const [weakTopic, questions] = sorted[0];
+                const quizKey = '_weak_' + Date.now();
+                PRACTICE_QUIZZES[quizKey] = {
+                    name: weakTopic + ' (' + Math.min(questions.length, 10) + ' questions)',
+                    questions: questions.slice(0, 10)
+                };
+                window.startPracticeQuiz(quizKey);
+            }).catch(e => {
+                console.error('Failed to fetch results for weak topic practice:', e);
+                window.showWarning('Failed to load results.');
+            });
+        }
+
         function getFilteredQuestions(moduleKey) {
             const historyKey = moduleKey || (window.state.module === 1 ? 'module1' : 'module2');
             const history = window.state.testHistory[historyKey];
@@ -3991,12 +4124,12 @@
                     toggleCalculator(false);
                  }
 
-                 // Inject review filter controls if in review mode
+                 // Inject review filter controls & action buttons if in review mode
                  const mapGrid = document.getElementById('question-map-grid');
                  if (window.state.appStage === 'review' && !document.getElementById('review-filters')) {
                      const filterBar = document.createElement('div');
                      filterBar.id = 'review-filters';
-                     filterBar.className = 'mb-3 flex gap-1';
+                     filterBar.className = 'mb-3 flex gap-1 flex-wrap';
                      filterBar.innerHTML = `
                          <button class="review-filter-btn px-2 py-1 text-xs rounded font-semibold ${reviewFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}" data-filter="all" onclick="window.setReviewFilter('all')">All</button>
                          <button class="review-filter-btn px-2 py-1 text-xs rounded font-semibold ${reviewFilter === 'incorrect' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}" data-filter="incorrect" onclick="window.setReviewFilter('incorrect')">Incorrect</button>
@@ -4004,6 +4137,24 @@
                      `;
                      if (mapGrid) {
                          mapGrid.parentNode.insertBefore(filterBar, mapGrid);
+                     }
+
+                     // Action buttons container
+                     const actionBar = document.createElement('div');
+                     actionBar.id = 'review-actions';
+                     actionBar.className = 'mt-3 space-y-2';
+                     actionBar.innerHTML = `
+                         <button onclick="window.retryIncorrectQuestions()" class="w-full px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition flex items-center justify-center gap-1">
+                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                             Retry Incorrect Questions
+                         </button>
+                         <button onclick="window.generateWeakTopicPractice()" class="w-full px-3 py-2 bg-orange-600 hover:bg-orange-700 text-white text-xs font-semibold rounded-lg transition flex items-center justify-center gap-1">
+                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+                             Generate Weak-Topic Practice
+                         </button>
+                     `;
+                     if (mapGrid) {
+                         mapGrid.parentNode.insertBefore(actionBar, mapGrid.nextSibling);
                      }
                  }
 
@@ -4038,6 +4189,7 @@
             document.getElementById('sidebar-overlay')?.classList.add('hidden');
             window.state.appStage = 'login';
             window.state.role = null;
+            if (typeof window.updateBuddyVisibility === 'function') window.updateBuddyVisibility();
             window.state.studentName = '';
             saveState();
             await signOut(auth);
@@ -4048,6 +4200,8 @@
         };
 
         window.goToLandingPage = window.navigateToHome = function() {
+            removeAntiCheating();
+            exitFullscreenIfNeeded();
             document.getElementById('header-test-info').classList.remove('hidden');
             toggleGlobalNav(true);
             const role = window.state?.role;
@@ -4103,35 +4257,37 @@
                       
                       authStatus.textContent = user.email;
                       hiddenUserIdDisplay.textContent = userId;
+                      
 
                         try {
                           const userDoc = await getDoc(doc(db, "users", userId));
                           if (userDoc.exists()) {
                               const userData = userDoc.data();
-                             window.state.role = userData.role;
+                        window.state.role = userData.role;
                              window.state.studentName = userData.displayName || name;
                              window.state.parentEmail = userData.parentEmail;
                              window.state.parentPhone = userData.parentPhone;
                              window.state.studentPhone = userData.studentPhone;
                              window.state.visibleTests = userData.visibleTests;
-                              
-                     // Block unapproved users — keep signed in, watch for status changes
-                     if (userData.status === "pending") {
-                         authStatus.textContent = user.email + ' (Pending)';
-                         document.getElementById('student-name-display-sidebar').textContent = window.state.studentName;
-                         document.getElementById('student-name-header-display').textContent = window.state.studentName;
-                         hideTestUIElements();
-                         toggleGlobalNav(true);
-                         renderPendingApprovalScreen(user.email);
-                         setupApprovalListener(userId);
-                         return;
+                             if (typeof window.updateBuddyVisibility === 'function') window.updateBuddyVisibility();
+                             
+                      // Block unapproved users — keep signed in, watch for status changes
+                      if (userData.status === "pending") {
+                          authStatus.textContent = user.email + ' (Pending)';
+                          document.getElementById('student-name-display-sidebar').textContent = window.state.studentName;
+                          document.getElementById('student-name-header-display').textContent = window.state.studentName;
+                          hideTestUIElements();
+                          toggleGlobalNav(true);
+                          renderPendingApprovalScreen(user.email);
+                          setupApprovalListener(userId);
+                          return;
                      }
                      if (userData.status === "rejected") {
                          authStatus.textContent = user.email + ' (Rejected)';
                          document.getElementById('student-name-display-sidebar').textContent = window.state.studentName;
                          document.getElementById('student-name-header-display').textContent = window.state.studentName;
                          hideTestUIElements();
-                         toggleGlobalNav(false);
+            toggleGlobalNav(!!window.state.role);
                          renderRejectedScreen();
                          return;
                      }
@@ -4209,9 +4365,10 @@
                          } else if (window.state.appStage === 'active') {
                              window.startTest();
                          } else if (window.state.appStage === 'break') {
-                             hideTestUIElements();
-                             document.getElementById('timer-display').classList.remove('hidden');
-                             window.state.module = 2;
+                hideTestUIElements();
+                document.getElementById('global-home-btn')?.classList.add('hidden');
+                document.getElementById('timer-display').classList.remove('hidden');
+                window.state.module = 2;
                              
                              const contentDiv = document.getElementById('question-content');
                              contentDiv.innerHTML = `
@@ -4247,6 +4404,7 @@
                         // No user
                         authStatus.textContent = 'Guest';
                         hiddenUserIdDisplay.textContent = 'Not Auth';
+                        if (typeof window.updateBuddyVisibility === 'function') window.updateBuddyVisibility();
                         renderLoginScreen();
                    }
               });
@@ -4346,6 +4504,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             window.initFirebase();
             initNetworkMonitoring();
+            window.renderAIBuddy();
         });
 
         window.fetchPastResults = async function() {
@@ -4420,6 +4579,22 @@
                     btn.classList.remove('bg-green-600', 'hover:bg-green-700', 'from-green-500', 'to-green-700');
                     btn.classList.add('bg-gray-500');
                 }
+
+                // Award points and update gamification
+                const totalQs = (m1.questions ? m1.questions.length : 0) + (m2.questions ? m2.questions.length : 0);
+                window.updateGamification({
+                    isPracticeQuiz: (testId || '').startsWith('practice_'),
+                    correctCount: totalCorrect,
+                    totalQuestions: totalQs,
+                    totalCorrect: totalCorrect
+                });
+
+                // Score notification
+                const testName = ALL_TEST_QUESTIONS[testId] ? ALL_TEST_QUESTIONS[testId].name : testId;
+                window.showNotification(
+                    'Score saved: ' + totalCorrect + '/' + totalQs + ' (' + percentage.toFixed(1) + '%) on "' + testName + '"',
+                    '📊', 'success', 'score_' + testId + '_' + Date.now()
+                );
             } catch (e) {
                 console.error("Error adding document: ", e);
                 const btn = document.getElementById('save-result-btn');
@@ -4925,6 +5100,11 @@
         };
 
         // Test Analytics Dashboard
+        function predictSatMathScore(rawScore, totalQuestions) {
+            const raw = Math.min(rawScore, totalQuestions) * 600 / totalQuestions + 200;
+            return Math.round(raw / 10) * 10;
+        }
+
         window.showTestAnalytics = async function() {
             const contentDiv = document.getElementById('question-content');
             contentDiv.classList.remove('flex', 'items-center', 'justify-center');
@@ -4949,6 +5129,28 @@
                 const trend = recent5.length >= 2 ? (recent5[recent5.length - 1] - recent5[0]) : 0;
                 const trendText = trend > 0 ? '↑ Improving' : trend < 0 ? '↓ Declining' : '→ Stable';
 
+                const totalQ = 44;
+                const latestScore = scores[scores.length - 1];
+                const bestScore = best;
+                const latestSat = predictSatMathScore(latestScore, totalQ);
+                const bestSat = predictSatMathScore(bestScore, totalQ);
+                const avgSat = predictSatMathScore(parseFloat(avg), totalQ);
+
+                // Skill breakdown from categoryScores
+                const skillData = {};
+                results.forEach(r => {
+                    if (r.categoryScores) {
+                        for (const [id, cs] of Object.entries(r.categoryScores)) {
+                            if (!skillData[id]) skillData[id] = { label: cs.label || id, correct: 0, total: 0 };
+                            skillData[id].correct += cs.correct || 0;
+                            skillData[id].total += cs.total || 0;
+                        }
+                    }
+                });
+                const skillEntries = Object.entries(skillData).filter(([, s]) => s.total > 0);
+                const weakSkills = skillEntries.filter(([, s]) => s.total > 0 && (s.correct / s.total) < 0.6);
+                const strongSkills = skillEntries.filter(([, s]) => s.total > 0 && (s.correct / s.total) >= 0.8);
+
                 const severity = { Easy: { correct: 0, total: 0 }, Medium: { correct: 0, total: 0 }, Hard: { correct: 0, total: 0 } };
                 results.forEach(r => {
                     if (r.testHistory) {
@@ -4969,47 +5171,171 @@
 
                 const analyticsContent = `
                     <div class="max-w-5xl">
-                        <h2 class="text-2xl font-bold text-gray-800 mb-4">Test Analytics</h2>
+                        <h2 class="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-4">Test Analytics</h2>
 
-                        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-                            <div class="bg-blue-50 rounded-xl p-3 text-center"><p class="text-xs text-gray-500">Tests</p><p class="text-2xl font-bold text-blue-700">${results.length}</p></div>
-                            <div class="bg-green-50 rounded-xl p-3 text-center"><p class="text-xs text-gray-500">Average</p><p class="text-2xl font-bold text-green-700">${avg}/44</p></div>
-                            <div class="bg-purple-50 rounded-xl p-3 text-center"><p class="text-xs text-gray-500">Best</p><p class="text-2xl font-bold text-purple-700">${best}/44</p></div>
-                            <div class="bg-red-50 rounded-xl p-3 text-center"><p class="text-xs text-gray-500">Worst</p><p class="text-2xl font-bold text-red-700">${worst}/44</p></div>
-                            <div class="bg-orange-50 rounded-xl p-3 text-center"><p class="text-xs text-gray-500">Trend</p><p class="text-2xl font-bold text-orange-700">${trendText}</p></div>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                            <div class="bg-blue-50 dark:bg-blue-900 rounded-xl p-3 text-center"><p class="text-xs text-gray-500 dark:text-gray-400">Tests</p><p class="text-2xl font-bold text-blue-700 dark:text-blue-300">${results.length}</p></div>
+                            <div class="bg-green-50 dark:bg-green-900 rounded-xl p-3 text-center"><p class="text-xs text-gray-500 dark:text-gray-400">Average</p><p class="text-2xl font-bold text-green-700 dark:text-green-300">${avg}/44</p></div>
+                            <div class="bg-purple-50 dark:bg-purple-900 rounded-xl p-3 text-center"><p class="text-xs text-gray-500 dark:text-gray-400">Best</p><p class="text-2xl font-bold text-purple-700 dark:text-purple-300">${best}/44</p></div>
+                            <div class="bg-orange-50 dark:bg-orange-900 rounded-xl p-3 text-center"><p class="text-xs text-gray-500 dark:text-gray-400">Trend</p><p class="text-2xl font-bold text-orange-700 dark:text-orange-300">${trendText}</p></div>
                         </div>
 
-                        <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
-                            <h3 class="text-lg font-bold mb-4">Accuracy by Difficulty</h3>
+                        <!-- Predicted SAT Score Card -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                            <div class="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl p-5 text-white shadow-lg">
+                                <p class="text-sm opacity-80">Latest SAT Estimate</p>
+                                <p class="text-3xl font-extrabold mt-1">${latestSat}</p>
+                                <p class="text-xs opacity-70">Score ${latestScore}/44 → ~${latestSat}/800</p>
+                            </div>
+                            <div class="bg-gradient-to-br from-green-500 to-teal-600 rounded-xl p-5 text-white shadow-lg">
+                                <p class="text-sm opacity-80">Best SAT Estimate</p>
+                                <p class="text-3xl font-extrabold mt-1">${bestSat}</p>
+                                <p class="text-xs opacity-70">Score ${bestScore}/44 → ~${bestSat}/800</p>
+                            </div>
+                            <div class="bg-gradient-to-br from-blue-500 to-cyan-600 rounded-xl p-5 text-white shadow-lg">
+                                <p class="text-sm opacity-80">Average SAT Estimate</p>
+                                <p class="text-3xl font-extrabold mt-1">${avgSat}</p>
+                                <p class="text-xs opacity-70">Avg ${avg}/44 → ~${avgSat}/800</p>
+                            </div>
+                        </div>
+
+                        <!-- Weakest & Strongest Skills -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                            ${weakSkills.length > 0 ? `
+                            <div class="bg-red-50 dark:bg-red-900 border border-red-200 dark:border-red-700 rounded-xl p-4">
+                                <h3 class="text-sm font-bold text-red-700 dark:text-red-300 mb-2"> Need Practice</h3>
+                                ${weakSkills.map(([id, s]) => {
+                                    const pct = (s.correct / s.total * 100).toFixed(0);
+                                    return `<div class="flex justify-between text-sm mb-1"><span class="text-red-600 dark:text-red-300">${s.label}</span><span class="font-semibold text-red-700 dark:text-red-200">${pct}%</span></div>`;
+                                }).join('')}
+                            </div>` : ''}
+                            ${strongSkills.length > 0 ? `
+                            <div class="bg-green-50 dark:bg-green-900 border border-green-200 dark:border-green-700 rounded-xl p-4">
+                                <h3 class="text-sm font-bold text-green-700 dark:text-green-300 mb-2"> Strong Skills</h3>
+                                ${strongSkills.map(([id, s]) => {
+                                    const pct = (s.correct / s.total * 100).toFixed(0);
+                                    return `<div class="flex justify-between text-sm mb-1"><span class="text-green-600 dark:text-green-300">${s.label}</span><span class="font-semibold text-green-700 dark:text-green-200">${pct}%</span></div>`;
+                                }).join('')}
+                            </div>` : ''}
+                        </div>
+
+                        <!-- Skill Breakdown Chart -->
+                        ${skillEntries.length > 1 ? `
+                        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-6">
+                            <h3 class="text-lg font-bold mb-4 dark:text-gray-100">Skill Breakdown</h3>
+                            <canvas id="skill-chart" class="w-full h-64"></canvas>
+                        </div>` : ''}
+
+                        <!-- Score Trend Chart -->
+                        ${results.length > 1 ? `
+                        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-6">
+                            <h3 class="text-lg font-bold mb-4 dark:text-gray-100">Score Trend</h3>
+                            <canvas id="trend-chart" class="w-full h-64"></canvas>
+                        </div>` : ''}
+
+                        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-6">
+                            <h3 class="text-lg font-bold mb-4 dark:text-gray-100">Accuracy by Difficulty</h3>
                             <div class="space-y-3">
                                 ${['Easy', 'Medium', 'Hard'].map(d => {
                                     const s = severity[d];
                                     const pct = s.total > 0 ? ((s.correct / s.total) * 100).toFixed(0) : 0;
                                     const color = d === 'Easy' ? 'green' : d === 'Medium' ? 'yellow' : 'red';
                                     return `
-                                    <div><div class="flex justify-between text-sm mb-1"><span>${d}</span><span>${pct}% (${s.correct}/${s.total})</span></div>
-                                    <div class="w-full bg-gray-200 rounded-full h-3"><div class="bg-${color}-500 h-3 rounded-full" style="width:${pct}%"></div></div></div>`;
+                                    <div><div class="flex justify-between text-sm mb-1 dark:text-gray-300"><span>${d}</span><span>${pct}% (${s.correct}/${s.total})</span></div>
+                                    <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3"><div class="bg-${color}-500 h-3 rounded-full" style="width:${pct}%"></div></div></div>`;
                                 }).join('')}
                             </div>
                         </div>
 
-                        <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
-                            <h3 class="text-lg font-bold mb-4">Score Progression</h3>
+                        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-6">
+                            <h3 class="text-lg font-bold mb-4 dark:text-gray-100">Score Progression</h3>
                             <div class="overflow-x-auto">
-                                <table class="min-w-full text-sm">
-                                    <thead><tr class="bg-gray-100"><th class="px-3 py-2 text-left">#</th><th class="px-3 py-2 text-left">Date</th><th class="px-3 py-2 text-left">Score</th><th class="px-3 py-2 text-left">Change</th></tr></thead>
+                                <table class="min-w-full text-sm dark:text-gray-300">
+                                    <thead><tr class="bg-gray-100 dark:bg-gray-700"><th class="px-3 py-2 text-left">#</th><th class="px-3 py-2 text-left">Date</th><th class="px-3 py-2 text-left">Score</th><th class="px-3 py-2 text-left">Math Section</th><th class="px-3 py-2 text-left">Change</th></tr></thead>
                                     <tbody>${results.map((r, i) => {
                                         const prev = i > 0 ? scores[i - 1] : scores[i];
                                         const change = scores[i] - prev;
                                         const chText = change > 0 ? '+'+change : change < 0 ? String(change) : '—';
                                         const chColor = change > 0 ? 'text-green-600' : change < 0 ? 'text-red-600' : 'text-gray-400';
-                                        return `<tr class="border-b"><td class="px-3 py-2">${i+1}</td><td class="px-3 py-2">${r.timestamp ? new Date(r.timestamp).toLocaleDateString() : ''}</td><td class="px-3 py-2 font-bold">${scores[i]}/44</td><td class="px-3 py-2 ${chColor}">${chText}</td></tr>`;
+                                        const satEst = predictSatMathScore(scores[i], totalQ);
+                                        return `<tr class="border-b dark:border-gray-700"><td class="px-3 py-2">${i+1}</td><td class="px-3 py-2">${r.timestamp ? new Date(r.timestamp).toLocaleDateString() : ''}</td><td class="px-3 py-2 font-bold">${scores[i]}/44</td><td class="px-3 py-2">~${satEst}</td><td class="px-3 py-2 ${chColor}">${chText}</td></tr>`;
                                     }).join('')}</tbody>
                                 </table>
                             </div>
                         </div>
                     </div>`;
                 contentDiv.innerHTML = sidebarWrapper(analyticsContent, studentSidebarHtml('analytics'));
+
+                // Render charts
+                if (typeof Chart !== 'undefined') {
+                    // Skill breakdown chart
+                    if (skillEntries.length > 1) {
+                        const skillCtx = document.getElementById('skill-chart');
+                        if (skillCtx) {
+                            new Chart(skillCtx.getContext('2d'), {
+                                type: 'bar',
+                                data: {
+                                    labels: skillEntries.map(([, s]) => s.label),
+                                    datasets: [{
+                                        label: 'Accuracy %',
+                                        data: skillEntries.map(([, s]) => (s.correct / s.total * 100).toFixed(0)),
+                                        backgroundColor: skillEntries.map(([, s]) => {
+                                            const pct = s.correct / s.total;
+                                            return pct >= 0.8 ? '#22c55e' : pct >= 0.6 ? '#eab308' : '#ef4444';
+                                        }),
+                                        borderRadius: 4
+                                    }]
+                                },
+                                options: {
+                                    responsive: true,
+                                    plugins: { legend: { display: false } },
+                                    scales: {
+                                        y: { min: 0, max: 100, ticks: { callback: v => v + '%' } }
+                                    }
+                                }
+                            });
+                        }
+                    }
+
+                    // Trend chart
+                    if (results.length > 1) {
+                        const trendCtx = document.getElementById('trend-chart');
+                        if (trendCtx) {
+                            new Chart(trendCtx.getContext('2d'), {
+                                type: 'line',
+                                data: {
+                                    labels: results.map((r, i) => '#' + (i + 1)),
+                                    datasets: [{
+                                        label: 'Score /44',
+                                        data: scores,
+                                        borderColor: '#3b82f6',
+                                        backgroundColor: 'rgba(59,130,246,0.1)',
+                                        fill: true,
+                                        tension: 0.3,
+                                        pointBackgroundColor: scores.map(s => s >= 28 ? '#22c55e' : '#ef4444')
+                                    }, {
+                                        label: 'Math Section (/800)',
+                                        data: scores.map(s => predictSatMathScore(s, totalQ)),
+                                        borderColor: '#8b5cf6',
+                                        backgroundColor: 'rgba(139,92,246,0.05)',
+                                        fill: false,
+                                        tension: 0.3,
+                                        yAxisID: 'y1',
+                                        borderDash: [5, 5]
+                                    }]
+                                },
+                                options: {
+                                    responsive: true,
+                                    plugins: { legend: { position: 'top' } },
+                                    scales: {
+                                        y: { min: 0, max: 44, ticks: { stepSize: 4 }, title: { display: true, text: 'Raw Score /44' } },
+                                        y1: { min: 200, max: 800, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Math Section' } }
+                                    }
+                                }
+                            });
+                        }
+                    }
+                }
             } catch (e) {
                 contentDiv.innerHTML = '<p class="text-red-500 text-center">Error loading analytics: ' + e.message + '</p>';
             }
@@ -5542,6 +5868,9 @@
             document.getElementById('header-test-info').textContent = 'Select an Exam';
             saveState();
 
+            // Check for notifications (non-blocking)
+            window.checkNotifications();
+
             const pastResults = await window.fetchPastResults(); 
             
             let firestoreTests = [];
@@ -5789,17 +6118,10 @@
             return data.response || '';
         }
 
-        const FALLBACK_GEMINI_KEY = 'AIzaSyCo3axdfXvqxDQHdnwBuk-s-8APW5311ng';
-
         function getGeminiKeys() {
             const raw = localStorage.getItem('global_ai_tutor_gemini_keys');
             let keys = [];
             if (raw) keys = raw.split(',').map(k => k.trim()).filter(Boolean);
-            // Seed fallback if none configured
-            if (!keys.length) {
-                keys = [FALLBACK_GEMINI_KEY];
-                localStorage.setItem('global_ai_tutor_gemini_keys', FALLBACK_GEMINI_KEY);
-            }
             return keys;
         }
 
@@ -5821,6 +6143,7 @@
 
         async function askGemini(prompt) {
             const keys = getGeminiKeys();
+            if (!keys.length) throw new Error('No Gemini API keys configured. Ask your teacher/admin to add keys in Admin → AI Tutor Settings.');
             let idx = parseInt(localStorage.getItem('global_ai_tutor_key_index') || '0', 10);
             if (isNaN(idx) || idx >= keys.length) idx = 0;
 
@@ -6483,12 +6806,12 @@
                 id: testId + '_Q' + (i + 1),
                 module: 1,
                 text: q.text,
-                type: 'MC',
-                options: q.choices,
+                type: q.type === 'SPR' ? 'SPR' : 'MC',
+                options: q.choices || q.options || [],
                 correctAnswer: q.correctAnswer,
-                difficulty: 'Medium',
-                imageUrl: null,
-                explanation: q.explanation
+                difficulty: q.difficulty || 'Medium',
+                imageUrl: q.imageUrl || null,
+                explanation: q.explanation || ''
             }));
             ALL_TEST_QUESTIONS[testId] = {
                 name: 'Practice: ' + quiz.name,
@@ -6553,10 +6876,57 @@
             }
         }
 
+        // Font settings constants
+        const FONT_OPTIONS = [
+            { value: 'Inter, sans-serif', label: 'Inter (Default)' },
+            { value: 'Arial, Helvetica, sans-serif', label: 'Arial' },
+            { value: 'Georgia, serif', label: 'Georgia' },
+            { value: '"Times New Roman", serif', label: 'Times New Roman' },
+            { value: 'Courier New, monospace', label: 'Courier New' },
+            { value: 'Tahoma, Geneva, sans-serif', label: 'Tahoma' },
+            { value: 'Verdana, Geneva, sans-serif', label: 'Verdana' },
+        ];
+        const SIZE_OPTIONS = [
+            { value: 'small', label: 'Small', scale: 0.85 },
+            { value: 'medium', label: 'Medium', scale: 1 },
+            { value: 'large', label: 'Large', scale: 1.15 },
+            { value: 'x-large', label: 'X-Large', scale: 1.3 },
+        ];
+
+        function getFontPref(key, def) {
+            try { return localStorage.getItem('_font_' + key) || def; } catch(e) { return def; }
+        }
+
+        function setFontPref(key, val) {
+            try { localStorage.setItem('_font_' + key, val); } catch(e) {}
+        }
+
+        function applyFontSettings() {
+            const family = getFontPref('family', 'Inter, sans-serif');
+            const sizeKey = getFontPref('size', 'medium');
+            const sizeOpt = SIZE_OPTIONS.find(s => s.value === sizeKey) || SIZE_OPTIONS[1];
+            document.body.style.fontFamily = family;
+            document.body.style.fontSize = (100 * sizeOpt.scale) + '%';
+            document.querySelectorAll('#question-content, #sidebar-panel, .modal-content').forEach(el => {
+                el.style.fontFamily = family;
+            });
+        }
+        applyFontSettings();
+
         window.showStudentSettings = function() {
             const contentDiv = document.getElementById('question-content');
             const currentName = window.state.studentName || '';
             const currentPhone = window.state.studentPhone || '';
+            const currentFont = getFontPref('family', 'Inter, sans-serif');
+            const currentSize = getFontPref('size', 'medium');
+
+            const fontOpts = FONT_OPTIONS.map(f =>
+                '<option value="' + f.value + '" ' + (currentFont === f.value ? 'selected' : '') + '>' + f.label + '</option>'
+            ).join('');
+
+            const sizeOpts = SIZE_OPTIONS.map(s =>
+                '<option value="' + s.value + '" ' + (currentSize === s.value ? 'selected' : '') + '>' + s.label + '</option>'
+            ).join('');
 
             const settingsContent = `
                 <div class="max-w-2xl">
@@ -6572,6 +6942,19 @@
                         </div>
 
                         <div class="border-t pt-4 mt-2">
+                            <label class="block font-semibold text-gray-700 mb-2">Font Family</label>
+                            <select id="settings-font-family" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                                ${fontOpts}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block font-semibold text-gray-700 mb-2">Font Size</label>
+                            <select id="settings-font-size" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                                ${sizeOpts}
+                            </select>
+                        </div>
+
+                        <div class="border-t pt-4 mt-2">
                             <label class="block font-semibold text-gray-700 mb-2">Change Password</label>
                             <input type="password" id="settings-current-password" placeholder="Current password" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2">
                             <input type="password" id="settings-new-password" placeholder="New password" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -6581,11 +6964,14 @@
                 </div>`;
             const sidebarRole = window.state?.role === 'teacher' ? teacherSidebarHtml('settings') : studentSidebarHtml('settings');
             contentDiv.innerHTML = sidebarWrapper(settingsContent, sidebarRole);
+            applyFontSettings();
         }
 
         window.saveStudentSettings = async function() {
             const name = document.getElementById('settings-name').value.trim();
             const phone = document.getElementById('settings-phone').value.trim();
+            const fontFamily = document.getElementById('settings-font-family').value;
+            const fontSize = document.getElementById('settings-font-size').value;
 
             const currentPassword = document.getElementById('settings-current-password').value;
             const newPassword = document.getElementById('settings-new-password').value;
@@ -6593,8 +6979,9 @@
             let msg = 'Save the following changes?\n';
             if (name) msg += '\n- Name: ' + name;
             if (phone) msg += '\n- Phone: ' + phone;
+            if (fontFamily || fontSize) msg += '\n- Font preferences';
             if (currentPassword && newPassword) msg += '\n- Password (changed)';
-            if (!name && !phone && !(currentPassword && newPassword)) {
+            if (!name && !phone && !(currentPassword && newPassword) && !fontFamily && !fontSize) {
                 window.showInfo('No changes to save.');
                 return;
             }
@@ -6614,6 +7001,11 @@
                     await reauthenticateWithCredential(auth.currentUser, credential);
                     await updatePassword(auth.currentUser, newPassword);
                 }
+
+                // Save font prefs
+                setFontPref('family', fontFamily);
+                setFontPref('size', fontSize);
+                applyFontSettings();
 
                 window.showSuccess('Settings saved!');
                 window.navigateToHome();
@@ -6730,6 +7122,171 @@
             window.navigateToHome();
         };
         
+        // ============================================================
+        // Anti-Cheating System
+        // ============================================================
+
+        const CHEATING_WARNING_LIMIT = 3;
+
+        function shuffleArray(arr) {
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        function shuffleQuestionOptions(questions) {
+            return questions.map(q => {
+                if (q.type !== 'MC' || !q.options || q.options.length === 0) return q;
+                const correctText = q.options[q.correctAnswer.charCodeAt(0) - 65];
+                if (!correctText) return q;
+                const indices = q.options.map((_, i) => i);
+                shuffleArray(indices);
+                const newQ = { ...q, options: indices.map(i => q.options[i]) };
+                const newIdx = indices.findIndex(i => q.options[i] === correctText);
+                newQ.correctAnswer = String.fromCharCode(65 + newIdx);
+                return newQ;
+            });
+        }
+
+        function handleCheatingViolation(type) {
+            if (window.state.appStage !== 'active') return;
+            window.state.cheatingWarnings = (window.state.cheatingWarnings || 0) + 1;
+            const remaining = CHEATING_WARNING_LIMIT - window.state.cheatingWarnings;
+            window.showWarning('⚠️ Cheating Warning ' + window.state.cheatingWarnings + '/' + CHEATING_WARNING_LIMIT + ': ' + type + ' detected! ' + (remaining > 0 ? remaining + ' strikes remaining.' : 'Test will be submitted!'));
+            if (window.state.cheatingWarnings >= CHEATING_WARNING_LIMIT) {
+                window.showWarning('Test auto-submitted due to excessive cheating violations.');
+                endModule();
+            }
+        }
+
+        function setupAntiCheating() {
+            window._ac_handlers = [];
+
+            // Tab switch / visibility change
+            const visHandler = function() {
+                if (document.hidden && window.state.appStage === 'active') {
+                    handleCheatingViolation('Tab switching');
+                }
+            };
+            document.addEventListener('visibilitychange', visHandler);
+            window._ac_handlers.push({ el: document, event: 'visibilitychange', fn: visHandler });
+
+            // Window blur (alt-tab, etc.)
+            const blurHandler = function() {
+                if (window.state.appStage === 'active') {
+                    handleCheatingViolation('Window focus lost');
+                }
+            };
+            window.addEventListener('blur', blurHandler);
+            window._ac_handlers.push({ el: window, event: 'blur', fn: blurHandler });
+
+            // Copy/paste
+            const copyHandler = function(e) { if (window.state.appStage === 'active') { e.preventDefault(); handleCheatingViolation('Copy attempt'); } };
+            const cutHandler = function(e) { if (window.state.appStage === 'active') { e.preventDefault(); handleCheatingViolation('Cut attempt'); } };
+            const pasteHandler = function(e) { if (window.state.appStage === 'active') { e.preventDefault(); handleCheatingViolation('Paste attempt'); } };
+            document.addEventListener('copy', copyHandler);
+            document.addEventListener('cut', cutHandler);
+            document.addEventListener('paste', pasteHandler);
+            window._ac_handlers.push({ el: document, event: 'copy', fn: copyHandler });
+            window._ac_handlers.push({ el: document, event: 'cut', fn: cutHandler });
+            window._ac_handlers.push({ el: document, event: 'paste', fn: pasteHandler });
+
+            // Right-click
+            const ctxHandler = function(e) { if (window.state.appStage === 'active') { e.preventDefault(); handleCheatingViolation('Right-click'); } };
+            document.addEventListener('contextmenu', ctxHandler);
+            window._ac_handlers.push({ el: document, event: 'contextmenu', fn: ctxHandler });
+
+            // Fullscreen change
+            const fsHandler = function() {
+                if (!document.fullscreenElement && window.state.appStage === 'active') {
+                    handleCheatingViolation('Fullscreen exited');
+                    document.documentElement.requestFullscreen().catch(function(){});
+                }
+            };
+            document.addEventListener('fullscreenchange', fsHandler);
+            window._ac_handlers.push({ el: document, event: 'fullscreenchange', fn: fsHandler });
+
+            // Select start (disable text selection visually)
+            const selectHandler = function(e) { if (window.state.appStage === 'active') e.preventDefault(); };
+            document.addEventListener('selectstart', selectHandler);
+            window._ac_handlers.push({ el: document, event: 'selectstart', fn: selectHandler });
+        }
+
+        function removeAntiCheating() {
+            if (window._ac_handlers) {
+                window._ac_handlers.forEach(function(h) {
+                    h.el.removeEventListener(h.event, h.fn);
+                });
+                window._ac_handlers = null;
+            }
+            window.state.cheatingWarnings = 0;
+        }
+
+        function exitFullscreenIfNeeded() {
+            try { if (document.fullscreenElement) document.exitFullscreen(); } catch(e) {}
+        }
+
+        // ============================================================
+        // Notification System
+        // ============================================================
+
+        function getShownNotifications() {
+            try { return JSON.parse(localStorage.getItem('_shownNotifications') || '[]'); } catch(e) { return []; }
+        }
+
+        function markNotificationShown(id) {
+            const ids = getShownNotifications();
+            if (!ids.includes(id)) {
+                ids.push(id);
+                if (ids.length > 100) ids.splice(0, ids.length - 100);
+                localStorage.setItem('_shownNotifications', JSON.stringify(ids));
+            }
+        }
+
+        function wasNotificationShown(id) {
+            return getShownNotifications().includes(id);
+        }
+
+        window.showNotification = function(message, icon, type, id) {
+            if (id && wasNotificationShown(id)) return;
+            if (id) markNotificationShown(id);
+            window.showToast(icon + ' ' + message, type || 'info', 6000);
+        };
+
+        window.checkNotifications = async function() {
+            if (!userId) {
+                window.showToast('Please log in to check notifications.', 'info', 3000);
+                return;
+            }
+            const uid = userId;
+            window.showToast('Checking notifications...', 'info', 2000);
+
+            let found = false;
+
+            // Assignment reminders
+            try {
+                const snap = await getDocs(query(collection(db, "test_assignments"), where("studentId", "==", uid)));
+                let pendingCount = 0;
+                snap.forEach(d => { if (!d.data().completed) pendingCount++; });
+                if (pendingCount > 0) {
+                    window.showNotification(
+                        'You have ' + pendingCount + ' pending assignment' + (pendingCount > 1 ? 's' : '') + '. Check Assignments page.',
+                        '📋', 'warning', 'assignments_' + uid + '_' + pendingCount
+                    );
+                    found = true;
+                }
+            } catch(e) { /* ignore */ }
+
+            // Badge/achievement notifications are handled in updateGamification
+            // Score notifications are handled in saveTestResult hook
+
+            if (!found) {
+                window.showToast('No new notifications.', 'info', 3000);
+            }
+        };
+
         /** Loads the questions for the selected test and transitions to the welcome screen. */
         window.loadTestQuestions = function(testId) {
             window.stopAdviceTimer();
@@ -6752,7 +7309,7 @@
                 window.state.currentTestId = testId;
                 window.state.module = 1;
                 window.state.questionIndex = 0;
-                window.state.moduleQuestions = testData.M1;  
+                window.state.moduleQuestions = shuffleQuestionOptions(testData.M1);
                 window.state.userAnswers = new Array(testData.M1.length).fill(null);
                 window.state.flags = new Array(testData.M1.length).fill(false);
                 const timePerModule = testData.timePerModule || 33;
@@ -6766,6 +7323,7 @@
                 for (const cat of SAT_CATEGORIES) {
                     window.state.categoryScores[cat.id] = { label: cat.label, correct: 0, total: 0 };
                 }
+                window.state.remainingBuddyHelps = 5;
             }
 
             renderWelcomeScreen(); // Proceed to the standard welcome screen
@@ -6835,6 +7393,7 @@
 
         window.startTest = function() {
             window.state.appStage = 'active';
+            window.state.cheatingWarnings = 0;
             
             document.getElementById('menu-button').classList.remove('hidden');
             document.getElementById('test-footer').classList.remove('hidden');
@@ -6843,6 +7402,8 @@
             document.getElementById('student-name-header-display').classList.remove('hidden');
             toggleGlobalNav(false);
             enableTestExitWarning();
+            setupAntiCheating();
+            try { document.documentElement.requestFullscreen(); } catch(e) {}
 
             // Reset sidebar button to default (in case it was changed by review mode)
             const sbtn = document.getElementById('sidebar-end-btn');
@@ -6966,9 +7527,14 @@
 
             const contentDiv = document.getElementById('question-content');
             const renderedText = renderMathInString(q.text);
+            const isBookmarked = window.isBookmarked(window.state.currentTestId, window.state.module, questionIndex);
             contentDiv.innerHTML = `
                 <div class="flex justify-between items-start mb-4">
                     <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-100">${isReviewMode ? 'Review Question' : 'Question'} ${questionIndex + 1}</h2>
+                    ${isReviewMode ? `
+                    <button onclick="window.toggleBookmark('${window.state.currentTestId}', ${window.state.module}, ${questionIndex})" class="p-2 rounded-lg transition ${isBookmarked ? 'text-yellow-500 hover:text-yellow-600' : 'text-gray-400 hover:text-gray-600'}" title="${isBookmarked ? 'Remove Bookmark' : 'Bookmark Question'}">
+                        <svg class="w-6 h-6" fill="${isBookmarked ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg>
+                    </button>` : ''}
                 </div>
                 <div id="q-text-container" class="text-lg leading-relaxed text-gray-700 dark:text-gray-300">${renderedText}</div>
                 ${imageHtml}
@@ -7375,8 +7941,11 @@
         // --- SCORING & ADAPTIVE LOGIC ---
 
         /** Starts the countdown timer for the module or the break */
+        let _warned5min = false, _warned1min = false, _warned10s = false;
+
         function startTimer() {
             if (window.state.timerInterval) clearInterval(window.state.timerInterval);
+            _warned5min = false; _warned1min = false; _warned10s = false;
 
             const timerDisplay = document.getElementById('timer-display');
             const endModuleBtnNum = document.getElementById('end-module-button-num');
@@ -7395,6 +7964,22 @@
                     const breakTimerDisplay = document.getElementById('break-timer-display');
                     if (breakTimerDisplay) breakTimerDisplay.textContent = timeString;
 
+                    // Beep in last 5 seconds
+                    if (window.state.timeLeft <= 5 && window.state.timeLeft > 0) {
+                        try {
+                            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                            const osc = ctx.createOscillator();
+                            const gain = ctx.createGain();
+                            osc.connect(gain);
+                            gain.connect(ctx.destination);
+                            osc.frequency.value = 880;
+                            osc.type = 'sine';
+                            gain.gain.value = 0.3;
+                            osc.start();
+                            osc.stop(ctx.currentTime + 0.15);
+                        } catch(e) {}
+                    }
+
                     if (window.state.timeLeft <= 0) {
                         clearInterval(window.state.timerInterval);
                         startModuleTwoImmediately();
@@ -7405,16 +7990,31 @@
 
                 timerDisplay.textContent = timeString;
 
-                if (window.state.timeLeft <= 0) {
-                    endModule();
+                // Countdown warnings
+                if (window.state.timeLeft === 300 && !_warned5min) {
+                    _warned5min = true;
+                    window.showWarning('5 minutes remaining!');
+                } else if (window.state.timeLeft === 60 && !_warned1min) {
+                    _warned1min = true;
+                    window.showWarning('1 minute remaining!');
+                } else if (window.state.timeLeft === 10 && !_warned10s) {
+                    _warned10s = true;
+                    window.showWarning('10 seconds remaining!');
                 }
 
-                if (window.state.timeLeft <= 300 && window.state.timeLeft > 0) {
+                if (window.state.timeLeft <= 0) {
+                    clearInterval(window.state.timerInterval);
+                    window.showWarning('Time is up! Submitting module...');
+                    endModule();
+                    return;
+                }
+
+                if (window.state.timeLeft <= 300) {
                      timerDisplay.classList.remove('text-blue-600');
-                     timerDisplay.classList.add('text-red-600');
-                } else if (window.state.timeLeft > 300) {
+                     timerDisplay.classList.add('text-red-600', 'animate-pulse');
+                } else {
                      timerDisplay.classList.add('text-blue-600');
-                     timerDisplay.classList.remove('text-red-600');
+                     timerDisplay.classList.remove('text-red-600', 'animate-pulse');
                 }
                 saveState();
             }, 1000);
@@ -7444,19 +8044,14 @@
             saveState();
         }
         
-        /** Converts raw correct count (out of 44) to the SAT scale (200-800) */
+        /** Converts raw correct count to SAT scale (200-800) for any question count */
         function convertRawToScaledScore(rawScore, maxRaw) {
-            if (maxRaw !== 44) return rawScore;
+            if (maxRaw <= 0) return 200;
             const minScaled = 200;
             const maxScaled = 800;
-
             if (rawScore <= 0) return minScaled;
             if (rawScore >= maxRaw) return maxScaled;
-            
-            const scaledScore = Math.round(
-                rawScore * (maxScaled - minScaled) / maxRaw + minScaled
-            );
-            
+            const scaledScore = Math.round(rawScore * (maxScaled - minScaled) / maxRaw + minScaled);
             return Math.round(scaledScore / 10) * 10;
         }
 
@@ -7465,6 +8060,8 @@
          * Renders the final score report.
          */
         function renderScoreReport(totalCorrect, finalScorePercentage, totalQuestions) {
+            removeAntiCheating();
+            exitFullscreenIfNeeded();
             window.state.appStage = 'finished';
             disableTestExitWarning();
             toggleGlobalNav(true);
@@ -7526,28 +8123,27 @@
 
                     <!-- Module Breakdown -->
                     ${(() => {
-                        const m1Incorrect = m1.answers ? m1.answers.filter((a, i) => a && a !== m1.questions[i]?.correctAnswer).length : 0;
+                        const hasM2 = m2.questions && m2.questions.length > 0;
+                        const m1Incorrect = m1.answers ? m1.answers.filter((a, i) => a && normalizeAnswer(a) !== normalizeAnswer(m1.questions[i]?.correctAnswer)).length : 0;
                         const m1Unanswered = m1.answers ? m1.answers.filter(a => !a).length : 0;
-                        const m2Incorrect = m2.answers ? m2.answers.filter((a, i) => a && a !== m2.questions[i]?.correctAnswer).length : 0;
+                        const m2Incorrect = m2.answers ? m2.answers.filter((a, i) => a && normalizeAnswer(a) !== normalizeAnswer(m2.questions[i]?.correctAnswer)).length : 0;
                         const m2Unanswered = m2.answers ? m2.answers.filter(a => !a).length : 0;
                         const m1Flagged = m1.flags ? m1.flags.filter(f => f).length : 0;
                         const m2Flagged = m2.flags ? m2.flags.filter(f => f).length : 0;
                         return `
-                    <div class="grid md:grid-cols-${m2.questions ? 2 : 1} gap-6">
-                        <!-- Module 1 Summary -->
+                    <div class="grid md:grid-cols-${hasM2 ? 2 : 1} gap-6">
                         <div class="bg-gray-100 p-5 rounded-lg border border-gray-200 shadow-md">
-                            <h3 class="text-2xl font-bold text-gray-800 mb-3">${m2.questions ? 'Module 1' : 'Quiz Results'}</h3>
+                            <h3 class="text-2xl font-bold text-gray-800 mb-3">${hasM2 ? 'Module 1' : 'Quiz Results'}</h3>
                             <p class="text-lg text-gray-700">Correct: <span class="font-semibold text-blue-600">${m1.score} / ${m1.questions.length}</span></p>
                             <p class="text-lg text-gray-700">Incorrect: <span class="font-semibold text-red-600">${m1Incorrect}</span> / Unanswered: <span class="font-semibold text-gray-500">${m1Unanswered}</span></p>
                             <p class="text-lg text-gray-700">Accuracy: <span class="font-semibold text-blue-600">${m1.percentage.toFixed(1)}%</span></p>
                             ${m1Flagged > 0 ? `<p class="text-lg text-gray-700">Flagged: <span class="font-semibold text-yellow-600">${m1Flagged}</span></p>` : ''}
-                            ${m2.questions ? '<p class="text-sm text-gray-500 mt-2">M1 performance determined the difficulty of the next module.</p>' : ''}
+                            ${hasM2 ? '<p class="text-sm text-gray-500 mt-2">M1 performance determined the difficulty of the next module.</p>' : ''}
                         </div>
 
-                        ${m2.questions ? `
-                        <!-- Module 2 Summary -->
+                        ${hasM2 ? `
                         <div class="bg-gray-100 p-5 rounded-lg border border-gray-200 shadow-md">
-                            <h3 class="text-2xl font-bold text-gray-800 mb-3">Module 2 </h3>
+                            <h3 class="text-2xl font-bold text-gray-800 mb-3">Module 2</h3>
                             <p class="text-lg text-gray-700">Difficulty: <span class="font-bold text-red-600">${m2.difficulty === 'M2H' ? 'HARD' : 'EASY'}</span></p>
                             <p class="text-lg text-gray-700">Correct: <span class="font-semibold text-blue-600">${m2.score} / ${m2.questions.length}</span></p>
                             <p class="text-lg text-gray-700">Incorrect: <span class="font-semibold text-red-600">${m2Incorrect}</span> / Unanswered: <span class="font-semibold text-gray-500">${m2Unanswered}</span></p>
@@ -7698,6 +8294,7 @@
         }
 
         window.endModule = function() {
+            removeAntiCheating();
             if (window.state.isCalculatorOpen) window.toggleCalculator(false); 
             
             if (window.state.module === 1) {
@@ -7726,7 +8323,18 @@
                 // Practice quizzes are single-module — go straight to score
                 if (window.isPracticeQuiz) {
                     window.isPracticeQuiz = false;
-                    renderScoreReport(correctCount, percentage, qCount);
+                    try {
+                        renderScoreReport(correctCount, percentage, qCount);
+                    } catch (e) {
+                        console.error('Score report error:', e);
+                        document.getElementById('question-content').innerHTML = `
+                            <div class="text-center p-8">
+                                <h2 class="text-2xl font-bold text-green-700 mb-4">Quiz Complete!</h2>
+                                <p class="text-xl mb-2">Correct: ${correctCount} / ${qCount}</p>
+                                <p class="text-lg text-gray-600">(${percentage.toFixed(1)}% accuracy)</p>
+                                <button onclick="window.navigateToHome()" class="mt-6 px-6 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg">Home</button>
+                            </div>`;
+                    }
                     saveState();
                     return;
                 }
@@ -7741,13 +8349,14 @@
 
                 window.state.module = 2;
                 window.state.questionIndex = 0;
-                window.state.moduleQuestions = nextQuestions;
+                window.state.moduleQuestions = shuffleQuestionOptions(nextQuestions);
                 window.state.userAnswers = new Array(nextQuestions.length).fill(null); 
                 window.state.flags = new Array(nextQuestions.length).fill(false);
                 
                 window.state.testHistory.module2.difficulty = moduleTwoSet;
 
                 hideTestUIElements();
+                document.getElementById('global-home-btn')?.classList.add('hidden');
                 document.getElementById('timer-display').classList.remove('hidden');
 
                 const contentDiv = document.getElementById('question-content');
@@ -8224,26 +8833,30 @@ function teacherSidebarHtml(active) {
 
 function studentSidebarHtml(active) {
     const items = [
-        { id: 'exams', label: 'Exams', action: 'window.renderExamSelectionScreen()' },
-        { id: 'mini-quizzes', label: 'Practice Mini-Quizzes', action: 'window.showMiniQuizzes()' },
-        { id: 'progress', label: 'My Progress', action: 'window.showProgressChart()' },
-        { id: 'wrong', label: 'Wrong Answers', action: 'window.showWrongAnswerBank()' },
-        { id: 'assignments', label: 'Assignments', action: 'window.showStudentAssignments()' },
-        { id: 'report', label: 'Print Report', action: 'window.printPdfReport()' },
-        { id: 'analytics', label: 'Analytics', action: 'window.showTestAnalytics()' },
-        { id: 'flashcards', label: 'Flashcards', action: 'window.showFlashcards()' },
-        { id: 'settings', label: 'Settings', action: 'window.showStudentSettings()' },
+        { id: 'exams', label: '📝 Exams', action: 'window.renderExamSelectionScreen()' },
+        { id: 'mini-quizzes', label: '⚡ Mini-Quizzes', action: 'window.showMiniQuizzes()' },
+        { id: 'assignments', label: '📋 Assignments', action: 'window.showStudentAssignments()' },
+        { id: 'wrong', label: '❌ Wrong Answers', action: 'window.showWrongAnswerBank()' },
+        { id: 'flashcards', label: '🃏 Flashcards', action: 'window.showFlashcards()' },
+        { id: 'bookmarks', label: '🔖 Bookmarks', action: 'window.renderBookmarkedQuestions()' },
+        { id: 'weak_points', label: '📉 Weak Points', action: 'window.renderWeakPoints()' },
         { id: 'ai_tutor', label: '🤖 AI Tutor', action: 'window.renderAITutor()' },
         { id: 'ai_analysis', label: '📊 AI Score Analysis', action: 'window.showAiScoreAnalysis()' },
+        { id: 'sat-calculator', label: '🧮 SAT Calculator', action: 'window.renderSatCalculator()' },
+        { id: 'progress', label: '📈 My Progress', action: 'window.showProgressChart()' },
+        { id: 'analytics', label: '📊 Analytics', action: 'window.showTestAnalytics()' },
+        { id: 'leaderboard', label: '🏆 Leaderboard', action: 'window.renderLeaderboard()' },
         { id: 'ebooks', label: '📚 E-Books', action: 'window.renderStudentEbooks()' },
+        { id: 'report', label: '🖨️ Print Report', action: 'window.printPdfReport()' },
+        { id: 'settings', label: '⚙️ Settings', action: 'window.showStudentSettings()' },
     ];
     return `
     <div class="flex flex-col min-h-full p-5">
         <div class="text-xl font-bold text-gray-800 mb-6 pb-3 border-b border-gray-200">Student Panel</div>
         <div class="flex-1 space-y-1">
-        ${items.map(i => `
-            <button onclick="${i.action}; window.toggleDashboardSidebar()" class="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition ${active === i.id ? 'bg-blue-600 text-white shadow-md' : 'text-gray-700 hover:bg-gray-200 hover:text-gray-900'}">${i.label}</button>
-        `).join('')}
+        ${items.map(i => {
+            return '<button onclick="' + i.action + '; window.toggleDashboardSidebar()" class="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition ' + (active === i.id ? 'bg-blue-600 text-white shadow-md' : 'text-gray-700 hover:bg-gray-200 hover:text-gray-900') + '"><span>' + i.label + '</span></button>';
+        }).join('')}
         </div>
         <div class="pt-4 mt-4 border-t border-gray-300">
             <button onclick="window.handleLogout()" class="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-500 hover:text-white border border-red-200 hover:border-red-500 transition">Logout</button>
@@ -10054,6 +10667,974 @@ window.closeEbookPreview = function() {
     const frame     = document.getElementById('ebook-preview-frame');
     if (container) container.classList.add('hidden');
     if (frame) frame.src = '';
+};
+
+window.renderSatCalculator = function() {
+    window.state.appStage = 'sat_calculator';
+    hideTestUIElements();
+    document.getElementById('header-test-info').textContent = 'SAT Score Calculator';
+    saveState();
+
+    const contentDiv = document.getElementById('question-content');
+    contentDiv.classList.remove('flex', 'items-center', 'justify-center');
+    contentDiv.innerHTML = sidebarWrapper(`
+        <div class="max-w-2xl mx-auto">
+            <h2 class="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">SAT Score Calculator for Egyptian Universities</h2>
+            <p class="text-sm text-gray-500 mb-6">Calculate your weighted score based on SAT 1, SAT 2, and GPA.</p>
+
+            <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-6 shadow-md space-y-5">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">SAT 1 Score (out of 1600)</label>
+                    <input type="number" id="calc-sat1" min="0" max="1600" value=""
+                           class="w-full p-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="e.g. 1200">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">SAT 2 Score (out of 1600)</label>
+                    <input type="number" id="calc-sat2" min="0" max="1600" value=""
+                           class="w-full p-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="e.g. 1400">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">GPA Score</label>
+                    <input type="number" id="calc-gpa" min="0" max="40" step="0.01" value=""
+                           class="w-full p-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="e.g. 35">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Calculation Method</label>
+                    <select id="calc-method" class="w-full p-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        <option value="government">Government University</option>
+                        <option value="private">Private University</option>
+                        <option value="institutes">Higher Institutes (with fees)</option>
+                    </select>
+                </div>
+
+                <button onclick="window.calculateSatScore()" class="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-800 text-white font-bold rounded-xl shadow-md hover:shadow-lg hover:scale-[1.02] transition duration-150">
+                    Calculate My Score
+                </button>
+
+                <div id="calc-result" class="hidden p-4 bg-green-50 dark:bg-green-900 border border-green-300 dark:border-green-700 rounded-lg text-center">
+                    <p class="text-lg font-semibold text-green-800 dark:text-green-200">Your Weighted Score</p>
+                    <p id="calc-result-value" class="text-4xl font-extrabold text-green-700 dark:text-green-300 mt-2">0.00</p>
+                    <p id="calc-result-detail" class="text-sm text-gray-600 dark:text-gray-400 mt-2"></p>
+                </div>
+
+                <div id="calc-error" class="hidden p-4 bg-red-50 dark:bg-red-900 border border-red-300 dark:border-red-700 rounded-lg text-center">
+                    <p id="calc-error-text" class="text-sm font-semibold text-red-700 dark:text-red-200"></p>
+                </div>
+
+                <div class="mt-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                    <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Formula Reference</h3>
+                    <ul class="text-xs text-gray-500 dark:text-gray-400 space-y-1 list-disc pl-4">
+                        <li><b>Below 1090:</b> (SAT1/1600)×60 + (SAT2/1600)×15 + GPA</li>
+                        <li><b>Government (1090+):</b> (SAT1/1600)×69 + (SAT2/1600)×15 + GPA</li>
+                        <li><b>Private (1090+):</b> (SAT1/1600)×75 + (SAT2/1600)×15 + GPA</li>
+                        <li><b>Rules:</b> SAT1 min 1050 (gov) / 890 (institutes). SAT2 min 1100 (gov) / 900 (private/institutes) to count.</li>
+                        <li>9% bonus for government, 15% bonus for private when SAT1 &gt; 1090.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    `, studentSidebarHtml('sat-calculator'));
+}
+
+window.calculateSatScore = function() {
+    const sat1 = parseFloat(document.getElementById('calc-sat1').value);
+    const sat2 = parseFloat(document.getElementById('calc-sat2').value);
+    const gpa = parseFloat(document.getElementById('calc-gpa').value);
+    const method = document.getElementById('calc-method').value;
+    const resultDiv = document.getElementById('calc-result');
+    const errorDiv = document.getElementById('calc-error');
+    const errorText = document.getElementById('calc-error-text');
+
+    resultDiv.classList.add('hidden');
+    errorDiv.classList.add('hidden');
+
+    if (isNaN(sat1) || sat1 < 0 || sat1 > 1600) {
+        errorText.textContent = 'Please enter a valid SAT 1 score (0-1600).';
+        errorDiv.classList.remove('hidden');
+        return;
+    }
+    if (isNaN(sat2) || sat2 < 0 || sat2 > 1600) {
+        errorText.textContent = 'Please enter a valid SAT 2 score (0-1600).';
+        errorDiv.classList.remove('hidden');
+        return;
+    }
+    if (isNaN(gpa) || gpa < 0) {
+        errorText.textContent = 'Please enter a valid GPA score.';
+        errorDiv.classList.remove('hidden');
+        return;
+    }
+
+    // Rules check
+    let detailParts = [];
+    let effectiveSat2 = sat2;
+
+    if (method === 'government') {
+        if (sat1 < 1050) {
+            errorText.textContent = 'For government universities, you must get at least 1050 in SAT 1.';
+            errorDiv.classList.remove('hidden');
+            return;
+        }
+        if (sat2 < 1100) {
+            effectiveSat2 = 0;
+            detailParts.push('SAT 2 &lt; 1100 — not counted for government universities');
+        }
+    } else if (method === 'institutes') {
+        if (sat1 < 890) {
+            errorText.textContent = 'For higher institutes, you must get at least 890 in SAT 1.';
+            errorDiv.classList.remove('hidden');
+            return;
+        }
+        if (sat2 < 900) {
+            effectiveSat2 = 0;
+            detailParts.push('SAT 2 &lt; 900 — not counted for higher institutes');
+        }
+    } else { // private
+        if (sat2 < 900) {
+            effectiveSat2 = 0;
+            detailParts.push('SAT 2 &lt; 900 — not counted for private universities');
+        }
+    }
+
+    // Determine formula based on SAT1 and method
+    let sat1Coeff;
+    if (sat1 > 1090) {
+        if (method === 'private') {
+            sat1Coeff = 75; // 60 * 1.25 = 75
+            detailParts.push('SAT 1 &gt; 1090 — 15% bonus applied for private universities');
+        } else if (method === 'government') {
+            sat1Coeff = 69; // 60 * 1.15 = 69 (9% bonus stated on site)
+            detailParts.push('SAT 1 &gt; 1090 — 9% bonus applied for government universities');
+        } else {
+            sat1Coeff = 60;
+        }
+    } else {
+        sat1Coeff = 60;
+    }
+
+    const result = (sat1 / 1600) * sat1Coeff + (effectiveSat2 / 1600) * 15 + gpa;
+
+    document.getElementById('calc-result-value').textContent = result.toFixed(2);
+    document.getElementById('calc-result-detail').textContent = detailParts.join(' | ');
+    resultDiv.classList.remove('hidden');
+}
+
+window.renderBookmarkedQuestions = function() {
+    window.state.appStage = 'bookmarks';
+    hideTestUIElements();
+    document.getElementById('header-test-info').textContent = 'Bookmarked Questions';
+    saveState();
+
+    const bookmarks = getBookmarks();
+    const entries = Object.values(bookmarks);
+    entries.sort((a, b) => b.timestamp - a.timestamp);
+
+    let html = `
+        <div class="max-w-4xl">
+            <h2 class="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">Bookmarked Questions</h2>
+            <p class="text-sm text-gray-500 mb-4">${entries.length} question${entries.length !== 1 ? 's' : ''} bookmarked</p>`;
+
+    if (entries.length === 0) {
+        html += `<div class="bg-gray-50 dark:bg-gray-800 rounded-xl p-8 text-center">
+            <p class="text-gray-500 dark:text-gray-400">No bookmarked questions yet. During review mode, click the bookmark icon to save questions.</p>
+        </div>`;
+    } else {
+        entries.forEach((bm, i) => {
+            html += `
+            <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 mb-3 shadow-sm hover:shadow-md transition">
+                <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-1">${bm.testId || 'Test'} — Module ${bm.module}, Question ${bm.qIndex + 1}</p>
+                        <div class="text-gray-800 dark:text-gray-200 text-sm line-clamp-2 bookmark-math">${renderMathInString(bm.text || 'Question text unavailable')}</div>
+                    </div>
+                    <button onclick="window.removeBookmark('${bm.testId}', ${bm.module}, ${bm.qIndex})" class="ml-3 p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition flex-shrink-0" title="Remove bookmark">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+            </div>`;
+        });
+    }
+
+    html += `</div>`;
+    const contentDiv = document.getElementById('question-content');
+    contentDiv.classList.remove('flex', 'items-center', 'justify-center');
+    contentDiv.innerHTML = sidebarWrapper(html, studentSidebarHtml('bookmarks'));
+    if (typeof renderMathAll === 'function') renderMathAll();
+    if (typeof renderMath === 'function') renderMath('question-content');
+}
+
+window.removeBookmark = function(testId, module, qIndex) {
+    window.toggleBookmark(testId, module, qIndex);
+    window.renderBookmarkedQuestions();
+}
+
+// ============================================================
+// Gamification & Leaderboard System
+// ============================================================
+
+const GAMIFICATION_BADGES = [
+    { id: 'first_test', name: 'First Steps', description: 'Complete your first test', icon: '🎯', check: (stats) => stats.totalTestsTaken >= 1 },
+    { id: 'perfect_score', name: 'Perfect Score', description: 'Get 100% on a test', icon: '💯', check: (stats) => stats.hadPerfectScore },
+    { id: 'seven_day_streak', name: 'Week Warrior', description: '7-day consecutive streak', icon: '🔥', check: (stats) => stats.longestStreak >= 7 },
+    { id: 'thirty_day_streak', name: 'Monthly Champion', description: '30-day consecutive streak', icon: '⭐', check: (stats) => stats.longestStreak >= 30 },
+    { id: 'quiz_master', name: 'Quiz Master', description: 'Complete 10 practice quizzes', icon: '🧠', check: (stats) => stats.totalPracticeQuizzesTaken >= 10 },
+    { id: 'high_scorer', name: 'High Scorer', description: 'Score 700+ on a full test', icon: '🏆', check: (stats) => stats.hadHighScore },
+    { id: 'persistent', name: 'Persistent', description: 'Complete 25 tests', icon: '💪', check: (stats) => stats.totalTestsTaken >= 25 },
+];
+
+const GAMIFICATION_DEFAULTS = {
+    points: 0,
+    currentStreak: 0,
+    longestStreak: 0,
+    lastActiveDate: null,
+    badges: [],
+    totalTestsTaken: 0,
+    totalPracticeQuizzesTaken: 0,
+    totalCorrectAnswers: 0,
+    totalWrongAnswers: 0,
+    hadPerfectScore: false,
+    hadHighScore: false
+};
+
+function _todayStr() { return new Date().toISOString().slice(0, 10); }
+function _yesterdayStr() { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); }
+
+window.updateGamification = async function(options) {
+    if (!userId) return;
+    try {
+        const userDoc = await getDoc(doc(db, "users", userId));
+        if (!userDoc.exists()) return;
+        const existing = userDoc.data().gamification || {};
+        const g = { ...GAMIFICATION_DEFAULTS, ...existing };
+
+        const today = _todayStr();
+        const yesterday = _yesterdayStr();
+
+        // Streak
+        if (g.lastActiveDate === today) {
+            // already counted today
+        } else if (g.lastActiveDate === yesterday) {
+            g.currentStreak += 1;
+        } else {
+            g.currentStreak = 1;
+        }
+        g.longestStreak = Math.max(g.longestStreak, g.currentStreak);
+        g.lastActiveDate = today;
+
+        const totalCorrect = options.correctCount || 0;
+        const totalQuestions = options.totalQuestions || 0;
+
+        // Points
+        let pointsEarned = 0;
+        if (options.isPracticeQuiz) {
+            g.totalPracticeQuizzesTaken += 1;
+            pointsEarned = 5 + totalCorrect;
+        } else {
+            g.totalTestsTaken += 1;
+            pointsEarned = 10 + 2 * (options.totalCorrect || totalCorrect);
+        }
+
+        g.totalCorrectAnswers += totalCorrect;
+        g.totalWrongAnswers += (totalQuestions - totalCorrect);
+
+        // Perfect score bonus
+        if (totalQuestions > 0 && totalCorrect === totalQuestions) {
+            if (!g.hadPerfectScore) { g.hadPerfectScore = true; pointsEarned += 25; }
+        }
+
+        // High scorer bonus (full tests only)
+        if (!options.isPracticeQuiz && totalQuestions > 0) {
+            const scaled = convertRawToScaledScore(totalCorrect, totalQuestions);
+            if (scaled >= 700 && !g.hadHighScore) {
+                g.hadHighScore = true;
+                pointsEarned += 50;
+            }
+        }
+
+        // Streak milestone bonuses
+        if (g.currentStreak === 7) pointsEarned += 50;
+        if (g.currentStreak === 30) pointsEarned += 100;
+
+        // Badge check
+        const newBadges = [];
+        for (const badge of GAMIFICATION_BADGES) {
+            const already = g.badges.some(b => b.id === badge.id);
+            if (!already && badge.check(g)) {
+                g.badges.push({ id: badge.id, name: badge.name, earnedAt: Date.now() });
+                newBadges.push(badge);
+                pointsEarned += 25;
+            }
+        }
+
+        g.points += pointsEarned;
+        await setDoc(doc(db, "users", userId), { gamification: g }, { merge: true });
+
+        for (const badge of newBadges) {
+            window.showToast('🏆 Badge Earned: ' + badge.name + '! (+25 pts)', 'success');
+        }
+
+        window.showToast('+' + pointsEarned + ' points earned! 🔥', 'info');
+
+        return g;
+    } catch (e) {
+        console.error('updateGamification error:', e);
+    }
+};
+
+window.renderLeaderboard = async function() {
+    window.state.appStage = 'leaderboard';
+    hideTestUIElements();
+    document.getElementById('header-test-info').textContent = 'Leaderboard';
+    saveState();
+
+    const contentDiv = document.getElementById('question-content');
+    contentDiv.classList.remove('flex', 'items-center', 'justify-center');
+    showLoading('Loading leaderboard...');
+
+    try {
+        const usersSnap = await getDocs(query(collection(db, "users"), where("role", "==", "student")));
+        const leaderboard = [];
+        let me = null;
+
+        usersSnap.forEach(d => {
+            const data = d.data();
+            const g = data.gamification || {};
+            if (data.status === 'rejected') return; // skip rejected users
+            const entry = {
+                uid: d.id,
+                name: data.displayName || 'Unknown',
+                points: g.points || 0,
+                currentStreak: g.currentStreak || 0,
+                longestStreak: g.longestStreak || 0,
+                badges: g.badges || [],
+                totalTestsTaken: g.totalTestsTaken || 0,
+                badgeCount: (g.badges || []).length
+            };
+            leaderboard.push(entry);
+            if (d.id === userId) me = entry;
+        });
+
+        leaderboard.sort((a, b) => b.points - a.points);
+        leaderboard.forEach((e, i) => e.rank = i + 1);
+
+        const myRank = me ? leaderboard.findIndex(e => e.uid === userId) + 1 : null;
+
+        const hasData = leaderboard.some(e => e.points > 0);
+
+        let html = `
+        <div class="max-w-4xl mx-auto">
+            <h2 class="text-2xl font-bold text-gray-800 mb-1">🏆 Leaderboard</h2>
+            <p class="text-sm text-gray-500 mb-5">Complete tests and practice quizzes to earn points and climb the ranks!</p>`;
+
+        if (me) {
+            html += `
+            <div class="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-xl p-4 mb-5 shadow-sm">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs text-gray-500 uppercase tracking-wide">Your Rank</p>
+                        <p class="text-3xl font-black text-yellow-700">#${myRank}</p>
+                    </div>
+                    <div class="text-center px-4 border-x border-yellow-200">
+                        <p class="text-xs text-gray-500 uppercase tracking-wide">Points</p>
+                        <p class="text-2xl font-bold text-yellow-700">${me.points}</p>
+                    </div>
+                    <div class="text-center px-4">
+                        <p class="text-xs text-gray-500 uppercase tracking-wide">Streak</p>
+                        <p class="text-2xl font-bold text-orange-600">${me.currentStreak}d</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xs text-gray-500 uppercase tracking-wide">Badges</p>
+                        <p class="text-2xl font-bold text-purple-600">${me.badgeCount}</p>
+                    </div>
+                </div>
+            </div>`;
+        }
+
+        if (!hasData) {
+            html += `<div class="bg-gray-50 rounded-xl p-8 text-center text-gray-500">No activity yet. Complete a test to start earning points!</div>`;
+        } else {
+            html += `
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+                <table class="w-full">
+                    <thead>
+                        <tr class="bg-gray-100 text-gray-600 text-xs uppercase tracking-wider">
+                            <th class="px-4 py-3 text-left w-16">Rank</th>
+                            <th class="px-4 py-3 text-left">Student</th>
+                            <th class="px-4 py-3 text-center w-20">Points</th>
+                            <th class="px-4 py-3 text-center w-20">Streak</th>
+                            <th class="px-4 py-3 text-center w-20">Badges</th>
+                            <th class="px-4 py-3 text-center w-16">Tests</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${leaderboard.filter(e => e.points > 0).map(e => {
+                            const isMe = e.uid === userId;
+                            const medal = e.rank === 1 ? '🥇' : e.rank === 2 ? '🥈' : e.rank === 3 ? '🥉' : '#' + e.rank;
+                            return `
+                            <tr class="border-t border-gray-100 ${isMe ? 'bg-blue-50 font-semibold' : 'hover:bg-gray-50'} transition">
+                                <td class="px-4 py-3 text-lg font-bold ${e.rank <= 3 ? '' : 'text-gray-500'}">${medal}</td>
+                                <td class="px-4 py-3 text-gray-800 text-sm">${e.name}${isMe ? ' <span class="text-xs text-blue-500 font-normal">(you)</span>' : ''}</td>
+                                <td class="px-4 py-3 text-center font-bold text-gray-800">${e.points}</td>
+                                <td class="px-4 py-3 text-center ${e.currentStreak >= 7 ? 'text-orange-600 font-semibold' : 'text-gray-600'}">${e.currentStreak >= 7 ? '🔥 ' : ''}${e.currentStreak}d</td>
+                                <td class="px-4 py-3 text-center text-purple-600">${e.badgeCount ? '🎖️ ' + e.badgeCount : '-'}</td>
+                                <td class="px-4 py-3 text-center text-gray-600">${e.totalTestsTaken}</td>
+                            </tr>`;
+                        }).join('')}
+                    </tbody>
+                </table>
+            </div>`;
+        }
+
+        // Badges reference
+        html += `
+            <div class="mt-6 bg-white rounded-xl shadow-lg p-6">
+                <h3 class="text-lg font-bold text-gray-800 mb-4">🎖️ Available Badges</h3>
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    ${GAMIFICATION_BADGES.map(b => {
+                        const earned = me ? me.badges.some(bb => bb.id === b.id) : false;
+                        return `
+                        <div class="${earned ? 'bg-green-50 border-green-300' : 'bg-gray-50 border-gray-200'} border rounded-xl p-3 text-center ${earned ? '' : 'opacity-70'}">
+                            <div class="text-2xl mb-1">${b.icon}</div>
+                            <p class="text-xs font-bold text-gray-700">${b.name}</p>
+                            <p class="text-xs text-gray-500">${b.description}</p>
+                            ${earned ? '<p class="text-xs text-green-600 font-semibold mt-1">✓ Earned</p>' : '<p class="text-xs text-gray-400 mt-1">Locked</p>'}
+                        </div>`;
+                    }).join('')}
+                </div>
+            </div>
+        </div>`;
+
+        contentDiv.innerHTML = sidebarWrapper(html, studentSidebarHtml('leaderboard'));
+    } catch (e) {
+        console.error('renderLeaderboard error:', e);
+        contentDiv.innerHTML = sidebarWrapper('<div class="text-center p-8 text-red-600 font-bold">Failed to load leaderboard.</div>', studentSidebarHtml('leaderboard'));
+    }
+};
+
+window.renderWeakPoints = async function() {
+    window.state.appStage = 'weak_points';
+    hideTestUIElements();
+    document.getElementById('header-test-info').textContent = 'Weak Points Analysis';
+    saveState();
+
+    const contentDiv = document.getElementById('question-content');
+    contentDiv.classList.remove('flex', 'items-center', 'justify-center');
+    showLoading('Analyzing weak points...');
+
+    try {
+        const uid = userId;
+        if (!uid) {
+            contentDiv.innerHTML = sidebarWrapper('<div class="text-center p-8 text-red-600">Please log in to view weak points.</div>', studentSidebarHtml('weak_points'));
+            return;
+        }
+
+        const snap = await getDocs(query(collection(db, "results"), where("userId", "==", uid)));
+        const results = [];
+        snap.forEach(d => results.push(d.data()));
+        results.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+        if (results.length === 0) {
+            contentDiv.innerHTML = sidebarWrapper(`
+                <div class="max-w-4xl mx-auto text-center p-12">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-4">📉 Weak Points Analysis</h2>
+                    <p class="text-gray-500">No test results found. Complete a test to see your weak points.</p>
+                </div>
+            `, studentSidebarHtml('weak_points'));
+            return;
+        }
+
+        // Aggregate category scores across all results
+        const aggregated = {};
+        const wrongQuestions = [];
+        const seenWrong = new Set();
+
+        results.forEach(r => {
+            if (r.categoryScores) {
+                for (const [id, cs] of Object.entries(r.categoryScores)) {
+                    if (!aggregated[id]) aggregated[id] = { label: cs.label || id, correct: 0, total: 0 };
+                    aggregated[id].correct += cs.correct || 0;
+                    aggregated[id].total += cs.total || 0;
+                }
+            }
+
+            if (r.testHistory) {
+                for (const mod of ['module1', 'module2']) {
+                    const m = r.testHistory[mod];
+                    if (m && m.questions && m.answers) {
+                        m.questions.forEach((q, i) => {
+                            const ans = m.answers[i];
+                            if (!ans || normalizeAnswer(ans) !== normalizeAnswer(q.correctAnswer)) {
+                                const qKey = q.id || q.text || (q.correctAnswer + i);
+                                if (seenWrong.has(qKey)) return;
+                                seenWrong.add(qKey);
+                                wrongQuestions.push({
+                                    text: q.text,
+                                    correctAnswer: q.correctAnswer,
+                                    userAnswer: ans || 'unanswered',
+                                    topic: q.category || q.topic || 'General',
+                                    difficulty: q.difficulty || 'Medium',
+                                    explanation: q.explanation || ''
+                                });
+                            }
+                        });
+                    }
+                }
+            }
+        });
+
+        const topics = Object.entries(aggregated)
+            .filter(([, s]) => s.total > 0)
+            .map(([id, s]) => ({
+                id,
+                label: s.label,
+                correct: s.correct,
+                total: s.total,
+                percentage: Math.round((s.correct / s.total) * 100),
+                wrongCount: s.total - s.correct
+            }))
+            .sort((a, b) => a.percentage - b.percentage);
+
+        const weakTopics = topics.filter(t => t.percentage < 70);
+        const strongTopics = topics.filter(t => t.percentage >= 70);
+
+        const wrongByTopic = {};
+        wrongQuestions.forEach(q => {
+            if (!wrongByTopic[q.topic]) wrongByTopic[q.topic] = [];
+            wrongByTopic[q.topic].push(q);
+        });
+
+        let html = `
+        <div class="max-w-4xl mx-auto">
+            <h2 class="text-2xl font-bold text-gray-800 mb-1">📉 Weak Points Analysis</h2>
+            <p class="text-sm text-gray-500 mb-5">Aggregated across all your test results.</p>
+
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
+                    <p class="text-2xl font-bold text-blue-600">${results.length}</p>
+                    <p class="text-xs text-gray-500">Tests Taken</p>
+                </div>
+                <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
+                    <p class="text-2xl font-bold text-red-600">${wrongQuestions.length}</p>
+                    <p class="text-xs text-gray-500">Wrong Answers</p>
+                </div>
+                <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
+                    <p class="text-2xl font-bold text-orange-600">${weakTopics.length}</p>
+                    <p class="text-xs text-gray-500">Weak Topics</p>
+                </div>
+                <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
+                    <p class="text-2xl font-bold text-green-600">${topics.length}</p>
+                    <p class="text-xs text-gray-500">Topics Total</p>
+                </div>
+            </div>`;
+
+        if (topics.length === 0) {
+            html += `<div class="bg-gray-50 rounded-xl p-8 text-center text-gray-500">No topic data available.</div>`;
+        } else {
+            html += `
+            <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
+                <h3 class="text-lg font-bold text-gray-800 mb-4">📊 Topic Breakdown</h3>
+                <div class="space-y-4">
+                    ${topics.map(t => {
+                        const isWeak = t.percentage < 70;
+                        const barColor = t.percentage >= 80 ? 'bg-green-400' : t.percentage >= 60 ? 'bg-yellow-400' : 'bg-red-400';
+                        const textColor = t.percentage >= 80 ? 'text-green-600' : t.percentage >= 60 ? 'text-yellow-600' : 'text-red-600';
+                        return `
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <div>
+                                    <span class="font-semibold text-gray-800 text-sm">${t.label}</span>
+                                    ${isWeak ? '<span class="text-xs text-red-500 ml-2">⚠️ Weak</span>' : '<span class="text-xs text-green-500 ml-2">✅ Strong</span>'}
+                                </div>
+                                <span class="text-sm font-bold ${textColor}">${t.percentage}%</span>
+                            </div>
+                            <div class="w-full h-2.5 bg-gray-200 rounded-full overflow-hidden">
+                                <div class="h-full ${barColor} rounded-full transition-all" style="width:${t.percentage}%"></div>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-0.5">${t.correct}/${t.total} correct · ${t.wrongCount} wrong</p>
+                        </div>`;
+                    }).join('')}
+                </div>
+            </div>`;
+
+            if (weakTopics.length > 0) {
+                html += `
+                <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
+                    <h3 class="text-lg font-bold text-red-700 mb-4">⚠️ Weak Topics — Review & Practice</h3>
+                    <div class="space-y-4">
+                        ${weakTopics.map(t => {
+                            const wrong = wrongByTopic[t.label] || [];
+                            const displayWrong = wrong.slice(0, 10);
+                            return `
+                            <div class="border border-red-200 rounded-xl overflow-hidden">
+                                <div onclick="this.nextElementSibling.classList.toggle('hidden'); this.querySelector('svg').classList.toggle('rotate-180')" class="flex justify-between items-center p-3 bg-red-50 cursor-pointer hover:bg-red-100 transition">
+                                    <div>
+                                        <span class="font-semibold text-gray-800">${t.label}</span>
+                                        <span class="text-sm text-gray-500 ml-2">${t.percentage}% — ${wrong.length} wrong</span>
+                                    </div>
+                                    <svg class="w-4 h-4 text-gray-500 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                </div>
+                                <div class="hidden p-3 space-y-2 bg-white">
+                                    ${displayWrong.map(q => `
+                                    <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                                        <div class="text-sm text-gray-800 mb-1">${renderMathInString(q.text)}</div>
+                                        <div class="flex gap-4 text-xs">
+                                            <span class="text-red-600">You: ${renderMathInString(q.userAnswer)}</span>
+                                            <span class="text-green-600">Correct: ${renderMathInString(q.correctAnswer)}</span>
+                                        </div>
+                                        ${q.explanation ? `<div class="text-xs text-gray-500 mt-1">${renderMathInString(q.explanation)}</div>` : ''}
+                                    </div>`).join('')}
+                                    ${wrong.length > 10 ? `<p class="text-xs text-gray-400 text-center">+ ${wrong.length - 10} more questions</p>` : ''}
+                                </div>
+                            </div>`;
+                        }).join('')}
+                    </div>
+                </div>`;
+            }
+
+            if (strongTopics.length > 0) {
+                html += `
+                <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
+                    <h3 class="text-lg font-bold text-green-700 mb-3">✅ Strong Topics</h3>
+                    <div class="flex flex-wrap gap-2">
+                        ${strongTopics.map(t => `
+                            <span class="px-3 py-1.5 bg-green-50 text-green-700 text-sm font-medium rounded-full border border-green-200">${t.label} (${t.percentage}%)</span>
+                        `).join('')}
+                    </div>
+                </div>`;
+            }
+        }
+
+        html += `
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-6">
+                <button onclick="window.generateWeakTopicPractice()" class="px-5 py-3 bg-gradient-to-r from-indigo-500 to-blue-700 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition">
+                    🎯 Practice Weakest Topic
+                </button>
+                <button onclick="window.navigateToHome()" class="px-5 py-3 bg-gradient-to-r from-gray-500 to-gray-700 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition">
+                    🏠 Home
+                </button>
+            </div>
+        </div>`;
+
+        contentDiv.innerHTML = sidebarWrapper(html, studentSidebarHtml('weak_points'));
+        if (typeof renderMathAll === 'function') renderMathAll();
+        if (typeof renderMath === 'function') renderMath('question-content');
+    } catch (e) {
+        console.error('renderWeakPoints error:', e);
+        contentDiv.innerHTML = sidebarWrapper('<div class="text-center p-8 text-red-600 font-bold">Failed to load weak points.</div>', studentSidebarHtml('weak_points'));
+    }
+};
+
+// ── AI BUDDY ROBOT ──
+let _buddyInitialized = false;
+let _buddyBreakMotivationTimer = null;
+
+window.renderAIBuddy = function () {
+    if (_buddyInitialized) return;
+    _buddyInitialized = true;
+
+    const wrap = document.getElementById('buddy-wrap');
+    if (!wrap) return;
+    const chat = document.getElementById('buddy-chat');
+    if (!chat) return;
+
+    const bot = wrap.querySelector('.buddy-bot');
+    const speech = wrap.querySelector('.buddy-speech');
+    const speechText = wrap.querySelector('.buddy-speech-text');
+    const closeBtn = wrap.querySelector('.buddy-speech-close');
+    const pupils = wrap.querySelectorAll('.buddy-pupil');
+
+    const chatMessages = document.getElementById('buddy-chat-messages');
+    const chatInput = document.getElementById('buddy-chat-input');
+    const chatSend = document.getElementById('buddy-chat-send');
+    const chatClose = document.getElementById('buddy-chat-close');
+    const chatHelps = document.getElementById('buddy-chat-helps');
+
+    // ── Buddy visibility (student only) ──
+    function updateStudentUI() {
+        const role = window.state?.role;
+        const isStudent = role === 'student';
+        wrap.classList.toggle('hidden', !isStudent);
+    }
+    window.updateBuddyVisibility = updateStudentUI;
+
+    // ── Speech helpers ──
+    let speechTimer = null;
+    function showSpeech(msg, duration) {
+        speechText.textContent = msg;
+        speech.classList.add('show');
+        if (speechTimer) clearTimeout(speechTimer);
+        if (duration) { speechTimer = setTimeout(hideSpeech, duration); }
+    }
+    function hideSpeech() {
+        if (speechTimer) { clearTimeout(speechTimer); speechTimer = null; }
+        speech.classList.remove('show');
+    }
+    closeBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        hideSpeech();
+    });
+
+    // ── Update helps counter ──
+    function updateHelpsDisplay() {
+        if (!chatHelps) return;
+        const remaining = window.state.remainingBuddyHelps;
+        if (remaining !== undefined && window.state.appStage === 'active') {
+            chatHelps.textContent = remaining + ' helps left';
+            chatHelps.style.display = '';
+        } else {
+            chatHelps.style.display = 'none';
+        }
+    }
+
+    // ── Click/tap → open mini chat ──
+    function openChat() {
+        hideSpeech();
+        chat.classList.add('open');
+        updateHelpsDisplay();
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        chatInput.focus();
+    }
+    function closeChat() {
+        chat.classList.remove('open');
+    }
+    function toggleChat() {
+        if (chat.classList.contains('open')) { closeChat(); return; }
+        openChat();
+        bot.style.animation = 'none';
+        bot.offsetHeight;
+        bot.style.animation = '';
+    }
+    bot.addEventListener('click', function () {
+        if (didDrag) { didDrag = false; return; }
+        toggleChat();
+    });
+    chatClose.addEventListener('click', closeChat);
+
+    // ── Send message ──
+    async function sendBuddyMessage() {
+        const text = chatInput.value.trim();
+        if (!text) return;
+
+        if (window.state.appStage === 'active') {
+            if (window.state.remainingBuddyHelps == null) window.state.remainingBuddyHelps = 0;
+            if (window.state.remainingBuddyHelps <= 0) {
+                const div = document.createElement('div');
+                div.className = 'buddy-chat-msg buddy';
+                div.textContent = 'You\'ve used all your helps for this test. Keep going — you\'ve got this!';
+                chatMessages.appendChild(div);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+                return;
+            }
+            window.state.remainingBuddyHelps--;
+            updateHelpsDisplay();
+        }
+
+        const userDiv = document.createElement('div');
+        userDiv.className = 'buddy-chat-msg user';
+        userDiv.textContent = text;
+        chatMessages.appendChild(userDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        chatInput.value = '';
+        chatSend.disabled = true;
+
+        const typing = document.createElement('div');
+        typing.className = 'buddy-chat-typing';
+        typing.innerHTML = '<span></span><span></span><span></span>';
+        chatMessages.appendChild(typing);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+
+        try {
+            const status = await getAiStatus();
+            if (!status.running) {
+                typing.remove();
+                const errDiv = document.createElement('div');
+                errDiv.className = 'buddy-chat-msg buddy';
+                errDiv.textContent = 'AI is not configured yet. Ask your teacher to set it up in Admin → AI Tutor Settings.';
+                chatMessages.appendChild(errDiv);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+                chatSend.disabled = false;
+                return;
+            }
+
+            const studentData = buildStudentContext();
+
+            // Include current question context during test
+            let questionContext = '';
+            if (window.state.appStage === 'active') {
+                const qIdx = window.state.questionIndex;
+                const qs = window.state.moduleQuestions;
+                if (qs && qs[qIdx]) {
+                    const q = qs[qIdx];
+                    questionContext = '\n\nCurrent question:\n' + (q.question || q.text || '') + '\n';
+                    if (q.choices) {
+                        questionContext += 'Choices:\n' + Object.entries(q.choices).map(function(e) { return e[0] + '. ' + e[1]; }).join('\n') + '\n';
+                    }
+                }
+            }
+
+            const systemPrompt = 'You are Dr. Joe, an elite Digital SAT Math tutor. Student data:\n' + studentData + questionContext + '\nRules:\n- Focus ONLY on SAT Math. Ignore Reading/Writing.\n- NEVER give direct answers — hint and guide.\n- Be concise. Max 3 sentences.\n- Use **bold** for emphasis.';
+
+            let reply;
+            if (status.provider === 'ollama') {
+                reply = await askOllama(systemPrompt + '\n\nStudent: ' + text + '\n\nDr. Joe:');
+            } else if (status.provider === 'gemini') {
+                reply = await askGemini(systemPrompt + '\n\nStudent message: ' + text);
+            } else {
+                reply = await askGroq(systemPrompt + '\n\nStudent message: ' + text);
+            }
+
+            incrementAiUsage();
+            typing.remove();
+
+            const aiDiv = document.createElement('div');
+            aiDiv.className = 'buddy-chat-msg buddy';
+            let msgHtml = typeof renderMathInString === 'function' ? renderMathInString(reply) : reply;
+            aiDiv.innerHTML = renderMarkdown(msgHtml);
+            chatMessages.appendChild(aiDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+        } catch (err) {
+            console.error('Buddy AI error:', err);
+            typing.remove();
+            const errDiv = document.createElement('div');
+            errDiv.className = 'buddy-chat-msg buddy';
+            errDiv.textContent = 'Sorry, I couldn\'t reach the AI. ' + err.message;
+            chatMessages.appendChild(errDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        chatSend.disabled = false;
+    }
+
+    chatSend.addEventListener('click', sendBuddyMessage);
+    chatInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendBuddyMessage();
+        }
+    });
+
+    // ── Hover speech rotation ──
+    const hoverMessages = [
+        'Ready to ace your SAT? ⭐',
+        'Hey there! 👋', 'Keep going — you rock! 🎸',
+        'Practice makes progress! 📈',
+        'You\'ve got this! 💪', 'I believe in you! 🌟'
+    ];
+    let hoverIdx = 0;
+    let hoverTimer = null;
+    bot.addEventListener('mouseenter', function () {
+        if (chat.classList.contains('open')) return;
+        showSpeech(hoverMessages[hoverIdx % hoverMessages.length], 3500);
+        hoverIdx++;
+    });
+    bot.addEventListener('mouseleave', function () {
+        if (!speech.classList.contains('show')) return;
+        if (hoverTimer) { clearTimeout(hoverTimer); hoverTimer = null; }
+        setTimeout(hideSpeech, 500);
+    });
+
+    // ── Eye tracking (two eyes) ──
+    let rafId = null;
+    document.addEventListener('mousemove', function (e) {
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(function () {
+            pupils.forEach(function (pupil) {
+                const eye = pupil.closest('.buddy-eye');
+                if (!eye) return;
+                const rect = eye.getBoundingClientRect();
+                const cx = rect.left + rect.width / 2;
+                const cy = rect.top + rect.height / 2;
+                const dx = e.clientX - cx;
+                const dy = e.clientY - cy;
+                const angle = Math.atan2(dy, dx);
+                const maxOffset = 5;
+                const mag = Math.min(maxOffset, Math.sqrt(dx * dx + dy * dy) * 0.07);
+                const x = Math.round(Math.cos(angle) * mag);
+                const y = Math.round(Math.sin(angle) * mag);
+                pupil.style.transform = 'translate(-50%,-50%) translate(' + x + 'px,' + y + 'px)';
+            });
+            rafId = null;
+        });
+    });
+
+    // ── Break motivation ──
+    let _lastBreakMotivation = 0;
+    const breakMessages = [
+        'Great work finishing Module 1! Take a deep breath. 🌬️',
+        'You\'re doing awesome! Keep the momentum going! 🚀',
+        'Almost there! Module 2 is your time to shine! ✨',
+        'Stay focused and believe in yourself! 🧠',
+        'You\'ve prepared for this — trust your skills! 🎯',
+        'Breathe, relax, and get ready for Module 2! 🧘'
+    ];
+    let breakMsgIdx = 0;
+
+    _buddyBreakMotivationTimer = setInterval(function () {
+        if (window.state.appStage === 'break') {
+            const now = Date.now();
+            if (now - _lastBreakMotivation > 25000) {
+                _lastBreakMotivation = now;
+                showSpeech(breakMessages[breakMsgIdx % breakMessages.length], 5000);
+                breakMsgIdx++;
+            }
+        }
+    }, 5000);
+
+    // ── Dragging ──
+    let isDragging = false, didDrag = false, dragStartX, dragStartY, startLeft, startTop;
+
+    function onDragStart(e) {
+        if (e.button !== undefined && e.button !== 0) return;
+        isDragging = true;
+        didDrag = false;
+        const rect = wrap.getBoundingClientRect();
+        const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+        const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+        if (clientX == null) return;
+        dragStartX = clientX;
+        dragStartY = clientY;
+        startLeft = rect.left;
+        startTop = rect.top;
+        wrap.style.cursor = 'grabbing';
+        wrap.style.transition = 'none';
+    }
+
+    function onDragMove(e) {
+        if (!isDragging) return;
+        // Need >5px movement to count as drag (prevents accidental drag from click)
+        const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+        const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+        if (clientX == null) return;
+        const dx = clientX - dragStartX;
+        const dy = clientY - dragStartY;
+        if (Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
+        didDrag = true;
+        let x = startLeft + dx;
+        let y = startTop + dy;
+        const maxX = window.innerWidth - wrap.offsetWidth;
+        const maxY = window.innerHeight - wrap.offsetHeight;
+        x = Math.max(0, Math.min(x, maxX));
+        y = Math.max(0, Math.min(y, maxY));
+        wrap.style.left = x + 'px';
+        wrap.style.top = y + 'px';
+        wrap.style.right = 'auto';
+        wrap.style.bottom = 'auto';
+        e.preventDefault();
+    }
+
+    function onDragEnd() {
+        if (!isDragging) return;
+        isDragging = false;
+        wrap.style.cursor = '';
+        wrap.style.transition = '';
+    }
+
+    bot.addEventListener('mousedown', onDragStart);
+    document.addEventListener('mousemove', onDragMove);
+    document.addEventListener('mouseup', onDragEnd);
+    bot.addEventListener('touchstart', onDragStart, { passive: true });
+    bot.addEventListener('touchmove', onDragMove, { passive: false });
+    bot.addEventListener('touchend', onDragEnd);
 };
 
 // ── LANDING PAGE (removed per user request) ──

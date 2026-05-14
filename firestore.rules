@@ -2,8 +2,72 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // Helper: check if the user has a given role
+    function isRole(role) {
+      return firestore.exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && firestore.get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
+    }
+
+    function isAdmin() { return isRole('admin'); }
+    function isTeacher() { return isRole('teacher'); }
+    function isStudent() { return isRole('student'); }
+    function isStaff() { return isAdmin() || isTeacher(); }
+
+    // ── Users collection ──
+    // Students: read own doc, write limited fields. Admins: full access.
+    match /users/{userId} {
+      allow read: if request.auth != null
+        && (request.auth.uid == userId || isStaff());
+
+      allow create: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.data.status == 'pending'
+        && request.resource.data.role == 'student';
+
+      allow update: if request.auth != null
+        && (
+          // Self-update: students can only update limited fields
+          (request.auth.uid == userId
+            && request.resource.data.status == resource.data.status
+            && request.resource.data.role == resource.data.role)
+          // Staff can update any field
+          || isStaff()
+        );
+
+      allow delete: if request.auth != null && isAdmin();
+    }
+
+    // ── Results collection ──
+    // Students: read/write own results. Teachers: read their students'. Admins: full access.
+    match /results/{resultId} {
+      allow read: if request.auth != null
+        && (request.auth.uid == resource.data.userId || isStaff());
+
+      allow create: if request.auth != null
+        && request.resource.data.userId == request.auth.uid;
+
+      allow update: if request.auth != null
+        && request.auth.uid == resource.data.userId;
+
+      allow delete: if request.auth != null && isAdmin();
+    }
+
+    // ── Tests collection (custom tests created by teachers) ──
+    match /tests/{testId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && isStaff();
+    }
+
+    // ── Practice Quizzes collection ──
+    match /practiceQuizzes/{quizId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && isStaff();
+    }
+
+    // ── Deny everything else ──
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }
