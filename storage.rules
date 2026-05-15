@@ -5,7 +5,7 @@ service firebase.storage {
       // Authenticated teachers and admins can upload images
       allow write: if request.auth != null
         && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
-        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role in ['teacher', 'admin'];
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role in ['teacher', 'admin', 'super_admin'];
       // Any authenticated user can read images (students need to see them during tests)
       allow read: if request.auth != null;
     }
@@ -14,7 +14,7 @@ service firebase.storage {
       // Authenticated teachers and admins can upload e-books
       allow write: if request.auth != null
         && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
-        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role in ['teacher', 'admin'];
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role in ['teacher', 'admin', 'super_admin'];
       // Any authenticated user can read/download e-books
       allow read: if request.auth != null;
     }

@@ -3,69 +3,164 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper: check if the user has a given role
-    function isRole(role) {
-      return firestore.exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && firestore.get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
+    // ─── Helper Functions ───────────────────────────────────────────────────
+
+    function isAuthenticated() {
+      return request.auth != null;
     }
 
-    function isAdmin() { return isRole('admin'); }
+    function isOwner(uid) {
+      return request.auth.uid == uid;
+    }
+
+    function getUserData() {
+      return firestore.get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isRole(role) {
+      return isAuthenticated()
+        && firestore.exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && getUserData().role == role;
+    }
+
+    function isAdmin()   { return isRole('admin') || isRole('super_admin'); }
     function isTeacher() { return isRole('teacher'); }
     function isStudent() { return isRole('student'); }
-    function isStaff() { return isAdmin() || isTeacher(); }
+    function isStaff()   { return isAdmin() || isTeacher(); }
 
-    // ── Users collection ──
-    // Students: read own doc, write limited fields. Admins: full access.
+    function isApproved() {
+      return isAuthenticated()
+        && firestore.exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && getUserData().status == 'approved';
+    }
+
+    // ─── Users Collection ────────────────────────────────────────────────────
+    // Students: read own + limited write. Staff: full read. Admin: full write.
     match /users/{userId} {
-      allow read: if request.auth != null
-        && (request.auth.uid == userId || isStaff());
+      allow read: if isAuthenticated()
+        && (isOwner(userId) || isStaff());
 
-      allow create: if request.auth != null
-        && request.auth.uid == userId
+      // Self-registration: only pending student accounts
+      allow create: if isAuthenticated()
+        && isOwner(userId)
         && request.resource.data.status == 'pending'
         && request.resource.data.role == 'student';
 
-      allow update: if request.auth != null
+      // Self-update: protect role & status fields
+      allow update: if isAuthenticated()
         && (
-          // Self-update: students can only update limited fields
-          (request.auth.uid == userId
+          (isOwner(userId)
             && request.resource.data.status == resource.data.status
-            && request.resource.data.role == resource.data.role)
-          // Staff can update any field
+            && request.resource.data.role   == resource.data.role)
           || isStaff()
         );
 
-      allow delete: if request.auth != null && isAdmin();
+      allow delete: if isAdmin();
     }
 
-    // ── Results collection ──
-    // Students: read/write own results. Teachers: read their students'. Admins: full access.
+    // ─── Results Collection ──────────────────────────────────────────────────
     match /results/{resultId} {
-      allow read: if request.auth != null
-        && (request.auth.uid == resource.data.userId || isStaff());
+      allow read:   if isAuthenticated()
+        && (isOwner(resource.data.userId) || isStaff());
 
-      allow create: if request.auth != null
+      allow create: if isAuthenticated()
         && request.resource.data.userId == request.auth.uid;
 
-      allow update: if request.auth != null
-        && request.auth.uid == resource.data.userId;
+      allow update: if isAuthenticated()
+        && isOwner(resource.data.userId);
 
-      allow delete: if request.auth != null && isAdmin();
+      allow delete: if isAdmin();
     }
 
-    // ── Tests collection (custom tests created by teachers) ──
+    // ─── Custom Tests (Teacher/Admin created) ────────────────────────────────
     match /tests/{testId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && isStaff();
+      allow read:  if isAuthenticated();
+      allow write: if isStaff();
     }
 
-    // ── Practice Quizzes collection ──
+    // ─── Practice / Mini-Quizzes ─────────────────────────────────────────────
     match /practiceQuizzes/{quizId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && isStaff();
+      allow read:  if isAuthenticated();
+      allow write: if isStaff();
     }
 
-    // ── Deny everything else ──
+    // ─── Test Assignments (Teacher → Student) ────────────────────────────────
+    match /test_assignments/{assignId} {
+      // Students read their own; staff read all
+      allow read: if isAuthenticated()
+        && (isOwner(resource.data.studentId) || isStaff());
+
+      allow create: if isStaff();
+      allow update: if isAuthenticated()
+        && (isOwner(resource.data.studentId) || isStaff());
+      allow delete: if isStaff();
+    }
+
+    // ─── E-Books ─────────────────────────────────────────────────────────────
+    match /ebooks/{bookId} {
+      allow read:   if isAuthenticated();
+      allow create: if isStaff();
+      allow update: if isStaff();
+      allow delete: if isAdmin();
+    }
+
+    // ─── System / Audit Logs ─────────────────────────────────────────────────
+    // Append-only for authenticated users; read only for admins
+    match /system_logs/{logId} {
+      allow read:   if isAdmin();
+      allow create: if isAuthenticated();
+      allow update: if false;   // immutable once written
+      allow delete: if isAdmin();
+    }
+
+    // ─── Audit Logs (sensitive admin actions) ────────────────────────────────
+    match /audit_logs/{logId} {
+      allow read:   if isAdmin();
+      allow create: if isAuthenticated();
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
+    // ─── Notifications ───────────────────────────────────────────────────────
+    match /notifications/{notifId} {
+      // Each notification has a recipientId field
+      allow read: if isAuthenticated()
+        && (isOwner(resource.data.recipientId) || isStaff());
+      allow create: if isStaff();
+      allow update: if isAuthenticated()
+        && isOwner(resource.data.recipientId);  // allow mark-as-read
+      allow delete: if isAdmin();
+    }
+
+    // ─── Flashcard Sets ──────────────────────────────────────────────────────
+    match /flashcard_sets/{setId} {
+      allow read:   if isAuthenticated();
+      allow write:  if isStaff();
+    }
+
+    // ─── Chat / Support Messages ─────────────────────────────────────────────
+    match /chat_messages/{msgId} {
+      allow read: if isAuthenticated()
+        && (isOwner(resource.data.senderId) || isOwner(resource.data.recipientId) || isStaff());
+      allow create: if isAuthenticated()
+        && request.resource.data.senderId == request.auth.uid;
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
+    // ─── Student Notes / Scratch Pads ────────────────────────────────────────
+    match /student_notes/{noteId} {
+      allow read:   if isAuthenticated() && (isOwner(resource.data.userId) || isStaff());
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && isOwner(resource.data.userId);
+      allow delete: if isAuthenticated() && (isOwner(resource.data.userId) || isAdmin());
+    }
+
+    // ─── Gamification Data ───────────────────────────────────────────────────
+    // Stored inside user docs as subcollection-style or as part of users/{uid}
+    // If you add a separate gamification collection, add rules here.
+
+    // ─── Deny Everything Else ────────────────────────────────────────────────
     match /{document=**} {
       allow read, write: if false;
     }

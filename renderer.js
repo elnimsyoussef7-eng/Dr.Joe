@@ -1,4 +1,4 @@
-        import { auth, db, storage, ref, uploadBytes, getDownloadURL } from './firebase-init.js';
+        import { auth, db, storage, ref, uploadBytes, getDownloadURL, serverTimestamp } from './firebase-init.js';
         import { 
             signInWithEmailAndPassword, 
             createUserWithEmailAndPassword, 
@@ -4192,6 +4192,8 @@
             if (typeof window.updateBuddyVisibility === 'function') window.updateBuddyVisibility();
             window.state.studentName = '';
             saveState();
+            if (window._presenceInterval) { clearInterval(window._presenceInterval); window._presenceInterval = null; }
+            if (userId) setDoc(doc(db, "users", userId), { isOnline: false }, { merge: true }).catch(function(){});
             await signOut(auth);
             window.toggleDashboardSidebar(false);
             toggleGlobalNav(false);
@@ -4205,7 +4207,7 @@
             document.getElementById('header-test-info').classList.remove('hidden');
             toggleGlobalNav(true);
             const role = window.state?.role;
-            if (role === 'admin') {
+            if (role === 'admin' || role === 'super_admin') {
                 window.renderAdminDashboard();
             } else if (role === 'teacher') {
                 window.renderTeacherDashboard();
@@ -4251,6 +4253,7 @@
                   
                   if (user) {
                       userId = user.uid;
+                      window._userId = user.uid;
                       const name = user.email.split('@')[0];
                       
                       window.state.studentName = name;
@@ -4268,9 +4271,12 @@
                              window.state.parentEmail = userData.parentEmail;
                              window.state.parentPhone = userData.parentPhone;
                              window.state.studentPhone = userData.studentPhone;
-                             window.state.visibleTests = userData.visibleTests;
-                             if (typeof window.updateBuddyVisibility === 'function') window.updateBuddyVisibility();
-                             
+                              window.state.visibleTests = userData.visibleTests;
+                              if (typeof window.updateBuddyVisibility === 'function') window.updateBuddyVisibility();
+
+                              // Update presence: online + lastSeen
+                              setDoc(doc(db, "users", userId), { isOnline: true, lastSeen: serverTimestamp() }, { merge: true }).catch(e => console.warn('Presence update failed', e));
+
                       // Block unapproved users — keep signed in, watch for status changes
                       if (userData.status === "pending") {
                           authStatus.textContent = user.email + ' (Pending)';
@@ -4360,7 +4366,7 @@
                       if (stateLoaded && window.state.studentName !== '') {
                          if (window.state.appStage === 'teacher_dashboard' || window.state.role === 'teacher') {
                              window.renderTeacherDashboard();
-                         } else if (window.state.appStage === 'admin_dashboard' || window.state.role === 'admin') {
+                         } else if (window.state.appStage === 'admin_dashboard' || window.state.role === 'admin' || window.state.role === 'super_admin') {
                              window.renderAdminDashboard();
                          } else if (window.state.appStage === 'active') {
                              window.startTest();
@@ -4399,8 +4405,20 @@
                       } else {
                           window.navigateToHome();
                       }
-                      window.loadPracticeQuizzes().catch(e => console.warn("Preload practice quizzes:", e));
-                  } else {
+                       window.loadPracticeQuizzes().catch(e => console.warn("Preload practice quizzes:", e));
+
+                       // Presence heartbeat
+                       if (window._presenceInterval) clearInterval(window._presenceInterval);
+                       window._presenceInterval = setInterval(function() {
+                           setDoc(doc(db, "users", userId), { isOnline: true, lastSeen: serverTimestamp() }, { merge: true }).catch(function(){});
+                       }, 30000);
+                       window.addEventListener('beforeunload', function() {
+                           setDoc(doc(db, "users", userId), { isOnline: false }, { merge: true }).catch(function(){});
+                       });
+                       document.addEventListener('visibilitychange', function() {
+                           setDoc(doc(db, "users", userId), { isOnline: !document.hidden, lastSeen: serverTimestamp() }, { merge: true }).catch(function(){});
+                       });
+                   } else {
                         // No user
                         authStatus.textContent = 'Guest';
                         hiddenUserIdDisplay.textContent = 'Not Auth';
@@ -4472,6 +4490,20 @@
             } catch (e) { /* silent */ }
         }
 
+        window.logAdminAction = async function(action, details) {
+            try {
+                await addDoc(collection(db, "audit_logs"), {
+                    timestamp: new Date(),
+                    action: action,
+                    actor: window._userId || userId,
+                    actorName: window.state?.studentName || 'unknown',
+                    actorRole: window.state?.role || 'unknown',
+                    details: typeof details === 'object' ? JSON.stringify(details) : String(details),
+                    sessionId: window._sessionId || 'n/a'
+                });
+            } catch (e) { /* silent */ }
+        };
+
         window.addEventListener('error', (event) => {
             logSystemEvent('JS Error', {
                 message: event.message,
@@ -4515,7 +4547,10 @@
                 const results = {};
                 querySnapshot.forEach((doc) => {
                     const data = doc.data();
-                    results[data.testId] = data;
+                    // Keep only the latest attempt per testId
+                    if (!results[data.testId] || (data.timestamp || 0) > (results[data.testId].timestamp || 0)) {
+                        results[data.testId] = data;
+                    }
                 });
                 return results;
             } catch (error) {
@@ -4538,8 +4573,9 @@
             const testId = window.state.currentTestId;
             const m1 = window.state.testHistory.module1;
             const m2 = window.state.testHistory.module2;
-            const totalCorrect = m1.score + m2.score;
-            const percentage = (totalCorrect / 44) * 100;
+            const totalQs = (m1 ? m1.questions ? m1.questions.length : 0 : 0) + (m2 ? m2.questions ? m2.questions.length : 0 : 0);
+            const totalCorrect = (m1 ? m1.score || 0 : 0) + (m2 ? m2.score || 0 : 0);
+            const percentage = totalQs > 0 ? (totalCorrect / totalQs) * 100 : 0;
             
             const resultData = {
                 userId: userId,
@@ -4548,40 +4584,34 @@
                 testId: testId,
                 totalCorrect: totalCorrect,
                 percentage: percentage,
+                totalQuestions: totalQs,
                 timestamp: Date.now(),
                 details: {
-                    // Serialize simplified details to save space if needed, but full is fine for Firestore
-                    module1Score: m1.score,
-                    module2Score: m2.score,
-                    module2Difficulty: m2.difficulty
+                    module1Score: m1 ? m1.score || 0 : 0,
+                    module2Score: m2 ? m2.score || 0 : 0,
+                    module2Difficulty: m2 ? m2.difficulty : null
                 },
                 testHistory: {
-                    module1: m1,
-                    module2: m2
+                    module1: m1 || null,
+                    module2: m2 || null
                 },
                 answers: {
-                    module1: m1.answers,
-                    module2: m2.answers
+                    module1: m1 ? m1.answers || [] : [],
+                    module2: m2 ? m2.answers || [] : []
                 },
                 categoryScores: window.state.categoryScores || {}
             };
 
             try {
-                const btn = document.getElementById('save-result-btn');
-                if(btn) btn.textContent = "Saving...";
+                var statusEl = document.getElementById('save-status-text');
+                if (statusEl) statusEl.innerHTML = '<span class="inline-block w-2 h-2 rounded-full bg-yellow-400"></span> Saving...';
 
                 await addDoc(collection(db, "results"), resultData);
-                logSystemEvent('Test Completed', 'User ' + userId + ' completed test ' + testId + ' with score ' + totalCorrect + '/44 (' + percentage.toFixed(1) + '%)');
+                logSystemEvent('Test Completed', 'User ' + userId + ' completed test ' + testId + ' with score ' + totalCorrect + '/' + totalQs + ' (' + percentage.toFixed(1) + '%)');
                 
-                if(btn) {
-                    btn.textContent = "Saved!";
-                    btn.disabled = true;
-                    btn.classList.remove('bg-green-600', 'hover:bg-green-700', 'from-green-500', 'to-green-700');
-                    btn.classList.add('bg-gray-500');
-                }
+                if (statusEl) statusEl.innerHTML = '<span class="inline-block w-2 h-2 rounded-full bg-green-500"></span> Saved!';
 
                 // Award points and update gamification
-                const totalQs = (m1.questions ? m1.questions.length : 0) + (m2.questions ? m2.questions.length : 0);
                 window.updateGamification({
                     isPracticeQuiz: (testId || '').startsWith('practice_'),
                     correctCount: totalCorrect,
@@ -4595,10 +4625,15 @@
                     'Score saved: ' + totalCorrect + '/' + totalQs + ' (' + percentage.toFixed(1) + '%) on "' + testName + '"',
                     '📊', 'success', 'score_' + testId + '_' + Date.now()
                 );
+
+                // Auto-trigger AI analysis (non-blocking)
+                setTimeout(function() {
+                    window.saveAndShowAiInsights().catch(function(e) { console.warn('Auto AI insights failed:', e); });
+                }, 500);
             } catch (e) {
                 console.error("Error adding document: ", e);
-                const btn = document.getElementById('save-result-btn');
-                if(btn) btn.textContent = "Save Failed - Retry";
+                var statusEl = document.getElementById('save-status-text');
+                if (statusEl) statusEl.innerHTML = '<span class="inline-block w-2 h-2 rounded-full bg-red-500"></span> Save failed. <button onclick="window.saveTestResult()" class="underline font-semibold">Retry</button>';
                 window.showError("Failed to save result. Please check your internet connection.");
             }
         }
@@ -5602,6 +5637,10 @@
                                     <label class="block text-sm font-semibold text-gray-700 mb-1">Available until (time)</label>
                                     <input type="time" id="schedule-time-to" class="w-full p-2 border rounded-lg">
                                 </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-1">Password (optional)</label>
+                                    <input type="password" id="schedule-password" class="w-full p-2 border rounded-lg" placeholder="Leave blank for no password">
+                                </div>
                             </div>
                         </div>
                         <div class="bg-white rounded-xl shadow-lg p-6">
@@ -5615,9 +5654,10 @@
                                     const student = students.find(s => s.id === a.studentId);
                                     const testName = ALL_TEST_QUESTIONS[a.testId] ? ALL_TEST_QUESTIONS[a.testId].name : a.testId;
                                     const timeWindow = a.availableFrom && a.availableTo ? `${a.availableFrom} - ${a.availableTo}` : 'Anytime';
+                                    const pwdIcon = a.password ? '🔒 ' : '';
                                     return `<tr class="border-b hover:bg-gray-50">
                                         <td class="px-4 py-3">${student ? (student.displayName || student.email) : 'Unknown'}</td>
-                                        <td class="px-4 py-3">${testName}</td>
+                                        <td class="px-4 py-3">${pwdIcon}${testName}</td>
                                         <td class="px-4 py-3">${a.dueDate || 'N/A'}</td>
                                         <td class="px-4 py-3 text-sm">${timeWindow}</td>
                                         <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs font-bold ${a.completed ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}">${a.completed ? 'Completed' : 'Pending'}</span></td>
@@ -5638,6 +5678,7 @@
             const dueDate = document.getElementById('schedule-due').value;
             const availableFrom = document.getElementById('schedule-time-from').value;
             const availableTo = document.getElementById('schedule-time-to').value;
+            const password = document.getElementById('schedule-password').value;
             if (!studentId || !testId) { window.showWarning('Please select both student and test.'); return; }
 
             const baseData = {
@@ -5645,6 +5686,7 @@
             };
             if (availableFrom) baseData.availableFrom = availableFrom;
             if (availableTo) baseData.availableTo = availableTo;
+            if (password) baseData.password = password;
 
             try {
                 if (studentId === '__all__') {
@@ -5676,6 +5718,57 @@
             catch (e) { window.showError('Error: ' + e.message); }
         };
 
+        /** Custom password prompt (replaces prompt() which is unsupported in Electron) */
+        function showPasswordPrompt(msg) {
+            return new Promise(function(resolve) {
+                var overlay = document.createElement('div');
+                overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;';
+                var modal = document.createElement('div');
+                modal.style.cssText = 'background:#fff;border-radius:16px;padding:28px;width:360px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,.3);text-align:center;';
+                modal.innerHTML = '<div style="font-size:40px;margin-bottom:8px;">🔒</div><p style="font-size:15px;color:#4b5563;margin-bottom:16px;line-height:1.5;">' + msg + '</p><input type="password" id="pwd-input" style="width:100%;padding:10px 14px;border:2px solid #d1d5db;border-radius:10px;font-size:16px;outline:none;box-sizing:border-box;" placeholder="Enter password"><div style="display:flex;gap:10px;margin-top:16px;justify-content:center;"><button id="pwd-cancel" style="padding:10px 24px;border:1px solid #d1d5db;border-radius:10px;background:#f9fafb;font-size:14px;font-weight:600;color:#374151;cursor:pointer;">Cancel</button><button id="pwd-ok" style="padding:10px 24px;border:none;border-radius:10px;background:#2563eb;font-size:14px;font-weight:600;color:#fff;cursor:pointer;">OK</button></div>';
+                overlay.appendChild(modal);
+                document.body.appendChild(overlay);
+                var input = document.getElementById('pwd-input');
+                var okBtn = document.getElementById('pwd-ok');
+                var cancelBtn = document.getElementById('pwd-cancel');
+                function close(val) { document.body.removeChild(overlay); resolve(val); }
+                function submit() { var v = input.value; if (v) { close(v); } else { input.style.borderColor = '#ef4444'; input.focus(); } }
+                okBtn.onclick = submit;
+                cancelBtn.onclick = function() { close(null); };
+                overlay.onclick = function(e) { if (e.target === overlay) close(null); };
+                input.onkeydown = function(e) { if (e.key === 'Enter') submit(); if (e.key === 'Escape') close(null); };
+                setTimeout(function() { input.focus(); }, 100);
+            });
+        }
+        /** Verify password from Firestore and start the test */
+        window.startAssignmentWithPassword = async function(assignmentId, testId, isBuiltIn) {
+            var pwd = await showPasswordPrompt('This test is password protected. Enter the password to continue:');
+            if (!pwd) { window.showWarning('Password cannot be empty.'); return; }
+            try {
+                var snap = await getDoc(doc(db, "test_assignments", assignmentId));
+                if (!snap.exists()) { window.showError('Assignment not found.'); return; }
+                var data = snap.data();
+                if (data.password && pwd !== data.password) {
+                    window.showWarning('Incorrect password. Please try again.');
+                    return;
+                }
+                if (isBuiltIn) { window.loadTestQuestions(testId); }
+                else { window.loadCustomTestQuestions(testId); }
+            } catch (e) { window.showError('Error verifying password: ' + e.message); }
+        };
+        // Delegate click handler for password-protected start buttons
+        if (!window._passwordDelegateSetup) {
+            window._passwordDelegateSetup = true;
+            document.addEventListener('click', function(e) {
+                var btn = e.target.closest('.password-start-btn');
+                if (!btn) return;
+                var assignmentId = btn.getAttribute('data-assignment');
+                var testId = btn.getAttribute('data-test');
+                var isBuiltIn = btn.getAttribute('data-builtin') === 'true';
+                window.startAssignmentWithPassword(assignmentId, testId, isBuiltIn);
+            });
+        }
+
         window.showStudentAssignments = async function() {
             const contentDiv = document.getElementById('question-content');
             contentDiv.classList.remove('flex', 'items-center', 'justify-center');
@@ -5706,22 +5799,27 @@
                         ${assignments.length === 0 ? '<p class="text-gray-500 text-center py-12">No assigned tests.</p>' :
                         assignments.filter(a => !a.completed).length > 0 ? `
                         <h3 class="text-lg font-bold text-gray-700 mb-3">Pending</h3>
-                        ${assignments.filter(a => !a.completed).map(a => {
-                            const name = ALL_TEST_QUESTIONS[a.testId] ? ALL_TEST_QUESTIONS[a.testId].name : a.testId;
-                            const isBuiltIn = !!ALL_TEST_QUESTIONS[a.testId];
-                            const startFn = isBuiltIn ? `loadTestQuestions('${a.testId}')` : `loadCustomTestQuestions('${a.testId}')`;
-                            const inWindow = isInTimeWindow(a);
-                            const timeInfo = a.availableFrom && a.availableTo ? `<p class="text-xs text-gray-400">Available: ${a.availableFrom} - ${a.availableTo}</p>` : '';
-                            return `<div class="bg-white rounded-xl shadow p-4 mb-3 flex justify-between items-center border-l-4 ${inWindow ? 'border-yellow-400' : 'border-gray-300'}">
-                                <div>
-                                    <p class="font-bold text-gray-800">${name}</p>
-                                    <p class="text-sm text-gray-500">Due: ${a.dueDate || 'No due date'}</p>
-                                    ${timeInfo}
-                                </div>
-                                ${inWindow
-                                    ? `<button onclick="${startFn}" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Start Test</button>`
-                                    : `<span class="text-sm text-gray-400 font-semibold">Closed</span>`}
-                            </div>`;
+                        ${assignments.filter(a => !a.completed).map(function(a) {
+                            var name = ALL_TEST_QUESTIONS[a.testId] ? ALL_TEST_QUESTIONS[a.testId].name : a.testId;
+                            var isBuiltIn = !!ALL_TEST_QUESTIONS[a.testId];
+                            var inWindow = isInTimeWindow(a);
+                            var timeInfo = a.availableFrom && a.availableTo ? '<p class="text-xs text-gray-400">Available: ' + a.availableFrom + ' - ' + a.availableTo + '</p>' : '';
+                            var pwdIcon = a.password ? '🔒 ' : '';
+                            var startBtn;
+                            if (a.password) {
+                                startBtn = '<button data-assignment="' + a.id + '" data-test="' + a.testId + '" data-builtin="' + isBuiltIn + '" class="password-start-btn px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">🔒 Start Test</button>';
+                            } else {
+                                var fn = isBuiltIn ? 'loadTestQuestions' : 'loadCustomTestQuestions';
+                                startBtn = '<button onclick="' + fn + '(\'' + a.testId + '\')" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Start Test</button>';
+                            }
+                            return '<div class="bg-white rounded-xl shadow p-4 mb-3 flex justify-between items-center border-l-4 ' + (inWindow ? 'border-yellow-400' : 'border-gray-300') + '">' +
+                                '<div>' +
+                                    '<p class="font-bold text-gray-800">' + pwdIcon + name + '</p>' +
+                                    '<p class="text-sm text-gray-500">Due: ' + (a.dueDate || 'No due date') + '</p>' +
+                                    timeInfo +
+                                '</div>' +
+                                (inWindow ? startBtn : '<span class="text-sm text-gray-400 font-semibold">Closed</span>') +
+                            '</div>';
                         }).join('')}` : ''}
                         ${assignments.filter(a => a.completed).length > 0 ? `
                         <h3 class="text-lg font-bold text-gray-700 mb-3 mt-6">Completed</h3>
@@ -5887,7 +5985,65 @@
             const hasVisibleTests = Array.isArray(visibleTests);
 
             const testList = Object.keys(ALL_TEST_QUESTIONS);
-            let examsHtml = `<div class="space-y-4">`;
+
+            // Compute student stats
+            const resultValues = Object.values(pastResults);
+            const completedTests = resultValues.length;
+            resultValues.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+            const scores = resultValues.map(r => r.totalCorrect || 0);
+            const avgScore = completedTests > 0 ? (scores.reduce((a, b) => a + b, 0) / completedTests).toFixed(1) : 'N/A';
+            const bestScore = completedTests > 0 ? Math.max(...scores) : 'N/A';
+            const weakCats = {};
+            resultValues.forEach(r => {
+                if (r.categoryScores) {
+                    Object.entries(r.categoryScores).forEach(([key, cs]) => {
+                        if (!weakCats[key]) weakCats[key] = { total: 0, correct: 0, label: cs.label || key };
+                        weakCats[key].total += cs.total || 0;
+                        weakCats[key].correct += cs.correct || 0;
+                    });
+                }
+            });
+            const weakEntries = Object.entries(weakCats).filter(([, v]) => v.total > 0 && v.correct / v.total < 0.6).sort((a, b) => (a[1].correct / a[1].total) - (b[1].correct / b[1].total)).slice(0, 4);
+            const trend = completedTests >= 2 ? (scores[0] >= scores[scores.length - 1] ? 'up' : 'down') : null;
+            const trendPct = trend && completedTests >= 2 ? Math.abs(scores[0] - scores[scores.length - 1]) : 0;
+
+            let examsHtml = '';
+            if (completedTests > 0) {
+                examsHtml += `
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                    <div class="bg-gradient-to-br from-blue-400 to-blue-600 text-white p-3 rounded-xl shadow-lg">
+                        <h3 class="text-xs font-bold opacity-80">Tests Completed</h3>
+                        <p class="text-2xl font-extrabold mt-1">${completedTests}</p>
+                    </div>
+                    <div class="bg-gradient-to-br from-green-400 to-green-600 text-white p-3 rounded-xl shadow-lg">
+                        <h3 class="text-xs font-bold opacity-80">Avg Score</h3>
+                        <p class="text-2xl font-extrabold mt-1">${avgScore}/44</p>
+                        <p class="text-xs opacity-80">${avgScore !== 'N/A' ? ((avgScore / 44) * 100).toFixed(1) + '%' : ''}</p>
+                    </div>
+                    <div class="bg-gradient-to-br from-purple-400 to-purple-600 text-white p-3 rounded-xl shadow-lg">
+                        <h3 class="text-xs font-bold opacity-80">Best Score</h3>
+                        <p class="text-2xl font-extrabold mt-1">${bestScore}/44</p>
+                    </div>
+                    <div class="bg-gradient-to-br from-indigo-400 to-indigo-600 text-white p-3 rounded-xl shadow-lg">
+                        <h3 class="text-xs font-bold opacity-80">Trend</h3>
+                        <p class="text-2xl font-extrabold mt-1">${trend === 'up' ? '↑' : trend === 'down' ? '↓' : '—'}</p>
+                        ${trend ? `<p class="text-xs opacity-80">${trendPct} pt ${trend === 'up' ? 'improvement' : 'decline'}</p>` : ''}
+                    </div>
+                </div>
+                ${weakEntries.length > 0 ? `
+                <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-3 mb-6">
+                    <p class="text-xs font-semibold text-yellow-700 mb-1.5">Focus Areas — review these topics:</p>
+                    <div class="flex flex-wrap gap-1.5">
+                        ${weakEntries.map(([key, v]) => {
+                            const pct = ((v.correct / v.total) * 100).toFixed(0);
+                            return `<a href="#" onclick="event.preventDefault(); window.renderWeakPoints();" class="px-2 py-0.5 bg-yellow-200 text-yellow-800 rounded-full text-xs font-medium hover:bg-yellow-300 transition cursor-pointer" title="${v.correct}/${v.total} correct">${v.label} ${pct}%</a>`;
+                        }).join('')}
+                    </div>
+                </div>` : ''}
+            `;
+            }
+
+            examsHtml += `<div class="space-y-4">`;
 
             for (const testId of testList) {
                 if (hasVisibleTests && !visibleTests.includes(testId)) continue;
@@ -5988,7 +6144,7 @@
             await window.loadPracticeQuizzes();
             const contentDiv = document.getElementById('question-content');
             contentDiv.classList.remove('flex', 'items-center', 'justify-center');
-            const isAdmin = window.state.role === 'admin';
+            const isAdmin = window.state.role === 'admin' || window.state.role === 'super_admin';
             const sidebar = isAdmin ? adminSidebarHtml('mini-quizzes') : teacherSidebarHtml('mini-quizzes');
             let html = `<div>
                 <div class="flex justify-between items-center mb-4">
@@ -6628,6 +6784,43 @@
             }
         };
 
+        // --- AI Study Notes Page ---
+        window.renderAiStudyNotes = async function() {
+            hideTestUIElements();
+            document.getElementById('header-test-info').textContent = 'AI Study Notes';
+            var contentDiv = document.getElementById('question-content');
+            contentDiv.classList.remove('flex', 'items-center', 'justify-center');
+            showLoading('Loading study notes...');
+            try {
+                var q = query(collection(db, "results"), where("userId", "==", userId));
+                var snap = await getDocs(q);
+                var notes = [];
+                snap.forEach(function(doc) {
+                    var d = doc.data();
+                    if (d.aiInsights) notes.push(d);
+                });
+                notes.sort(function(a, b) { return (b.timestamp || 0) - (a.timestamp || 0); });
+                var html = '<div class="max-w-4xl"><h2 class="text-2xl font-bold text-gray-800 mb-6">AI Study Notes</h2>';
+                if (notes.length === 0) {
+                    html += '<div class="bg-gray-50 rounded-xl p-8 text-center"><p class="text-gray-500 text-lg">No AI study notes yet.</p><p class="text-gray-400 text-sm mt-2">Complete a test and click "AI Study Notes" on the score report to generate personalized study notes.</p></div>';
+                } else {
+                    notes.forEach(function(d) {
+                        var testName = (ALL_TEST_QUESTIONS[d.testId] || {}).name || d.testId;
+                        var date = d.timestamp ? new Date(d.timestamp).toLocaleDateString() : '';
+                        html += '<div class="bg-white border border-purple-200 rounded-xl shadow-md p-5 mb-4">';
+                        html += '<div class="flex justify-between items-center mb-3"><h3 class="text-lg font-bold text-purple-800">' + testName + '</h3><span class="text-xs text-gray-400">' + date + '</span></div>';
+                        html += '<pre class="text-sm text-gray-700 whitespace-pre-wrap font-sans leading-relaxed">' + escapeHtml(d.aiInsights || '') + '</pre>';
+                        html += '</div>';
+                    });
+                }
+                html += '</div>';
+                contentDiv.innerHTML = sidebarWrapper(html, studentSidebarHtml('ai_notes'));
+            } catch (e) {
+                console.warn('Error loading AI study notes:', e);
+                contentDiv.innerHTML = sidebarWrapper('<p class="text-red-500 text-center">Failed to load study notes.</p>', studentSidebarHtml('ai_notes'));
+            }
+        };
+
         // --- Topic Analysis for Score Report ---
 
         const AI_TOPICS = {
@@ -6701,40 +6894,214 @@
             return questions;
         }
 
-        window.startWeakTopicQuiz = function() {
-            const analysis = analyzeWeakTopics(
+        // --- AI-Powered Weak Topic Question Generation ---
+        window.generateAiWeakTopicQuestions = async function(weakTopics) {
+            if (!weakTopics || weakTopics.length === 0) return null;
+            var topicNames = weakTopics.map(function(t) { return t.name || t.label || t; }).join(', ');
+            var prompt = 'You are an expert SAT Math question generator. Generate 5 new SAT Math practice questions targeting weak areas: ' + topicNames + '.\n\n';
+            prompt += 'Return ONLY a valid JSON array with NO extra text. Each object must have:\n';
+            prompt += '{"text":"question with $LaTeX$","type":"MC or SPR","options":["A","B","C","D"] or [],"correctAnswer":"A or numeric string","topic":"Algebra/Geometry/Trig\/Log/Data Analysis","difficulty":"Easy/Medium/Hard","explanation":"step-by-step solution"}\n\n';
+            prompt += 'Make questions realistic DSAT-style. Exactly 5 questions. Return ONLY the JSON array.';
+            try {
+                var provider = window.getAiProvider();
+                var key = localStorage.getItem('global_ai_tutor_groq_key') || localStorage.getItem('global_ai_tutor_gemini_key') || '';
+                if (!key && provider !== 'ollama') return null;
+                var reply;
+                if (provider === 'ollama') { reply = await askOllama(prompt); }
+                else if (provider === 'gemini') { reply = await askGemini(prompt); }
+                else {
+                    var groqKey = localStorage.getItem('global_ai_tutor_groq_key') || '';
+                    var model = localStorage.getItem('global_ai_tutor_groq_model') || 'llama-3.1-8b-instant';
+                    var r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                        method: 'POST',
+                        headers: { 'Authorization': 'Bearer ' + groqKey, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ model: model, messages: [{ role: 'user', content: prompt }], temperature: 0.7, max_tokens: 1500 })
+                    });
+                    if (!r.ok) return null;
+                    var data = await r.json();
+                    reply = data.choices?.[0]?.message?.content;
+                }
+                if (!reply) return null;
+                var match = reply.match(/\[[\s\S]*?\]/);
+                if (!match) return null;
+                var cleaned = match[0].replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+                var parsed = JSON.parse(cleaned);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                return null;
+            } catch (e) {
+                console.warn('AI question generation failed:', e);
+                return null;
+            }
+        };
+
+        window.startWeakTopicQuiz = async function() {
+            var analysis = analyzeWeakTopics(
                 window.state.testHistory.module1.questions || [],
                 window.state.testHistory.module1.answers || []
             );
-            const weakQuestions = generateWeakTopicQuiz(analysis.weak);
-            if (weakQuestions.length === 0) {
-                alert('Great job! No weak topics found — you\'re doing well across the board! 🎉');
+            var weakTopics = analysis.weak;
+            if (weakTopics.length === 0) {
+                alert('Great job! No weak topics found — you\'re doing well across the board!');
                 return;
             }
-            const testId = 'practice_weak_' + Date.now();
-            ALL_TEST_QUESTIONS[testId] = {
-                name: 'Personalized Practice: Weak Topics',
-                M1: weakQuestions.map((q, i) => ({
-                    id: testId + '_Q' + (i + 1),
-                    module: 1,
-                    text: q.text,
-                    type: q.type || 'MC',
-                    options: q.type === 'SPR' ? [] : (q.options || q.choices || ['', '', '', '']),
-                    correctAnswer: q.correctAnswer,
-                    difficulty: 'Medium',
-                    imageUrl: null,
-                    explanation: q.explanation || 'Review this topic to strengthen your skills!'
-                }))
-            };
-            if (weakQuestions.length > 0) {
-                window.isPracticeQuiz = true;
-                window.loadTestQuestions(testId);
+            // Try to generate questions via AI
+            var aiQuestions = await window.generateAiWeakTopicQuestions(weakTopics, window.state.categoryScores);
+            var testId = 'practice_weak_' + Date.now();
+            if (aiQuestions && aiQuestions.length > 0) {
+                ALL_TEST_QUESTIONS[testId] = {
+                    name: 'AI-Generated: Weak Topics Practice',
+                    M1: aiQuestions.map(function(q, i) {
+                        return {
+                            id: testId + '_Q' + (i + 1),
+                            module: 1,
+                            text: q.text || 'Practice question',
+                            type: q.type === 'SPR' ? 'SPR' : 'MC',
+                            options: q.type === 'SPR' ? [] : (q.options || ['', '', '', '']),
+                            correctAnswer: q.correctAnswer || 'A',
+                            difficulty: q.difficulty || 'Medium',
+                            category: (q.topic || '').toLowerCase().replace(/[^a-z]/g, ''),
+                            imageUrl: null,
+                            explanation: q.explanation || 'Review ' + (q.topic || 'this topic') + ' to strengthen your skills!'
+                        };
+                    })
+                };
+            } else {
+                // Fallback: collect questions from test bank matching weak topics
+                var weakKeys = {};
+                weakTopics.forEach(function(t) { weakKeys[t.key || t.name] = true; });
+                var bankQuestions = [];
+                Object.values(ALL_TEST_QUESTIONS).forEach(function(td) {
+                    var pool = td.M1 || td.M2E || td.M2H || [];
+                    pool.forEach(function(q) {
+                        if (bankQuestions.length >= 15) return;
+                        var qText = (q.text || '').toLowerCase();
+                        var qCat = (q.category || q.topic || '').toLowerCase();
+                        var matches = false;
+                        for (var key in weakKeys) {
+                            if (qCat.includes(key) || AI_TOPICS[key] && AI_TOPICS[key].keywords.some(function(kw) { return qText.includes(kw); })) {
+                                matches = true; break;
+                            }
+                        }
+                        if (matches) bankQuestions.push(q);
+                    });
+                });
+                // Remove duplicates by text
+                var seen = {};
+                bankQuestions = bankQuestions.filter(function(q) {
+                    var key = (q.text || '').substring(0, 50);
+                    if (seen[key]) return false;
+                    seen[key] = true;
+                    return true;
+                });
+                if (bankQuestions.length === 0) {
+                    bankQuestions = generateWeakTopicQuiz(weakTopics);
+                }
+                if (bankQuestions.length === 0) {
+                    alert('Great job! No weak topics found!');
+                    return;
+                }
+                var shuffled = bankQuestions.sort(function() { return Math.random() - 0.5; }).slice(0, 10);
+                ALL_TEST_QUESTIONS[testId] = {
+                    name: 'Personalized Practice: Weak Topics',
+                    M1: shuffled.map(function(q, i) {
+                        return {
+                            id: testId + '_Q' + (i + 1),
+                            module: 1,
+                            text: q.text,
+                            type: q.type === 'SPR' ? 'SPR' : 'MC',
+                            options: q.type === 'SPR' ? [] : (q.options || ['', '', '', '']),
+                            correctAnswer: q.correctAnswer,
+                            difficulty: q.difficulty || 'Medium',
+                            imageUrl: null,
+                            explanation: q.explanation || 'Review this topic to strengthen your skills!'
+                        };
+                    })
+                };
             }
+            window.isPracticeQuiz = true;
+            window.loadTestQuestions(testId);
         };
 
         // --- Inject AI Chat Panel into DOM ---
         // Called once during initialization
         // ============================================================
+        // --- AI Test Insights Generation ---
+        window.generateAiTestInsights = async function() {
+            var m1 = window.state.testHistory.module1;
+            var m2 = window.state.testHistory.module2;
+            if (!m1 || !m1.questions) return null;
+            var allQ = [];
+            var allA = [];
+            if (m1.questions) m1.questions.forEach(function(q, i) { allQ.push(q); allA.push(m1.answers ? m1.answers[i] : null); });
+            if (m2 && m2.questions) m2.questions.forEach(function(q, i) { allQ.push(q); allA.push(m2.answers ? m2.answers[i] : null); });
+            var wrongItems = [];
+            allQ.forEach(function(q, i) {
+                if (allA[i] && normalizeAnswer(allA[i]) !== normalizeAnswer(q.correctAnswer)) {
+                    wrongItems.push({ question: q.text, topic: q.topic || q.category || 'General', yourAnswer: allA[i], correctAnswer: q.correctAnswer, difficulty: q.difficulty || 'Medium' });
+                }
+            });
+            var catSummary = Object.entries(window.state.categoryScores || {}).map(function(e) {
+                return e[1].label + ': ' + e[1].correct + '/' + e[1].total + ' (' + (e[1].total > 0 ? Math.round(e[1].correct / e[1].total * 100) : 0) + '%)';
+            }).join('\n');
+            var totalCorrect = (m1.score || 0) + (m2 ? m2.score || 0 : 0);
+            var totalQs = allQ.length;
+            var testName = (ALL_TEST_QUESTIONS[window.state.currentTestId] || {}).name || window.state.currentTestId;
+
+            var prompt = 'You are an expert SAT Math tutor. Analyze this student\'s test performance and provide:\n';
+            prompt += '1. Key weak areas (specific topics to focus on)\n';
+            prompt += '2. Study recommendations (what to review and how)\n';
+            prompt += '3. Encouraging feedback\n\n';
+            prompt += 'Test: ' + testName + '\n';
+            prompt += 'Score: ' + totalCorrect + '/' + totalQs + ' (' + (totalQs > 0 ? Math.round(totalCorrect / totalQs * 100) : 0) + '%)\n\n';
+            prompt += 'Category Breakdown:\n' + catSummary + '\n\n';
+            if (wrongItems.length > 0) {
+                prompt += 'Incorrect Questions:\n';
+                wrongItems.slice(0, 8).forEach(function(w) {
+                    prompt += '- Topic: ' + w.topic + ' | Question: ' + w.question.replace(/<[^>]*>/g, '').substring(0, 100) + ' | Your: ' + w.yourAnswer + ' | Correct: ' + w.correctAnswer + '\n';
+                });
+            }
+            prompt += '\nFormat your response in clear sections with bullet points. Keep it concise and actionable. Use plain text only, no markdown.';
+
+            try {
+                var provider = window.getAiProvider();
+                var reply;
+                if (provider === 'ollama') { reply = await askOllama(prompt); }
+                else if (provider === 'gemini') { reply = await askGemini(prompt); }
+                else { reply = await askGroq(prompt); }
+                return reply || 'AI analysis unavailable. Please check your AI provider settings.';
+            } catch (e) {
+                console.warn('AI insights generation failed:', e);
+                return null;
+            }
+        };
+
+        // Save AI insights to Firestore and display on score report
+        window.saveAndShowAiInsights = async function() {
+            var container = document.getElementById('score-card-container');
+            var existing = document.getElementById('ai-insights-section');
+            if (existing) existing.remove();
+            var placeholder = document.createElement('div');
+            placeholder.id = 'ai-insights-section';
+            placeholder.className = 'bg-gradient-to-br from-purple-50 to-indigo-50 border-t-4 border-purple-500 rounded-xl p-6 shadow-md';
+            placeholder.innerHTML = '<div class="text-center py-4"><div class="inline-block w-6 h-6 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div><p class="text-purple-700 font-semibold mt-2">AI is analyzing your performance...</p></div>';
+            container.appendChild(placeholder);
+            var insights = await window.generateAiTestInsights();
+            if (insights) {
+                placeholder.innerHTML = '<h3 class="text-xl font-bold text-purple-800 mb-3">AI Study Notes</h3><pre class="text-sm text-gray-700 whitespace-pre-wrap font-sans leading-relaxed">' + escapeHtml(insights) + '</pre>';
+                // Save to Firestore for later reference
+                try {
+                    var testId = window.state.currentTestId;
+                    var existingResults = await getDocs(query(collection(db, "results"), where("userId", "==", userId), where("testId", "==", testId), orderBy("timestamp", "desc"), limit(1)));
+                    if (!existingResults.empty) {
+                        var docRef = existingResults.docs[0].ref;
+                        await updateDoc(docRef, { aiInsights: insights, aiInsightsGeneratedAt: serverTimestamp() });
+                    }
+                } catch (e) { console.warn('Could not save AI insights to Firestore:', e); }
+            } else {
+                placeholder.innerHTML = '<h3 class="text-xl font-bold text-purple-800 mb-3">AI Study Notes</h3><p class="text-gray-500">AI analysis could not be generated. <button onclick="window.saveAndShowAiInsights()" class="text-purple-600 underline font-semibold">Try again</button></p>';
+            }
+        };
+
         // Hint system (5 hints per session — uses AI Tutor screen)
         // ============================================================
         window.hintPoints = 5;
@@ -7088,7 +7455,7 @@
                         <button onclick="window.saveAiTutorAdminSettings()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold">Save</button>
                     </div>
                 </div>`;
-            const sidebar = window.state.role === 'admin' ? adminSidebarHtml('ai_tutor') : teacherSidebarHtml('ai_tutor');
+            const sidebar = (window.state.role === 'admin' || window.state.role === 'super_admin') ? adminSidebarHtml('ai_tutor') : teacherSidebarHtml('ai_tutor');
             contentDiv.innerHTML = sidebarWrapper(content, sidebar);
 
             document.getElementById('admin-ai-provider').addEventListener('change', function() {
@@ -7429,8 +7796,18 @@
               try {
               let result = providedResult;
               if (!result) {
-                  const results = await window.fetchPastResults();
-                  result = results[testId];
+                  // Get latest result for this testId (avoid stale cached data)
+                  const allSnap = await getDocs(query(collection(db, "results"), where("userId", "==", userId)));
+                  var latest = null;
+                  var latestTs = 0;
+                  allSnap.forEach(function(d) {
+                      var d2 = d.data();
+                      if (d2.testId === testId && (d2.timestamp || 0) > latestTs) {
+                          latest = d2;
+                          latestTs = d2.timestamp || 0;
+                      }
+                  });
+                  result = latest;
               }
               
               if (!result || (!result.answers && !result.testHistory?.module1?.answers)) {
@@ -8197,12 +8574,13 @@
                         </div>
                     </div>
                     
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8 max-w-3xl mx-auto">
-                        <button id="save-result-btn" onclick="saveTestResult()"
-                            class="px-5 py-3 bg-gradient-to-r from-green-500 to-green-700 text-white text-lg font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150">
-                            Save Result
-                        </button>
-
+                    <div id="auto-save-status" class="text-center mt-4 mb-2 bg-blue-50 rounded-lg p-3 border border-blue-200">
+                        <span id="save-status-text" class="text-sm text-blue-700 inline-flex items-center gap-2 font-semibold">
+                            <span class="inline-block w-3 h-3 rounded-full bg-blue-400"></span>
+                            Auto-saving results...
+                        </span>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2 max-w-3xl mx-auto">
                         <button onclick="window.printScoreReport()"
                             class="px-5 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-lg font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150">
                             Print / Export
@@ -8217,6 +8595,11 @@
                         <button onclick="startReviewMode('post_exam')" 
                                 class="px-5 py-3 bg-gradient-to-r from-indigo-500 to-indigo-700 text-white text-lg font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150">
                             Review Questions
+                        </button>
+
+                        <button onclick="window.saveAndShowAiInsights()"
+                            class="px-5 py-3 bg-gradient-to-r from-purple-500 to-purple-700 text-white text-lg font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition duration-150">
+                            AI Study Notes
                         </button>
 
                         <button onclick="window.navigateToHome()"
@@ -8325,6 +8708,12 @@
                     window.isPracticeQuiz = false;
                     try {
                         renderScoreReport(correctCount, percentage, qCount);
+                        // Auto-save on next microtask
+                        Promise.resolve().then(function() {
+                            return window.saveTestResult();
+                        }).catch(function(e) {
+                            console.warn('Auto-save failed:', e);
+                        });
                     } catch (e) {
                         console.error('Score report error:', e);
                         document.getElementById('question-content').innerHTML = `
@@ -8403,6 +8792,12 @@
                 const finalScorePercentage = (totalCorrect / totalQuestions) * 100;
 
                 renderScoreReport(totalCorrect, finalScorePercentage, totalQuestions);
+                // Auto-save on next microtask
+                Promise.resolve().then(function() {
+                    return window.saveTestResult();
+                }).catch(function(e) {
+                    console.warn('Auto-save failed:', e);
+                });
                 saveState();
             }
         }
@@ -8485,8 +8880,11 @@
             showLoading('Loading results...');
 
             try {
-                const q = query(collection(db, "results")); 
-                const querySnapshot = await getDocs(q);
+                const [querySnapshot, usersSnap, assignmentsSnap] = await Promise.all([
+                    getDocs(query(collection(db, "results"))),
+                    getDocs(collection(db, "users")),
+                    getDocs(collection(db, "test_assignments"))
+                ]);
                 
                 let allResults = [];
                 querySnapshot.forEach((doc) => {
@@ -8494,10 +8892,51 @@
                     data.id = doc.id;
                     allResults.push(data);
                 });
+                let presenceMap = {};
+                let userPhoneMap = {};
+                usersSnap.forEach(function(d) {
+                    var u = d.data();
+                    presenceMap[d.id] = { isOnline: u.isOnline, lastSeen: u.lastSeen };
+                    userPhoneMap[d.id] = { parentPhone: u.parentPhone || '', studentPhone: u.studentPhone || '' };
+                });
                 
+                // Build a set of testId|studentId for assigned tests
+                var assignedTests = new Set();
+                assignmentsSnap.forEach(function(d) {
+                    var ad = d.data();
+                    if (ad.testId && ad.studentId) assignedTests.add(ad.testId + '|' + ad.studentId);
+                });
+
                 allResults.sort((a, b) => b.timestamp - a.timestamp);
 
                 if (!window.tempStudentResults) window.tempStudentResults = {};
+
+                // Compute stats
+                const totalStudents = new Set(allResults.map(r => r.studentName)).size;
+                const totalTests = allResults.length;
+                const avgScore = totalTests > 0 ? (allResults.reduce((s, r) => s + (r.totalCorrect || 0), 0) / totalTests).toFixed(1) : 'N/A';
+                const avgPct = avgScore !== 'N/A' ? ((avgScore / 44) * 100).toFixed(1) : 'N/A';
+                const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+                const testsThisWeek = allResults.filter(r => r.timestamp > oneWeekAgo).length;
+                const studentRoster = [];
+                const studentMap = {};
+                allResults.forEach(r => {
+                    const name = r.studentName || 'Unknown';
+                    if (!studentMap[name]) studentMap[name] = { scores: [], count: 0, lastDate: 0 };
+                    studentMap[name].scores.push(r.totalCorrect || 0);
+                    studentMap[name].count++;
+                    studentMap[name].lastDate = Math.max(studentMap[name].lastDate, r.timestamp || 0);
+                });
+                Object.entries(studentMap).forEach(([name, data]) => {
+                    const avg = (data.scores.reduce((a, b) => a + b, 0) / data.scores.length).toFixed(1);
+                    studentRoster.push({ name, count: data.count, avg, lastDate: data.lastDate ? new Date(data.lastDate).toLocaleDateString() : 'N/A' });
+                });
+                studentRoster.sort((a, b) => b.count - a.count);
+
+                // Recent scores for trend chart (last 20 results)
+                const recentResults = allResults.slice(0, 20).reverse();
+                const chartLabels = recentResults.map(r => r.studentName || '?');
+                const chartScores = recentResults.map(r => r.totalCorrect || 0);
 
                 const teacherContent = `
                     <div class="max-w-7xl">
@@ -8509,6 +8948,47 @@
                             <button onclick="window.exportTeacherData()" class="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-semibold">Export Data</button>
                         </div>
 
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                            <div class="bg-gradient-to-br from-blue-400 to-blue-600 text-white p-4 rounded-xl shadow-lg">
+                                <h3 class="text-xs font-bold opacity-80">Students</h3>
+                                <p class="text-2xl font-extrabold mt-1">${totalStudents}</p>
+                            </div>
+                            <div class="bg-gradient-to-br from-green-400 to-green-600 text-white p-4 rounded-xl shadow-lg">
+                                <h3 class="text-xs font-bold opacity-80">Tests Taken</h3>
+                                <p class="text-2xl font-extrabold mt-1">${totalTests}</p>
+                            </div>
+                            <div class="bg-gradient-to-br from-purple-400 to-purple-600 text-white p-4 rounded-xl shadow-lg">
+                                <h3 class="text-xs font-bold opacity-80">Avg Score</h3>
+                                <p class="text-2xl font-extrabold mt-1">${avgScore}/44</p>
+                                <p class="text-xs opacity-80">${avgPct}%</p>
+                            </div>
+                            <div class="bg-gradient-to-br from-indigo-400 to-indigo-600 text-white p-4 rounded-xl shadow-lg">
+                                <h3 class="text-xs font-bold opacity-80">This Week</h3>
+                                <p class="text-2xl font-extrabold mt-1">${testsThisWeek}</p>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div class="bg-white rounded-xl shadow-lg p-4">
+                                <h3 class="text-sm font-bold text-gray-700 mb-2">Recent Scores</h3>
+                                <canvas id="teacher-trend-chart" height="100"></canvas>
+                            </div>
+                            <div class="bg-white rounded-xl shadow-lg p-4">
+                                <h3 class="text-sm font-bold text-gray-700 mb-2">Student Roster</h3>
+                                <div class="max-h-32 overflow-y-auto space-y-1">
+                                    ${studentRoster.slice(0, 10).map(s => `
+                                    <div class="flex justify-between items-center text-sm px-2 py-1 bg-gray-50 rounded">
+                                        <span class="font-medium text-gray-700">${s.name}</span>
+                                        <div class="text-xs">
+                                            <span class="text-blue-600 font-bold">${s.avg}/44</span>
+                                            <span class="text-gray-400 ml-2">${s.count} test${s.count > 1 ? 's' : ''}</span>
+                                        </div>
+                                    </div>`).join('')}
+                                    ${studentRoster.length > 10 ? `<p class="text-xs text-gray-400 text-center pt-1">+${studentRoster.length - 10} more students</p>` : ''}
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="mb-4">
                             <input type="text" id="teacher-search-input" placeholder="Search by student name, test ID, or phone..." oninput="window.filterTeacherTable()" class="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
                         </div>
@@ -8518,6 +8998,7 @@
                                 <thead>
                                     <tr class="bg-blue-600 text-white text-left text-xs font-semibold uppercase tracking-wider">
                                         <th class="px-3 py-2 border-b-2 border-gray-200">Student</th>
+                                        <th class="px-3 py-2 border-b-2 border-gray-200">Status</th>
                                         <th class="px-3 py-2 border-b-2 border-gray-200">Test</th>
                                         <th class="px-3 py-2 border-b-2 border-gray-200">Score</th>
                                         <th class="px-3 py-2 border-b-2 border-gray-200">Accuracy</th>
@@ -8537,7 +9018,7 @@
                 const resultsContainer = document.getElementById('teacher-results-body');
                 
                 if (allResults.length === 0) {
-                    resultsContainer.innerHTML = '<tr><td colspan="8" class="text-center py-4">No results found.</td></tr>';
+                    resultsContainer.innerHTML = '<tr><td colspan="9" class="text-center py-4">No results found.</td></tr>';
                     return;
                 }
 
@@ -8556,16 +9037,23 @@
                     const diffLabel = m2Diff === 'M2H' ? 'Hard' : 'Easy';
                     const diffColor = m2Diff === 'M2H' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700';
                     const dateStr = data.timestamp ? new Date(data.timestamp).toLocaleDateString() + ' ' + new Date(data.timestamp).toLocaleTimeString() : 'N/A';
-                    const parentPhone = data.parentPhone || '';
+                    const parentPhone = data.parentPhone || (userPhoneMap[data.userId] && userPhoneMap[data.userId].parentPhone) || '';
+                    const studentPhone = data.studentPhone || (userPhoneMap[data.userId] && userPhoneMap[data.userId].studentPhone) || '';
                     const weak = getWeakTopics(data.categoryScores);
 
                     const row = document.createElement('tr');
                     row.className = "hover:bg-blue-50 transition-colors border-b border-gray-100 cursor-pointer";
                     row.onclick = function() { showTeacherReportModal(data.id); };
                     
+                    var p = presenceMap[data.userId];
+                    var statusHtml = p && p.isOnline
+                        ? '<span class="inline-block w-2 h-2 rounded-full bg-green-500" title="Online now"></span><span class="text-xs text-green-600 ml-1">Active</span>'
+                        : '<span class="inline-block w-2 h-2 rounded-full bg-gray-300" title="Offline"></span><span class="text-xs text-gray-400 ml-1">' + (p && p.lastSeen ? timeAgo(p.lastSeen) : '—') + '</span>';
+
                     row.innerHTML = `
                         <td class="px-3 py-4 text-sm font-semibold text-gray-900">${studentName}</td>
-                        <td class="px-3 py-4 text-sm text-gray-600 font-medium">${testName}</td>
+                        <td class="px-3 py-4 text-sm">${statusHtml}</td>
+                        <td class="px-3 py-4 text-sm text-gray-600 font-medium">${testName}${assignedTests.has(data.testId + '|' + data.userId) ? ' <span class="ml-1 px-1.5 py-0.5 bg-yellow-100 text-yellow-800 rounded text-xs font-bold">📋 Assigned</span>' : ' <span class="ml-1 px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">✏️ Practice</span>'}</td>
                         <td class="px-3 py-4 text-sm">
                             <span class="font-bold text-blue-700">${totalScore}/${totalQ}</span>
                             <div class="text-xs text-gray-400">M1: ${m1Score} | M2: ${m2Score}</div>
@@ -8589,9 +9077,15 @@
                             <div class="flex items-center justify-center space-x-1.5">
                                 ${parentPhone ? `
                                 <button onclick="sendParentWhatsApp('${parentPhone}', '${studentName}', '${testName}', '${totalScore}', '${totalQ}', '${m1Score}', '${m2Score}', '${pct}', '${weak.join(', ')}')" 
-                                        class="inline-flex items-center px-2 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg transition duration-150 shadow-sm text-xs font-bold" title="Send WhatsApp Report">
+                                        class="inline-flex items-center px-2 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg transition duration-150 shadow-sm text-xs font-bold" title="Send WhatsApp Report to Parent">
                                     <svg class="w-3.5 h-3.5 mr-1" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.095 3.2 5.076 4.487.709.306 1.262.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
-                                    WhatsApp
+                                    Parent
+                                </button>` : ''}
+                                ${studentPhone ? `
+                                <button onclick="sendStudentWhatsApp('${studentPhone}', '${studentName}')" 
+                                        class="inline-flex items-center px-2 py-1.5 bg-teal-500 hover:bg-teal-600 text-white rounded-lg transition duration-150 shadow-sm text-xs font-bold" title="Contact Student via WhatsApp">
+                                    <svg class="w-3.5 h-3.5 mr-1" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.095 3.2 5.076 4.487.709.306 1.262.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
+                                    Student
                                 </button>` : ''}
                                 <button onclick="showTeacherReportModal('${data.id}')" 
                                         class="inline-flex items-center px-2 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition duration-150 shadow-sm text-xs font-bold" title="View Details">
@@ -8606,6 +9100,34 @@
                     `;
                     resultsContainer.appendChild(row);
                 });
+
+                // Render teacher trend chart
+                setTimeout(function() {
+                    if (typeof Chart === 'undefined') return;
+                    var ctx = document.getElementById('teacher-trend-chart');
+                    if (!ctx) return;
+                    new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: chartLabels,
+                            datasets: [{
+                                label: 'Score /44',
+                                data: chartScores,
+                                backgroundColor: chartScores.map(function(s) { return s >= 31 ? 'rgba(16,185,129,0.7)' : s >= 18 ? 'rgba(245,158,11,0.7)' : 'rgba(239,68,68,0.7)'; }),
+                                borderRadius: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: true,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                y: { beginAtZero: true, max: 44, ticks: { stepSize: 11 } },
+                                x: { ticks: { font: { size: 9 }, maxRotation: 45 } }
+                            }
+                        }
+                    });
+                }, 100);
 
             } catch (e) {
                 console.error("Error loading dashboard data:", e);
@@ -8639,6 +9161,17 @@
                 `Module 1: ${m1 || '?'}/22 | Module 2: ${m2 || '?'}/22${weakLine}\n\n` +
                 `For more details, please contact the teacher.`;
             
+            const encodedMessage = encodeURIComponent(message);
+            const whatsappUrl = `https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodedMessage}`;
+            window.open(whatsappUrl, '_blank');
+        }
+
+        window.sendStudentWhatsApp = function(phone, studentName) {
+            if (!phone) {
+                alert("No phone number available for this student.");
+                return;
+            }
+            const message = `Hello ${studentName}, this is your teacher from Dr.Joe Platform. I'm checking in on your progress. Please review your recent test results and let me know if you need any help with your SAT Math preparation.`;
             const encodedMessage = encodeURIComponent(message);
             const whatsappUrl = `https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodedMessage}`;
             window.open(whatsappUrl, '_blank');
@@ -8707,6 +9240,7 @@ window.bulkApproveUsers = async function() {
             await updateDoc(doc(db, "users", id), { status: 'approved' });
         } catch (e) { console.warn('Approve failed for', id, e); }
     }
+    window.logAdminAction('Bulk Approve', 'Approved ' + ids.length + ' users: ' + ids.join(', '));
     window.showSuccess(ids.length + " user(s) approved.");
     window.renderAdminDashboard();
     return;
@@ -8719,6 +9253,7 @@ window.bulkRejectUsers = async function() {
     for (const id of ids) {
         try { await updateDoc(doc(db, "users", id), { status: 'rejected' }); } catch (e) { console.warn('Reject failed for', id, e); }
     }
+    window.logAdminAction('Bulk Reject', 'Rejected ' + ids.length + ' users: ' + ids.join(', '));
     window.showSuccess(ids.length + " user(s) rejected.");
     window.renderAdminDashboard();
     return;
@@ -8744,6 +9279,7 @@ window.bulkDeleteUsers = async function() {
             failed++;
         }
     }
+    window.logAdminAction('Bulk Delete', 'Deleted ' + success + ' users' + (failed ? ' (' + failed + ' failed)' : ''));
     window.showSuccess(success + " user(s) deleted." + (failed ? ` ${failed} failed.` : ''));
     window.renderAdminDashboard();
     return;
@@ -8781,15 +9317,16 @@ function sidebarWrapper(content, sidebarHtml) {
 
 function adminSidebarHtml(active) {
     const items = [
-        { id: 'dashboard', label: 'Dashboard', action: 'window.renderAdminDashboard()' },
-        { id: 'users', label: 'User Management', action: 'window.renderAdminDashboard()' },
-        { id: 'create', label: 'Create Test', action: 'window.showTeacherTestCreationPanel()' },
-        { id: 'testbank', label: 'Test Bank', action: 'window.manageTestBank()' },
-        { id: 'testaccess', label: 'Test Access', action: 'window.manageStudentTestAccess()' },
-        { id: 'mini-quizzes', label: 'Mini-Quizzes', action: 'window.showQuizManager()' },
-        { id: 'logs', label: 'System Logs', action: 'window.viewSystemLogs()' },
+        { id: 'dashboard', label: '📊 Dashboard', action: 'window.renderAdminDashboard()' },
+        { id: 'users', label: '👥 User Management', action: 'window.renderAdminDashboard()' },
+        { id: 'create', label: '✏️ Create Test', action: 'window.showTeacherTestCreationPanel()' },
+        { id: 'testbank', label: '📝 Test Bank', action: 'window.manageTestBank()' },
+        { id: 'testaccess', label: '🔐 Test Access', action: 'window.manageStudentTestAccess()' },
+        { id: 'mini-quizzes', label: '⚡ Mini-Quizzes', action: 'window.showQuizManager()' },
+        { id: 'activity', label: '📋 Activity Log', action: 'window.viewAdminActivityLog()' },
+        { id: 'logs', label: '📟 System Logs', action: 'window.viewSystemLogs()' },
         { id: 'ai_tutor', label: '🤖 AI Tutor Settings', action: 'window.showAiTutorAdminSettings()' },
-        { id: 'settings', label: 'Settings', action: 'window.systemSettings()' },
+        { id: 'settings', label: '⚙️ Settings', action: 'window.systemSettings()' },
         { id: 'ebooks', label: '📚 E-Books', action: 'window.renderEbookManager()' },
     ];
     return `
@@ -8842,6 +9379,7 @@ function studentSidebarHtml(active) {
         { id: 'weak_points', label: '📉 Weak Points', action: 'window.renderWeakPoints()' },
         { id: 'ai_tutor', label: '🤖 AI Tutor', action: 'window.renderAITutor()' },
         { id: 'ai_analysis', label: '📊 AI Score Analysis', action: 'window.showAiScoreAnalysis()' },
+        { id: 'ai_notes', label: '📓 AI Study Notes', action: 'window.renderAiStudyNotes()' },
         { id: 'sat-calculator', label: '🧮 SAT Calculator', action: 'window.renderSatCalculator()' },
         { id: 'progress', label: '📈 My Progress', action: 'window.showProgressChart()' },
         { id: 'analytics', label: '📊 Analytics', action: 'window.showTestAnalytics()' },
@@ -8867,6 +9405,20 @@ function studentSidebarHtml(active) {
 // Admin Dashboard and Teacher Test Creation Features
 // This module is injected into renderer.js
 
+function timeAgo(ts) {
+    if (!ts) return 'Never';
+    var d = ts.toDate ? ts.toDate() : new Date(ts);
+    var seconds = Math.floor((Date.now() - d) / 1000);
+    if (seconds < 60) return 'Just now';
+    var minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return minutes + 'm ago';
+    var hours = Math.floor(minutes / 60);
+    if (hours < 24) return hours + 'h ago';
+    var days = Math.floor(hours / 24);
+    if (days < 7) return days + 'd ago';
+    return d.toLocaleDateString();
+}
+
 window.renderAdminDashboard = async function() {
     window.state.appStage = 'admin_dashboard';
     hideTestUIElements();
@@ -8877,14 +9429,60 @@ window.renderAdminDashboard = async function() {
     showLoading('Loading admin dashboard...');
 
     try {
-        // Fetch all users
-        const usersSnapshot = await getDocs(collection(db, "users"));
+        // Fetch all users + results + tests in parallel
+        const [usersSnapshot, resultsSnapshot, testsSnapshot] = await Promise.all([
+            getDocs(collection(db, "users")),
+            getDocs(collection(db, "results")),
+            getDocs(collection(db, "tests"))
+        ]);
         let allUsers = [];
         usersSnapshot.forEach((doc) => {
             const data = doc.data();
             data.id = doc.id;
             allUsers.push(data);
         });
+        let allResults = [];
+        resultsSnapshot.forEach((doc) => {
+            const data = doc.data();
+            data.id = doc.id;
+            allResults.push(data);
+        });
+
+        // Compute test analytics
+        const totalTestsTaken = allResults.length;
+        const avgScore = totalTestsTaken > 0 ? (allResults.reduce((s, r) => s + (r.totalCorrect || 0), 0) / totalTestsTaken).toFixed(1) : 'N/A';
+        const passCount = allResults.filter(r => (r.totalCorrect || 0) >= 31).length;
+        const passRate = totalTestsTaken > 0 ? ((passCount / totalTestsTaken) * 100).toFixed(1) : 'N/A';
+        const categoryAgg = {};
+        allResults.forEach(r => {
+            if (r.categoryScores) {
+                Object.entries(r.categoryScores).forEach(([key, cs]) => {
+                    if (!categoryAgg[key]) categoryAgg[key] = { total: 0, correct: 0, label: cs.label || key };
+                    categoryAgg[key].total += cs.total || 0;
+                    categoryAgg[key].correct += cs.correct || 0;
+                });
+            }
+        });
+        const weakTopics = Object.entries(categoryAgg)
+            .filter(([, v]) => v.total > 0 && v.correct / v.total < 0.6)
+            .sort((a, b) => (a[1].correct / a[1].total) - (b[1].correct / b[1].total))
+            .slice(0, 5);
+        const studentCount = allUsers.filter(u => u.role === 'student').length;
+        const activeStudents = new Set(allResults.filter(r => r.studentName).map(r => r.studentName)).size;
+
+        // Teacher activity
+        let allTests = [];
+        testsSnapshot.forEach(d => allTests.push({ id: d.id, ...d.data() }));
+        const teacherTests = {};
+        allTests.forEach(t => {
+            const uid = t.createdBy || t.teacherId || 'unknown';
+            if (!teacherTests[uid]) teacherTests[uid] = { count: 0, names: [] };
+            teacherTests[uid].count++;
+            teacherTests[uid].names.push(t.name || t.id);
+        });
+        const teacherList = allUsers.filter(u => u.role === 'teacher');
+        const teachersWithTests = teacherList.filter(t => teacherTests[t.id]);
+        const teachersWithoutTests = teacherList.filter(t => !teacherTests[t.id]);
 
         const dashboardContent = `
             <div class="max-w-7xl">
@@ -8893,18 +9491,97 @@ window.renderAdminDashboard = async function() {
                     <p class="text-gray-500 mt-1 dark:text-gray-400">User Management & Platform Control</p>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    <div class="bg-gradient-to-br from-blue-400 to-blue-600 text-white p-5 rounded-xl shadow-lg">
-                        <h3 class="text-sm font-bold opacity-80">Total Users</h3>
-                        <p class="text-3xl font-extrabold mt-1">${allUsers.length}</p>
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+                    <div class="bg-gradient-to-br from-blue-400 to-blue-600 text-white p-4 rounded-xl shadow-lg">
+                        <h3 class="text-xs font-bold opacity-80">Total Users</h3>
+                        <p class="text-2xl font-extrabold mt-1">${allUsers.length}</p>
                     </div>
-                    <div class="bg-gradient-to-br from-green-400 to-green-600 text-white p-5 rounded-xl shadow-lg">
-                        <h3 class="text-sm font-bold opacity-80">Students</h3>
-                        <p class="text-3xl font-extrabold mt-1">${allUsers.filter(u => u.role === 'student').length}</p>
+                    <div class="bg-gradient-to-br from-green-400 to-green-600 text-white p-4 rounded-xl shadow-lg">
+                        <h3 class="text-xs font-bold opacity-80">Students</h3>
+                        <p class="text-2xl font-extrabold mt-1">${allUsers.filter(u => u.role === 'student').length}</p>
                     </div>
-                    <div class="bg-gradient-to-br from-purple-400 to-purple-600 text-white p-5 rounded-xl shadow-lg">
-                        <h3 class="text-sm font-bold opacity-80">Teachers</h3>
-                        <p class="text-3xl font-extrabold mt-1">${allUsers.filter(u => u.role === 'teacher').length}</p>
+                    <div class="bg-gradient-to-br from-purple-400 to-purple-600 text-white p-4 rounded-xl shadow-lg">
+                        <h3 class="text-xs font-bold opacity-80">Teachers</h3>
+                        <p class="text-2xl font-extrabold mt-1">${allUsers.filter(u => u.role === 'teacher').length}</p>
+                    </div>
+                    <div class="bg-gradient-to-br from-red-400 to-red-600 text-white p-4 rounded-xl shadow-lg">
+                        <h3 class="text-xs font-bold opacity-80">Admins</h3>
+                        <p class="text-2xl font-extrabold mt-1">${allUsers.filter(u => u.role === 'admin' || u.role === 'super_admin').length}</p>
+                    </div>
+                    <div class="bg-gradient-to-br from-yellow-400 to-yellow-600 text-white p-4 rounded-xl shadow-lg">
+                        <h3 class="text-xs font-bold opacity-80">Pending</h3>
+                        <p class="text-2xl font-extrabold mt-1">${allUsers.filter(u => u.status === 'pending').length}</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div class="bg-white rounded-xl shadow-lg p-4">
+                        <h3 class="text-sm font-bold text-gray-700 mb-2">Users by Role</h3>
+                        <canvas id="role-chart" height="120"></canvas>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-lg p-4">
+                        <h3 class="text-sm font-bold text-gray-700 mb-2">Users by Status</h3>
+                        <canvas id="status-chart" height="120"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-lg p-4 mb-6">
+                    <h3 class="text-sm font-bold text-gray-700 mb-3">Test Analytics</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+                        <div class="bg-blue-50 rounded-lg p-3 text-center">
+                            <p class="text-xs text-gray-500 font-semibold">Tests Taken</p>
+                            <p class="text-xl font-extrabold text-blue-700">${totalTestsTaken}</p>
+                        </div>
+                        <div class="bg-green-50 rounded-lg p-3 text-center">
+                            <p class="text-xs text-gray-500 font-semibold">Avg Score</p>
+                            <p class="text-xl font-extrabold text-green-700">${avgScore}${avgScore !== 'N/A' ? '/44' : ''}</p>
+                        </div>
+                        <div class="bg-purple-50 rounded-lg p-3 text-center">
+                            <p class="text-xs text-gray-500 font-semibold">Pass Rate (≥31)</p>
+                            <p class="text-xl font-extrabold text-purple-700">${passRate}${passRate !== 'N/A' ? '%' : ''}</p>
+                        </div>
+                        <div class="bg-indigo-50 rounded-lg p-3 text-center">
+                            <p class="text-xs text-gray-500 font-semibold">Active Students</p>
+                            <p class="text-xl font-extrabold text-indigo-700">${activeStudents}/${studentCount}</p>
+                        </div>
+                    </div>
+                    ${weakTopics.length > 0 ? `
+                    <div>
+                        <p class="text-xs font-semibold text-gray-500 mb-1">Most Challenging Topics</p>
+                        <div class="flex flex-wrap gap-1.5">
+                            ${weakTopics.map(([key, v]) => {
+                                const pct = ((v.correct / v.total) * 100).toFixed(0);
+                                return `<span class="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-medium" title="${v.label}: ${v.correct}/${v.total} correct (${pct}%)">${v.label} ${pct}%</span>`;
+                            }).join('')}
+                        </div>
+                    </div>` : ''}
+                </div>
+
+                <div class="bg-white rounded-xl shadow-lg p-4 mb-6">
+                    <h3 class="text-sm font-bold text-gray-700 mb-3">Teacher Activity</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <p class="text-xs font-semibold text-gray-500 mb-2">Teachers with Tests (${teachersWithTests.length})</p>
+                            ${teachersWithTests.length > 0 ? `
+                            <div class="space-y-1 max-h-32 overflow-y-auto">
+                                ${teachersWithTests.map(t => {
+                                    const info = teacherTests[t.id];
+                                    return `<div class="flex justify-between items-center text-sm px-2 py-1 bg-blue-50 rounded">
+                                        <span class="font-medium text-gray-700">${t.displayName || t.email}</span>
+                                        <span class="text-xs font-bold text-blue-600">${info.count} test${info.count > 1 ? 's' : ''}</span>
+                                    </div>`;
+                                }).join('')}
+                            </div>` : '<p class="text-sm text-gray-400 italic">No teachers have created tests yet.</p>'}
+                        </div>
+                        <div>
+                            <p class="text-xs font-semibold text-gray-500 mb-2">Teachers without Tests (${teachersWithoutTests.length})</p>
+                            ${teachersWithoutTests.length > 0 ? `
+                            <div class="space-y-1 max-h-32 overflow-y-auto">
+                                ${teachersWithoutTests.map(t => `
+                                <div class="flex items-center text-sm px-2 py-1 bg-gray-50 rounded">
+                                    <span class="text-gray-600">${t.displayName || t.email}</span>
+                                </div>`).join('')}
+                            </div>` : '<p class="text-sm text-gray-400 italic">All teachers have created tests.</p>'}
+                        </div>
                     </div>
                 </div>
 
@@ -8918,7 +9595,20 @@ window.renderAdminDashboard = async function() {
                             </div>
                         </div>
                         <div class="p-3 border-b border-gray-200 flex flex-wrap gap-2 items-center">
-                            <input type="text" id="admin-search-input" placeholder="Search by email, name, role, phone, or status..." oninput="window.filterAdminTable()" class="flex-1 min-w-[200px] p-2 border border-gray-300 rounded-lg bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                            <input type="text" id="admin-search-input" placeholder="Search by email, name, phone, or status..." oninput="window.filterAdminTable()" class="flex-1 min-w-[150px] p-2 border border-gray-300 rounded-lg bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                            <select id="admin-role-filter" onchange="window.filterAdminTable()" class="p-2 border border-gray-300 rounded-lg bg-white text-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="">All Roles</option>
+                                <option value="super_admin">Super Admin</option>
+                                <option value="admin">Admin</option>
+                                <option value="teacher">Teacher</option>
+                                <option value="student">Student</option>
+                            </select>
+                            <select id="admin-status-filter" onchange="window.filterAdminTable()" class="p-2 border border-gray-300 rounded-lg bg-white text-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="">All Statuses</option>
+                                <option value="approved">Approved</option>
+                                <option value="pending">Pending</option>
+                                <option value="rejected">Rejected</option>
+                            </select>
                             <button onclick="window.bulkApproveUsers()" class="px-3 py-1.5 bg-green-500 text-white rounded-lg hover:bg-green-600 text-xs font-semibold disabled:opacity-40" id="bulk-approve-btn">Approve Selected</button>
                             <button onclick="window.bulkRejectUsers()" class="px-3 py-1.5 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 text-xs font-semibold disabled:opacity-40" id="bulk-reject-btn">Reject Selected</button>
                             <button onclick="window.bulkDeleteUsers()" class="px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 text-xs font-semibold disabled:opacity-40" id="bulk-delete-btn">Delete Selected</button>
@@ -8934,6 +9624,7 @@ window.renderAdminDashboard = async function() {
                                         <th class="px-4 py-2">Student Phone</th>
                                         <th class="px-4 py-2">Parent Phone</th>
                                         <th class="px-4 py-2">Status</th>
+                                        <th class="px-4 py-2">Online</th>
                                         <th class="px-4 py-2 text-center">Actions</th>
                                     </tr>
                                 </thead>
@@ -8966,6 +9657,7 @@ window.renderAdminDashboard = async function() {
                                 <option value="student">Student</option>
                                 <option value="teacher">Teacher</option>
                                 <option value="admin">Admin</option>
+                                <option value="super_admin">Super Admin</option>
                             </select>
                         </div>
                         <div>
@@ -8988,6 +9680,7 @@ window.renderAdminDashboard = async function() {
         // Populate users table
         const usersBody = document.getElementById('admin-users-body');
         const perPage = 20;
+        window._adminUsersDataAll = allUsers;
         window._adminUsersData = allUsers;
         window._adminUsersPage = 1;
         window.renderUserPage = function(p) {
@@ -9003,7 +9696,8 @@ window.renderAdminDashboard = async function() {
             const roleColors = {
                 'student': 'bg-blue-100 text-blue-800',
                 'teacher': 'bg-purple-100 text-purple-800',
-                'admin': 'bg-red-100 text-red-800'
+                'admin': 'bg-red-100 text-red-800',
+                'super_admin': 'bg-gray-900 text-white'
             };
 
             const statusColors = {
@@ -9034,6 +9728,10 @@ window.renderAdminDashboard = async function() {
                         ${userStatus.toUpperCase()}
                     </span>
                 </td>
+                <td class="px-5 py-4 text-sm">
+                    ${user.isOnline ? '<span class="inline-block w-2.5 h-2.5 rounded-full bg-green-500 mr-1.5" title="Online now"></span><span class="text-xs text-green-700 font-medium">Active</span>'
+                    : `<span class="inline-block w-2.5 h-2.5 rounded-full bg-gray-300 mr-1.5" title="Offline"></span><span class="text-xs text-gray-400">${user.lastSeen ? timeAgo(user.lastSeen) : 'Never'}</span>`}
+                </td>
                 <td class="px-5 py-4 text-sm text-center">
                     <button onclick="window.editUser('${user.id}')" class="mr-2 text-blue-600 hover:text-blue-900 font-semibold">Edit</button>
                     <button onclick="window.deleteUser('${user.id}')" class="text-red-600 hover:text-red-900 font-semibold">Delete</button>
@@ -9058,6 +9756,50 @@ window.renderAdminDashboard = async function() {
         }
         window.renderUserPage(1);
 
+        // Render charts
+        try {
+            setTimeout(function() {
+                if (typeof Chart === 'undefined') return;
+                const roleCtx = document.getElementById('role-chart');
+                const statusCtx = document.getElementById('status-chart');
+                if (roleCtx) {
+                    new Chart(roleCtx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['Student', 'Teacher', 'Admin', 'Super Admin'],
+                            datasets: [{
+                                data: [
+                                    allUsers.filter(u => u.role === 'student').length,
+                                    allUsers.filter(u => u.role === 'teacher').length,
+                                    allUsers.filter(u => u.role === 'admin').length,
+                                    allUsers.filter(u => u.role === 'super_admin').length
+                                ],
+                                backgroundColor: ['#3b82f6', '#8b5cf6', '#ef4444', '#111827']
+                            }]
+                        },
+                        options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } } }
+                    });
+                }
+                if (statusCtx) {
+                    new Chart(statusCtx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['Approved', 'Pending', 'Rejected'],
+                            datasets: [{
+                                data: [
+                                    allUsers.filter(u => u.status === 'approved' || !u.status).length,
+                                    allUsers.filter(u => u.status === 'pending').length,
+                                    allUsers.filter(u => u.status === 'rejected').length
+                                ],
+                                backgroundColor: ['#10b981', '#f59e0b', '#ef4444']
+                            }]
+                        },
+                        options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } } }
+                    });
+                }
+            }, 100);
+        } catch (e) { console.warn('Chart error:', e); }
+
     } catch (e) {
         console.error("Error loading admin dashboard:", e);
         contentDiv.innerHTML = '<p class="text-red-500 text-center">Error loading admin dashboard.</p>';
@@ -9067,19 +9809,26 @@ window.renderAdminDashboard = async function() {
 window.filterAdminTable = function() {
     const input = document.getElementById('admin-search-input');
     const filter = input ? input.value.toLowerCase().trim() : '';
-    const rows = document.querySelectorAll('#admin-users-body tr');
-    rows.forEach(row => {
-        const cells = row.querySelectorAll('td');
-        if (cells.length < 6) return;
-        const email = cells[1].textContent.toLowerCase();
-        const name = cells[2].textContent.toLowerCase();
-        const role = cells[3].textContent.toLowerCase();
-        const studentPhone = cells[4].textContent.toLowerCase();
-        const parentPhone = cells[5].textContent.toLowerCase();
-        const status = cells[6].textContent.toLowerCase();
-        const allText = [email, name, role, studentPhone, parentPhone, status].join(' ');
-        row.style.display = (!filter || allText.includes(filter)) ? '' : 'none';
+    const roleFilter = document.getElementById('admin-role-filter');
+    const selectedRole = roleFilter ? roleFilter.value : '';
+    const statusFilter = document.getElementById('admin-status-filter');
+    const selectedStatus = statusFilter ? statusFilter.value : '';
+    const allData = window._adminUsersDataAll || [];
+    const filtered = allData.filter(user => {
+        const email = (user.email || '').toLowerCase();
+        const name = (user.displayName || '').toLowerCase();
+        const studentPhone = (user.studentPhone || '').toLowerCase();
+        const parentPhone = (user.parentPhone || '').toLowerCase();
+        const role = (user.role || '').toLowerCase();
+        const status = (user.status || 'approved').toLowerCase();
+        const allText = [email, name, studentPhone, parentPhone].join(' ');
+        const matchesSearch = !filter || allText.includes(filter);
+        const matchesRole = !selectedRole || role === selectedRole;
+        const matchesStatus = !selectedStatus || status === selectedStatus;
+        return matchesSearch && matchesRole && matchesStatus;
     });
+    window._adminUsersData = filtered;
+    window.renderUserPage(1);
 }
 
 window.showAddUserModal = function() {
@@ -9145,6 +9894,7 @@ window.createNewUser = async function() {
         windowAuthRoutingLock = false;
         window.closeAddUserModal();
         logSystemEvent('Create User', 'Created ' + role + ' user: ' + email + ' (' + name + ')');
+        window.logAdminAction('Create User', 'Created ' + role + ' user: ' + email + ' (' + name + ')');
         window.renderAdminDashboard();
     } catch (e) {
         windowAuthRoutingLock = false;
@@ -9291,6 +10041,7 @@ window.deleteUser = async function(userId) {
 
             if (authDeleted) {
                 logSystemEvent('Delete User', 'Deleted user (Auth + Firestore): ' + userId + (email ? ' (' + email + ')' : ''));
+                window.logAdminAction('Delete User', 'Deleted ' + userId + (email ? ' (' + email + ')' : '') + ' — Auth + Firestore');
                 alert('✅ User deleted successfully.\n\nBoth the Auth account and Firestore data have been removed. The email address is now free to be used for a new sign-up.');
             } else {
                 if (email) {
@@ -9336,6 +10087,7 @@ window.editUser = async function(userId) {
                         <option value="student">Student</option>
                         <option value="teacher">Teacher</option>
                         <option value="admin">Admin</option>
+                        <option value="super_admin">Super Admin</option>
                     </select>
                 </div>
                 <div>
@@ -9346,9 +10098,10 @@ window.editUser = async function(userId) {
                     <label class="block font-semibold text-gray-700 mb-2">Parent Phone</label>
                     <input type="tel" id="edit-user-parent-phone" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                 </div>
-                <div>
-                    <label class="block font-semibold text-gray-700 mb-2">Change Password (Cloud Function - logging for now)</label>
-                    <input type="password" id="edit-user-password" placeholder="Leave blank to keep current" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <label class="block font-semibold text-blue-700 mb-2">Reset Password</label>
+                    <p class="text-xs text-blue-600 mb-2">Send a password reset email to the user. They will receive a link to set a new password.</p>
+                    <button onclick="window.sendResetPasswordEmail('${userId}', document.getElementById('edit-user-email').value)" class="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs font-semibold">Send Reset Email</button>
                 </div>
                 <div>
                     <label class="block font-semibold text-gray-700 mb-2">Status</label>
@@ -9423,6 +10176,19 @@ window.editUser = async function(userId) {
     }
 };
 
+window.sendResetPasswordEmail = async function(userId, email) {
+    if (!email) { window.showWarning('No email address for this user.'); return; }
+    if (!confirm('Send a password reset email to ' + email + '?')) return;
+    try {
+        const { sendPasswordResetEmail } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js");
+        await sendPasswordResetEmail(auth, email);
+        window.logAdminAction('Password Reset', 'Sent reset email to ' + email + ' (uid: ' + userId + ')');
+        window.showSuccess('Password reset email sent to ' + email);
+    } catch (e) {
+        window.showError('Failed to send reset email: ' + e.message);
+    }
+};
+
 window.closeEditUserModal = function() {
     const modal = document.getElementById('edit-user-modal');
     if (modal) modal.remove();
@@ -9435,7 +10201,6 @@ window.saveEditUser = async function(userId) {
     const studentPhone = document.getElementById('edit-user-student-phone').value.trim();
     const parentPhone = document.getElementById('edit-user-parent-phone').value.trim();
     const status = document.getElementById('edit-user-status').value;
-    const password = document.getElementById('edit-user-password').value.trim();
 
     // Collect visibleTests from checkboxes
     const testCbs = document.querySelectorAll('.test-visibility-cb');
@@ -9456,11 +10221,8 @@ window.saveEditUser = async function(userId) {
         }
         await updateDoc(doc(db, "users", userId), updateData);
 
-        if (password) {
-            // Password change would be handled via Cloud Function
-        }
-
         logSystemEvent('Edit User', 'Updated user: ' + userId + ' (role=' + role + ', status=' + status + ')');
+        window.logAdminAction('Edit User', 'Updated user ' + userId + ' — role=' + role + ', status=' + status);
         alert('User updated successfully!');
         window.closeEditUserModal();
         window.renderAdminDashboard();
@@ -9583,10 +10345,128 @@ window.clearAllLogs = async function() {
         const promises = [];
         snap.forEach(d => promises.push(deleteDoc(doc(db, "system_logs", d.id))));
         await Promise.all(promises);
+        window.logAdminAction('Clear Logs', 'Deleted all system_logs entries');
         window.showSuccess('All system logs cleared.');
         window.viewSystemLogs();
     } catch (e) {
         window.showError('Failed to clear logs: ' + e.message);
+    }
+};
+
+window.viewAdminActivityLog = async function() {
+    const contentDiv = document.getElementById('question-content');
+    showLoading('Loading activity log...');
+    try {
+        const auditSnap = await getDocs(collection(db, "audit_logs"));
+        let logs = [];
+        auditSnap.forEach(d => logs.push({ id: d.id, ...d.data() }));
+        logs.sort((a, b) => (b.timestamp?.toMillis?.() || 0) - (a.timestamp?.toMillis?.() || 0));
+
+        let rows = logs.slice(0, 200).map(log => {
+            const ts = log.timestamp?.toMillis ? new Date(log.timestamp.toMillis()).toLocaleString() : (log.timestamp ? new Date(log.timestamp).toLocaleString() : 'N/A');
+            const roleBadge = {
+                'super_admin': 'bg-gray-900 text-white',
+                'admin': 'bg-red-100 text-red-800',
+                'teacher': 'bg-purple-100 text-purple-800',
+                'student': 'bg-blue-100 text-blue-800'
+            }[log.actorRole] || 'bg-gray-100 text-gray-700';
+            return `
+            <tr class="border-b hover:bg-gray-50">
+                <td class="px-4 py-2 text-xs text-gray-500">${ts}</td>
+                <td class="px-4 py-2 text-sm font-medium">${log.action || '—'}</td>
+                <td class="px-4 py-2 text-sm">${log.actorName || log.actor || '—'}</td>
+                <td class="px-4 py-2 text-xs"><span class="px-2 py-0.5 rounded text-xs font-semibold ${roleBadge}">${log.actorRole || '—'}</span></td>
+                <td class="px-4 py-2 text-sm text-gray-600 max-w-xs truncate">${log.details || '—'}</td>
+            </tr>`;
+        }).join('');
+
+        const content = `
+            <div class="max-w-7xl">
+                <div class="flex justify-between items-center mb-6">
+                    <h1 class="text-3xl font-extrabold text-gray-800">Admin Activity Log</h1>
+                    <span class="text-sm text-gray-500">${logs.length} entries</span>
+                </div>
+                <div class="bg-white rounded-xl shadow-lg overflow-hidden overflow-x-auto">
+                    <table class="min-w-full">
+                        <thead><tr class="bg-gray-100 text-left text-xs font-semibold uppercase tracking-wider">
+                            <th class="px-4 py-3">Timestamp</th>
+                            <th class="px-4 py-3">Action</th>
+                            <th class="px-4 py-3">Actor</th>
+                            <th class="px-4 py-3">Role</th>
+                            <th class="px-4 py-3">Details</th>
+                        </tr></thead>
+                        <tbody>${rows || '<tr><td colspan="5" class="text-center py-8 text-gray-400">No admin activity recorded yet.</td></tr>'}</tbody>
+                    </table>
+                </div>
+                ${logs.length > 200 ? '<p class="text-sm text-gray-400 mt-2">Showing last 200 entries</p>' : ''}
+            </div>`;
+        contentDiv.innerHTML = sidebarWrapper(content, adminSidebarHtml('activity'));
+    } catch (e) {
+        contentDiv.innerHTML = `<p class="text-red-500 text-center">Error loading activity log: ${e.message}</p>`;
+    }
+};
+
+window.openEditQuestionModal = function(testId, questionIndex, currentText, currentAnswer) {
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    modal.innerHTML = `
+        <div class="bg-white rounded-xl shadow-2xl p-6 max-w-lg w-full mx-4">
+            <h3 class="text-xl font-bold mb-4">Edit Question</h3>
+            <div class="space-y-3">
+                <div>
+                    <label class="block font-semibold text-sm mb-1">Question Text</label>
+                    <textarea id="edit-q-text" class="w-full p-2 border rounded-lg text-sm" rows="3">${(currentText || '').replace(/"/g, '&quot;')}</textarea>
+                </div>
+                <div>
+                    <label class="block font-semibold text-sm mb-1">Correct Answer</label>
+                    <input type="text" id="edit-q-answer" class="w-full p-2 border rounded-lg text-sm" value="${(currentAnswer || '').replace(/"/g, '&quot;')}">
+                </div>
+                <div class="flex gap-2 pt-2">
+                    <button onclick="window.saveEditedQuestion('${testId}', ${questionIndex})" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold text-sm">Save</button>
+                    <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500 font-semibold text-sm">Cancel</button>
+                </div>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+};
+
+window.saveEditedQuestion = async function(testId, questionIndex) {
+    const text = document.getElementById('edit-q-text').value.trim();
+    const answer = document.getElementById('edit-q-answer').value.trim();
+    if (!text) { window.showWarning('Question text is required.'); return; }
+    try {
+        const testRef = doc(db, "custom_tests", testId);
+        const testSnap = await getDoc(testRef);
+        if (!testSnap.exists()) { window.showError('Test not found.'); return; }
+        const data = testSnap.data();
+        const questions = [...(data.questions || [])];
+        if (!questions[questionIndex]) { window.showError('Question not found.'); return; }
+        questions[questionIndex] = { ...questions[questionIndex], text, correctAnswer: answer };
+        await updateDoc(testRef, { questions });
+        window.logAdminAction('Edit Question', 'Test: ' + testId + ' Q#' + questionIndex);
+        window.showSuccess('Question updated!');
+        document.querySelector('.fixed')?.remove();
+        window.manageTestBank();
+    } catch (e) {
+        window.showError('Error saving: ' + e.message);
+    }
+};
+
+window.deleteQuestion = async function(testId, questionIndex) {
+    if (!confirm('Delete this question? This cannot be undone.')) return;
+    try {
+        const testRef = doc(db, "custom_tests", testId);
+        const testSnap = await getDoc(testRef);
+        if (!testSnap.exists()) { window.showError('Test not found.'); return; }
+        const data = testSnap.data();
+        const questions = [...(data.questions || [])];
+        questions.splice(questionIndex, 1);
+        await updateDoc(testRef, { questions });
+        window.logAdminAction('Delete Question', 'Test: ' + testId + ' Q#' + questionIndex);
+        window.showSuccess('Question deleted!');
+        window.manageTestBank();
+    } catch (e) {
+        window.showError('Error deleting: ' + e.message);
     }
 };
 
@@ -9607,11 +10487,11 @@ window.manageTestBank = async function() {
             <tr class="border-b hover:bg-gray-50">
                 <td class="px-4 py-2 text-sm">${i + 1}</td>
                 <td class="px-4 py-2 text-sm">${q.testName || '—'}</td>
-                <td class="px-4 py-2 text-sm max-w-xs truncate">${q.text || '—'}</td>
+                <td class="px-4 py-2 text-sm max-w-xs truncate">${(q.text || '—').replace(/</g, '&lt;')}</td>
                 <td class="px-4 py-2 text-sm">${q.correctAnswer || '—'}</td>
                 <td class="px-4 py-2 text-sm">
-                    <button onclick="alert('Edit question feature - testId: ${q.testId}, index: ${q.questionIndex}')" class="text-blue-600 hover:underline mr-2">Edit</button>
-                    <button onclick="alert('Delete question feature - testId: ${q.testId}, index: ${q.questionIndex}')" class="text-red-600 hover:underline">Delete</button>
+                    <button onclick="window.openEditQuestionModal('${q.testId}', ${q.questionIndex}, '${(q.text || '').replace(/'/g, "\\'").replace(/</g, '&lt;').replace(/>/g, '&gt;')}', '${(q.correctAnswer || '').replace(/'/g, "\\'")}')" class="text-blue-600 hover:underline mr-2 text-xs font-semibold">Edit</button>
+                    <button onclick="window.deleteQuestion('${q.testId}', ${q.questionIndex})" class="text-red-600 hover:underline text-xs font-semibold">Delete</button>
                 </td>
             </tr>
         `).join('');
@@ -9696,6 +10576,7 @@ window.systemSettings = async function() {
 window.toggleSetting = async function(key, value) {
     try {
         await setDoc(doc(db, "settings", "platform"), { [key]: value }, { merge: true });
+        window.logAdminAction('Change Setting', key + ' = ' + value);
         alert(`Setting "${key}" updated to ${value}`);
     } catch (e) {
         alert('Error updating setting: ' + e.message);
@@ -9756,7 +10637,7 @@ window.manageStudentTestAccess = async function() {
                 </div>
             </div>`;
 
-        const sidebar = window.state.role === 'admin' ? adminSidebarHtml('testaccess') : teacherSidebarHtml('testaccess');
+        const sidebar = (window.state.role === 'admin' || window.state.role === 'super_admin') ? adminSidebarHtml('testaccess') : teacherSidebarHtml('testaccess');
         contentDiv.innerHTML = sidebarWrapper(html, sidebar);
     } catch (e) {
         contentDiv.innerHTML = '<p class="text-red-500 text-center">Error: ' + e.message + '</p>';
@@ -10441,11 +11322,11 @@ window.downloadCsvTemplate = function() {
 // ═══════════════════════════════════════════════════════════════
 window.renderEbookManager = async function() {
     const role = window.state?.role;
-    if (role !== 'admin' && role !== 'teacher') { window.showError('Access denied.'); return; }
+    if (role !== 'admin' && role !== 'super_admin' && role !== 'teacher') { window.showError('Access denied.'); return; }
     hideTestUIElements();
     const contentDiv = document.getElementById('question-content');
     contentDiv.classList.remove('flex', 'items-center', 'justify-center');
-    const sidebar = role === 'admin' ? adminSidebarHtml('ebooks') : teacherSidebarHtml('ebooks');
+    const sidebar = (role === 'admin' || role === 'super_admin') ? adminSidebarHtml('ebooks') : teacherSidebarHtml('ebooks');
     document.getElementById('header-test-info').textContent = 'E-Book Library';
     showLoading('Loading E-Books...');
     try {
@@ -11181,19 +12062,45 @@ window.renderWeakPoints = async function() {
             }
         });
 
+        // Build category performance trends over time (chronological order)
+        const chronResults = [...results].reverse();
+        const categoryTrends = {};
+        chronResults.forEach(r => {
+            if (r.categoryScores) {
+                for (const [id, cs] of Object.entries(r.categoryScores)) {
+                    if (!categoryTrends[id]) categoryTrends[id] = [];
+                    categoryTrends[id].push({
+                        pct: cs.total > 0 ? Math.round((cs.correct / cs.total) * 100) : 0
+                    });
+                }
+            }
+        });
+
         const topics = Object.entries(aggregated)
             .filter(([, s]) => s.total > 0)
-            .map(([id, s]) => ({
-                id,
-                label: s.label,
-                correct: s.correct,
-                total: s.total,
-                percentage: Math.round((s.correct / s.total) * 100),
-                wrongCount: s.total - s.correct
-            }))
+            .map(([id, s]) => {
+                const trends = categoryTrends[id] || [];
+                const firstPct = trends.length > 0 ? trends[0].pct : null;
+                const lastPct = trends.length > 0 ? trends[trends.length - 1].pct : null;
+                const trend = firstPct !== null && lastPct !== null ? lastPct - firstPct : 0;
+                const recentStruggles = trends.slice(-2).filter(t => t.pct < 70).length;
+                const freqWeak = trends.length > 0 ? trends.filter(t => t.pct < 70).length / trends.length : 0;
+                const severity = s.total > 0 ? (s.total - s.correct) / s.total : 0;
+                const priority = Math.round((severity * 0.4 + recentStruggles / 2 * 0.3 + freqWeak * 0.3) * 10);
+                return {
+                    id,
+                    label: s.label,
+                    correct: s.correct,
+                    total: s.total,
+                    percentage: Math.round((s.correct / s.total) * 100),
+                    wrongCount: s.total - s.correct,
+                    trend,
+                    priority
+                };
+            })
             .sort((a, b) => a.percentage - b.percentage);
 
-        const weakTopics = topics.filter(t => t.percentage < 70);
+        const weakTopics = topics.filter(t => t.percentage < 70).sort((a, b) => b.priority - a.priority || a.percentage - b.percentage);
         const strongTopics = topics.filter(t => t.percentage >= 70);
 
         const wrongByTopic = {};
@@ -11229,6 +12136,36 @@ window.renderWeakPoints = async function() {
         if (topics.length === 0) {
             html += `<div class="bg-gray-50 rounded-xl p-8 text-center text-gray-500">No topic data available.</div>`;
         } else {
+            // Performance trends sparklines
+            const catTrendEntries = Object.entries(categoryTrends).filter(([, arr]) => arr.length >= 2);
+            if (catTrendEntries.length > 0) {
+                html += `
+                <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4">📈 Performance Trends</h3>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        ${catTrendEntries.map(([id, arr]) => {
+                            const label = (aggregated[id] && aggregated[id].label) || id;
+                            const firstPct = arr[0].pct;
+                            const lastPct = arr[arr.length - 1].pct;
+                            const change = lastPct - firstPct;
+                            const changeIcon = change > 5 ? '↑' : change < -5 ? '↓' : '→';
+                            const changeColor = change > 5 ? 'text-green-600' : change < -5 ? 'text-red-600' : 'text-gray-400';
+                            return `
+                            <div class="bg-gray-50 rounded-lg p-3 text-center">
+                                <p class="text-xs font-semibold text-gray-700 truncate" title="${label}">${label}</p>
+                                <div class="flex items-end justify-center gap-0.5 h-10 my-1.5">
+                                    ${arr.slice(-5).map(t => `<div class="w-2.5 ${t.pct >= 70 ? 'bg-green-400' : t.pct >= 50 ? 'bg-yellow-400' : 'bg-red-400'} rounded-t" style="height:${Math.max(t.pct / 10 * 1.5, 2)}px" title="${t.pct}%"></div>`).join('')}
+                                </div>
+                                <div class="flex justify-center items-center gap-1">
+                                    <span class="text-xs font-bold text-gray-700">${lastPct}%</span>
+                                    <span class="text-xs ${changeColor} font-bold">${changeIcon}</span>
+                                </div>
+                            </div>`;
+                        }).join('')}
+                    </div>
+                </div>`;
+            }
+
             html += `
             <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
                 <h3 class="text-lg font-bold text-gray-800 mb-4">📊 Topic Breakdown</h3>
@@ -11237,6 +12174,9 @@ window.renderWeakPoints = async function() {
                         const isWeak = t.percentage < 70;
                         const barColor = t.percentage >= 80 ? 'bg-green-400' : t.percentage >= 60 ? 'bg-yellow-400' : 'bg-red-400';
                         const textColor = t.percentage >= 80 ? 'text-green-600' : t.percentage >= 60 ? 'text-yellow-600' : 'text-red-600';
+                        const trendIcon = t.trend > 5 ? '↑' : t.trend < -5 ? '↓' : '→';
+                        const trendColor = t.trend > 5 ? 'text-green-500' : t.trend < -5 ? 'text-red-500' : 'text-gray-400';
+                        const trendTitle = t.trend > 5 ? 'Improving' : t.trend < -5 ? 'Declining' : 'Stable';
                         return `
                         <div>
                             <div class="flex justify-between items-center mb-1">
@@ -11244,12 +12184,13 @@ window.renderWeakPoints = async function() {
                                     <span class="font-semibold text-gray-800 text-sm">${t.label}</span>
                                     ${isWeak ? '<span class="text-xs text-red-500 ml-2">⚠️ Weak</span>' : '<span class="text-xs text-green-500 ml-2">✅ Strong</span>'}
                                 </div>
-                                <span class="text-sm font-bold ${textColor}">${t.percentage}%</span>
+                                <span class="text-sm font-bold ${textColor}">${t.percentage}% <span class="text-xs ${trendColor} font-normal" title="${trendTitle}">${trendIcon}</span></span>
                             </div>
                             <div class="w-full h-2.5 bg-gray-200 rounded-full overflow-hidden">
                                 <div class="h-full ${barColor} rounded-full transition-all" style="width:${t.percentage}%"></div>
                             </div>
                             <p class="text-xs text-gray-500 mt-0.5">${t.correct}/${t.total} correct · ${t.wrongCount} wrong</p>
+                            <div id="ai-insight-${t.id}" class="ai-insight text-xs text-indigo-600 mt-1 hidden"></div>
                         </div>`;
                     }).join('')}
                 </div>
@@ -11259,20 +12200,29 @@ window.renderWeakPoints = async function() {
                 html += `
                 <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
                     <h3 class="text-lg font-bold text-red-700 mb-4">⚠️ Weak Topics — Review & Practice</h3>
+                    <div id="ai-overall-analysis" class="hidden"></div>
                     <div class="space-y-4">
                         ${weakTopics.map(t => {
                             const wrong = wrongByTopic[t.label] || [];
                             const displayWrong = wrong.slice(0, 10);
+                            const priorityLabel = t.priority >= 7 ? 'High Priority' : t.priority >= 4 ? 'Medium Priority' : 'Low Priority';
+                            const priorityColor = t.priority >= 7 ? 'bg-red-100 text-red-700 border-red-200' : t.priority >= 4 ? 'bg-yellow-100 text-yellow-700 border-yellow-200' : 'bg-gray-100 text-gray-600 border-gray-200';
                             return `
                             <div class="border border-red-200 rounded-xl overflow-hidden">
                                 <div onclick="this.nextElementSibling.classList.toggle('hidden'); this.querySelector('svg').classList.toggle('rotate-180')" class="flex justify-between items-center p-3 bg-red-50 cursor-pointer hover:bg-red-100 transition">
-                                    <div>
+                                    <div class="flex items-center gap-2">
                                         <span class="font-semibold text-gray-800">${t.label}</span>
-                                        <span class="text-sm text-gray-500 ml-2">${t.percentage}% — ${wrong.length} wrong</span>
+                                        <span class="text-xs px-2 py-0.5 rounded-full border ${priorityColor}">${priorityLabel}</span>
+                                        <span class="text-sm text-gray-500">${t.percentage}% — ${wrong.length} wrong</span>
                                     </div>
                                     <svg class="w-4 h-4 text-gray-500 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                                 </div>
                                 <div class="hidden p-3 space-y-2 bg-white">
+                                    <div class="flex flex-wrap gap-2 mb-2">
+                                        <button id="ai-tip-btn-${t.id}" onclick="window.getAiStudyTipForTopic('${t.label.replace(/'/g, "\\'")}','${t.id}')" class="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs font-semibold rounded-lg transition">🤖 Study Tips</button>
+                                        <button onclick="window.generateWeakTopicPracticeForTopic('${t.id}','${t.label.replace(/'/g, "\\'")}')" class="px-3 py-1.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 text-xs font-semibold rounded-lg transition">📝 Practice This</button>
+                                    </div>
+                                    <div id="ai-tip-output-${t.id}" class="hidden"></div>
                                     ${displayWrong.map(q => `
                                     <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
                                         <div class="text-sm text-gray-800 mb-1">${renderMathInString(q.text)}</div>
@@ -11317,9 +12267,156 @@ window.renderWeakPoints = async function() {
         contentDiv.innerHTML = sidebarWrapper(html, studentSidebarHtml('weak_points'));
         if (typeof renderMathAll === 'function') renderMathAll();
         if (typeof renderMath === 'function') renderMath('question-content');
+        // Fire-and-forget AI analysis to populate insights
+        window.fetchAndRenderWeakPointAiAnalysis(topics, weakTopics, wrongByTopic);
     } catch (e) {
         console.error('renderWeakPoints error:', e);
         contentDiv.innerHTML = sidebarWrapper('<div class="text-center p-8 text-red-600 font-bold">Failed to load weak points.</div>', studentSidebarHtml('weak_points'));
+    }
+};
+
+// ── AI Study Tips for Weak Topic ──
+window.getAiStudyTipForTopic = async function(topicLabel, topicId) {
+    var btn = document.getElementById('ai-tip-btn-' + topicId);
+    var output = document.getElementById('ai-tip-output-' + topicId);
+    if (!btn || !output) return;
+    btn.disabled = true;
+    btn.textContent = 'Generating...';
+    output.classList.remove('hidden');
+    output.innerHTML = '<div class="text-gray-500 text-sm animate-pulse">Generating personalized study tips...</div>';
+    try {
+        var prompt = 'You are an expert SAT Math tutor. A student is struggling with "' + topicLabel + '". '
+            + 'Provide 3-5 specific, actionable study tips to improve in this area. '
+            + 'Focus on DSAT-specific strategies, common pitfalls, and key concepts to review. '
+            + 'Keep each tip concise (1-2 sentences). Format as a numbered list. '
+            + 'Return ONLY the tips, no extra commentary.';
+        var provider = window.getAiProvider();
+        var key = localStorage.getItem('global_ai_tutor_groq_key') || localStorage.getItem('global_ai_tutor_gemini_key') || '';
+        var reply;
+        if (provider === 'ollama') { reply = await askOllama(prompt); }
+        else if (provider === 'gemini') { reply = await askGemini(prompt); }
+        else {
+            var groqKey = localStorage.getItem('global_ai_tutor_groq_key') || '';
+            var model = localStorage.getItem('global_ai_tutor_groq_model') || 'llama-3.1-8b-instant';
+            var r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + groqKey, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: model, messages: [{ role: 'user', content: prompt }], temperature: 0.5, max_tokens: 500 })
+            });
+            if (!r.ok) throw new Error('AI request failed: ' + r.status);
+            var data = await r.json();
+            reply = data.choices?.[0]?.message?.content;
+        }
+        if (reply) {
+            output.innerHTML = '<div class="text-sm text-gray-700 leading-relaxed">' + renderMathInString(reply.replace(/\n/g, '<br>')) + '</div>';
+        } else {
+            output.innerHTML = '<div class="text-sm text-gray-500">Could not generate tips. Check your AI provider settings.</div>';
+        }
+    } catch (e) {
+        console.error('AI study tip error:', e);
+        output.innerHTML = '<div class="text-sm text-red-500">Failed to generate study tips. ' + (e.message || '') + '</div>';
+    }
+    btn.disabled = false;
+    btn.textContent = '🔄 Regenerate';
+};
+
+// ── Generate Practice for Specific Topic ──
+window.generateWeakTopicPracticeForTopic = function(topicId, topicLabel) {
+    var keywords = (AI_TOPICS[topicId] && AI_TOPICS[topicId].keywords) || [topicLabel.toLowerCase()];
+    var matched = [];
+    Object.values(ALL_TEST_QUESTIONS).forEach(function(td) {
+        var pool = td.M1 || td.M2E || td.M2H || [];
+        pool.forEach(function(q) {
+            var text = (q.text || '').toLowerCase();
+            var cat = (q.category || q.topic || '').toLowerCase();
+            if (keywords.some(function(kw) { return text.includes(kw) || cat.includes(kw); })) {
+                if (!matched.some(function(m) { return m.text === q.text; })) {
+                    matched.push({ text: q.text, choices: q.options || [], correctAnswer: q.correctAnswer, type: q.type || 'MC', explanation: q.explanation || '' });
+                }
+            }
+        });
+    });
+    if (matched.length === 0) {
+        window.showWarning('No practice questions found for ' + topicLabel + '.');
+        return;
+    }
+    var shuffled = matched.sort(function() { return Math.random() - 0.5; }).slice(0, 10);
+    var quizKey = '_topic_' + topicId + '_' + Date.now();
+    PRACTICE_QUIZZES[quizKey] = { name: topicLabel + ' Practice', questions: shuffled };
+    if (typeof window.toggleSidebar === 'function') window.toggleSidebar(false);
+    window.startPracticeQuiz(quizKey);
+};
+
+// ── Auto AI Analysis for Weak Points Page ──
+window.fetchAndRenderWeakPointAiAnalysis = async function(topics, weakTopics, wrongByTopic) {
+    var overallEl = document.getElementById('ai-overall-analysis');
+    if (!overallEl) return;
+    var missingKey = !localStorage.getItem('global_ai_tutor_groq_key') && !localStorage.getItem('global_ai_tutor_gemini_key') && window.getAiProvider() !== 'ollama';
+    if (missingKey) return;
+    try {
+        var prompt = 'You are an expert SAT Math tutor. Analyze this student\'s performance and return ONLY valid JSON with no other text.\n\n';
+        prompt += 'Topic scores:\n';
+        topics.forEach(function(t) {
+            prompt += '- ' + t.label + ': ' + t.correct + '/' + t.total + ' (' + t.percentage + '%)\n';
+        });
+        prompt += '\nWrong answers by topic:\n';
+        Object.entries(wrongByTopic).forEach(function([topic, questions]) {
+            prompt += '- ' + topic + ': ' + questions.length + ' wrong\n';
+            questions.slice(0, 2).forEach(function(q) {
+                var txt = (q.text || '').replace(/<[^>]*>/g, '').substring(0, 80);
+                prompt += '  Q: "' + txt + '" (you: ' + q.userAnswer + ', correct: ' + q.correctAnswer + ')\n';
+            });
+        });
+        prompt += '\nReturn JSON: {"overall_summary":"2-3 sentence analysis of patterns","topic_insights":{"TOPIC_ID":"one-sentence insight"},"study_plan":"2-3 sentence focused study plan"}';
+
+        overallEl.classList.remove('hidden');
+        overallEl.innerHTML = '<div class="bg-indigo-50 border border-indigo-200 rounded-lg p-3 mb-4"><div class="text-indigo-600 text-sm flex items-center gap-2"><svg class="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> AI analyzing your performance...</div></div>';
+
+        var provider = window.getAiProvider();
+        var reply;
+        if (provider === 'ollama') { reply = await askOllama(prompt); }
+        else if (provider === 'gemini') { reply = await askGemini(prompt); }
+        else {
+            var groqKey = localStorage.getItem('global_ai_tutor_groq_key') || '';
+            var model = localStorage.getItem('global_ai_tutor_groq_model') || 'llama-3.1-8b-instant';
+            var r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + groqKey, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: model, messages: [{ role: 'user', content: prompt }], temperature: 0.3, max_tokens: 800 })
+            });
+            if (!r.ok) throw new Error('AI request failed: ' + r.status);
+            var data = await r.json();
+            reply = data.choices?.[0]?.message?.content;
+        }
+        if (!reply) throw new Error('No reply');
+
+        var match = reply.match(/\{[\s\S]*\}/);
+        if (!match) throw new Error('No JSON found');
+        var parsed = JSON.parse(match[0]);
+
+        var mainHtml = '';
+        if (parsed.overall_summary) {
+            mainHtml += '<div class="text-sm text-indigo-800 leading-relaxed">🤖 <strong>AI Analysis:</strong> ' + renderMathInString(parsed.overall_summary) + '</div>';
+        }
+        if (parsed.study_plan) {
+            mainHtml += '<div class="text-sm text-indigo-700 mt-2 pt-2 border-t border-indigo-200">📋 <strong>Study Plan:</strong> ' + renderMathInString(parsed.study_plan) + '</div>';
+        }
+        if (mainHtml) {
+            overallEl.innerHTML = '<div class="bg-indigo-50 border border-indigo-200 rounded-lg p-3 mb-4">' + mainHtml + '</div>';
+        }
+
+        if (parsed.topic_insights) {
+            Object.entries(parsed.topic_insights).forEach(function([id, insight]) {
+                var el = document.getElementById('ai-insight-' + id);
+                if (el && insight) {
+                    el.classList.remove('hidden');
+                    el.textContent = '💡 ' + insight;
+                }
+            });
+        }
+    } catch (e) {
+        console.error('AI weak point analysis error:', e);
+        overallEl.classList.add('hidden');
     }
 };
 
